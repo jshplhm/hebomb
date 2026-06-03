@@ -1065,6 +1065,35 @@ input[type=number] { -moz-appearance: textfield; }
 }
 .bw-quick-save:active { opacity: 0.75; }
 
+/* ── BW RANGE TOGGLE ──────────────────────────────────────────────────────── */
+.bw-range-toggle {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.bw-range-btn {
+  flex: 1;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--sub);
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  padding: 8px 4px;
+  cursor: pointer;
+  transition: all 0.12s;
+  -webkit-tap-highlight-color: transparent;
+}
+.bw-range-btn.active {
+  background: var(--yellow);
+  border-color: var(--yellow);
+  color: #0a0a0a;
+}
+.bw-range-btn:active { opacity: 0.7; }
+
 .btn-log-bw {
   background: transparent;
   border: 1.5px solid var(--yellow);
