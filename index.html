@@ -899,19 +899,16 @@ input[type=number] { -moz-appearance: textfield; }
 /* ── BOTTOM NAV ───────────────────────────────────────────────────────────── */
 .bottom-nav {
   position: fixed;
-  bottom: 0; left: 0; right: 0;
-  /* Height = nav buttons + system gesture bar */
+  bottom: 0;
+  left: 0;
+  right: 0;
   height: calc(var(--nav-h) + var(--safe-bot));
   background: var(--surface);
   border-top: 1px solid var(--border);
   display: flex;
-  max-width: 480px;
-  margin: 0 auto;
+  align-items: center;
   z-index: 100;
-  /* Push the button row UP above the gesture bar */
   padding-bottom: var(--safe-bot);
-  /* Prevent the gesture bar area from being tappable nav area */
-  align-items: flex-start;
 }
 }
 
@@ -1666,10 +1663,10 @@ input[type=number] { -moz-appearance: textfield; }
 <div id="app"></div>
 
 <!-- ?v=YYYYMMDD-N — increment the number each deploy to bust browser/PWA cache -->
-<script src="js/config.js?v=20260603-5"></script>
-<script src="js/program.js?v=20260603-5"></script>
-<script src="js/app.js?v=20260603-5"></script>
-<script src="js/ui.js?v=20260603-5"></script>
+<script src="js/config.js?v=20260603-7"></script>
+<script src="js/program.js?v=20260603-7"></script>
+<script src="js/app.js?v=20260603-7"></script>
+<script src="js/ui.js?v=20260603-7"></script>
 <script>
   document.addEventListener("DOMContentLoaded", () => UI.init());
 </script>
