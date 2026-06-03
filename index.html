@@ -41,7 +41,7 @@
   --purple:  #b87fff;
 
   /* Nav */
-  --nav-h:   60px;
+  --nav-h:   68px;
   --safe-bot: env(safe-area-inset-bottom, 0px);
 }
 
@@ -80,7 +80,7 @@ input[type=number] { -moz-appearance: textfield; }
 
 /* ── PAGE HEADER ─────────────────────────────────────────────────────────── */
 .page-header {
-  padding: 56px 0 18px;
+  padding: 36px 0 16px;
   border-bottom: 1px solid var(--border);
   margin-bottom: 20px;
 }
@@ -925,10 +925,10 @@ input[type=number] { -moz-appearance: textfield; }
   -webkit-tap-highlight-color: transparent;
 }
 .nav-btn.active { color: var(--yellow); }
-.nav-icon { width: 22px; height: 22px; display: block; }
+.nav-icon { width: 24px; height: 24px; display: block; }
 .nav-label {
   font-family: 'Barlow Condensed', sans-serif;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 1.5px;
   text-transform: uppercase;
@@ -1000,6 +1000,70 @@ input[type=number] { -moz-appearance: textfield; }
 .bw-current { font-family: 'Barlow Condensed', sans-serif; font-size: 38px; font-weight: 900; color: var(--yellow); line-height: 1; }
 .bw-goal { font-size: 12px; color: var(--sub); margin-top: 4px; }
 .bw-goal.in-goal { color: var(--green); }
+
+/* ── BODYWEIGHT QUICK ENTRY ───────────────────────────────────────────────── */
+/* Always-visible inline row: [number] lbs [date] [Save] */
+.bw-quick-entry {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+}
+.bw-quick-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.bw-quick-num {
+  background: var(--card2);
+  border: 1px solid var(--border2);
+  border-radius: 4px;
+  color: var(--yellow);
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 28px;
+  font-weight: 900;
+  width: 100px;
+  text-align: center;
+  padding: 6px 4px;
+  flex-shrink: 0;
+}
+.bw-quick-num:focus { outline: none; border-color: var(--yellow); background: var(--lift); }
+.bw-quick-num::placeholder { color: var(--muted); }
+.bw-quick-unit {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 16px;
+  color: var(--sub);
+  flex-shrink: 0;
+}
+.bw-quick-date-input {
+  flex: 1;
+  background: var(--card2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--sub);
+  font-size: 13px;
+  padding: 8px 8px;
+  min-width: 0;
+}
+.bw-quick-date-input:focus { outline: none; border-color: var(--yellow); }
+.bw-quick-save {
+  background: var(--yellow);
+  color: #0a0a0a;
+  border: none;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  padding: 9px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity 0.1s;
+}
+.bw-quick-save:active { opacity: 0.75; }
 
 .btn-log-bw {
   background: transparent;
