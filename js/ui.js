@@ -282,7 +282,9 @@ const UI = {
     if (day.sportOnly) {
       wrap.appendChild(this.renderSportLog(session, day));
     } else {
-      day.exercises.forEach((ex, ei) => {
+      // Render from session.exercises (not day.exercises) so added exercises appear.
+      // session.exercises carries all the data we need (name, sets, rest, tip, bodyweight).
+      session.exercises.forEach((ex, ei) => {
         wrap.appendChild(this.renderExerciseBlock(ex, ei, session));
       });
 
@@ -371,17 +373,41 @@ const UI = {
   _renderSetRow(ex, ei, si, set) {
     const isExcluded = set.excluded || false;
     const isDone     = set.logged  || false;
+
+    // Bodyweight exercises: show the prescription as plain text, no weight column
+    if (ex.bodyweight) {
+      return `
+        <div class="set-row${isExcluded ? " excluded" : ""}" id="set-${ei}-${si}">
+          <span class="set-num">${si + 1}</span>
+          <span class="set-bw-label" colspan="2">${set.reps}</span>
+          <span class="set-bw-spacer"></span>
+          <button class="set-done ${isDone ? "checked" : ""}"
+            onclick="UI.toggleSet(${ei}, ${si})">
+            ${isDone ? "✓" : ""}
+          </button>
+          <button class="set-exclude" onclick="UI.toggleExclude(${ei}, ${si})" title="Skip this set">
+            ${isExcluded ? "↩" : "✕"}
+          </button>
+        </div>
+      `;
+    }
+
+    // Regular exercise: tapping the set number copies values down to remaining sets
+    const canCopyDown = si < (App.state.session?.exercises?.[ei]?.sets?.length - 1);
     return `
       <div class="set-row${isExcluded ? " excluded" : ""}" id="set-${ei}-${si}">
-        <span class="set-num">${si + 1}${set.note ? `<em>${set.note}</em>` : ""}</span>
+        <span class="set-num ${canCopyDown ? "copyable" : ""}"
+          onclick="${canCopyDown ? `UI._copySetDown(${ei}, ${si})` : ""}"
+          title="${canCopyDown ? "Tap to copy reps & weight to sets below" : ""}">
+          ${si + 1}${set.note ? `<em>${set.note}</em>` : ""}
+          ${canCopyDown ? `<em class="copy-hint">↓</em>` : ""}
+        </span>
         <input class="set-input" type="number" inputmode="decimal"
           value="${set.reps}" placeholder="reps"
-          onchange="UI.updateSet(${ei}, ${si}, 'reps', this.value)"
-          ${ex.bodyweight ? 'readonly style="color:var(--muted)"' : ""}>
+          onchange="UI.updateSet(${ei}, ${si}, 'reps', this.value)">
         <input class="set-input weight-input" type="number" inputmode="decimal"
-          value="${ex.bodyweight ? "" : set.weight}" placeholder="${ex.bodyweight ? "BW" : "lbs"}"
-          onchange="UI.updateSet(${ei}, ${si}, 'weight', this.value)"
-          ${ex.bodyweight ? 'readonly style="color:var(--muted)"' : ""}>
+          value="${set.weight}" placeholder="lbs"
+          onchange="UI.updateSet(${ei}, ${si}, 'weight', this.value)">
         <button class="set-done ${isDone ? "checked" : ""}"
           onclick="UI.toggleSet(${ei}, ${si})">
           ${isDone ? "✓" : ""}
@@ -391,6 +417,26 @@ const UI = {
         </button>
       </div>
     `;
+  },
+
+  // Copy reps+weight from set si down to all subsequent sets in exercise ei
+  _copySetDown(ei, si) {
+    const sets = App.state.session?.exercises?.[ei]?.sets;
+    if (!sets) return;
+    const src = sets[si];
+    for (let i = si + 1; i < sets.length; i++) {
+      if (sets[i].excluded) continue;
+      sets[i].reps   = src.reps;
+      sets[i].weight = src.weight;
+      // Update DOM inputs directly — avoids full re-render
+      const row = document.getElementById(`set-${ei}-${i}`);
+      if (row) {
+        const inputs = row.querySelectorAll(".set-input");
+        if (inputs[0]) inputs[0].value = src.reps;
+        if (inputs[1]) inputs[1].value = src.weight;
+      }
+    }
+    this.showToast("Copied down ↓");
   },
 
   renderSportLog(session, day) {
