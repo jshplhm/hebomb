@@ -129,50 +129,66 @@ const UI = {
   // ── HOME ──────────────────────────────────────────────────────────────────
   renderHome() {
     const wrap = this.el("div", "page");
-    const suggestedId = App.getSuggestedDay();
-    const suggested = PROGRAM[suggestedId];
-    const dateStr = new Date().toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
-    const currentWeek = getCurrentWeek();
-    const weekData = WEEKS[currentWeek];
-    const phase = weekData.phase;
+    const suggestedId  = App.getSuggestedDay();
+    const suggested    = PROGRAM[suggestedId];
+    const currentWeek  = getCurrentWeek();
+    const weekData     = WEEKS[currentWeek];
+    const phase        = weekData.phase;
+    const phaseId      = weekData.phaseId;
+    const dow          = new Date().getDay();
+    const dateStr      = new Date().toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
 
-    // Human-readable reason why this workout is suggested
-    const dayNames = { dayA: "Upper Push+Pull (Mon)", dayB: "Lower+Core (Wed)", dayC: "Olympic (Fri)", sport: "Sport / Active Recovery" };
-    const dow = new Date().getDay(); // 0=Sun
-    const scheduleNote = dow === 0 || dow === 2 || dow === 4 || dow === 6
-      ? "Today's a rest/sport day — active recovery keeps the streak."
-      : `Your schedule puts ${dayNames[suggestedId] || suggested.title} today.`;
+    // Week progress dots — which days have been logged this week
+    const dayOrder = ["dayA", "dayB", "dayC", "sport"];
+    const dayLabels = { dayA: "Upper", dayB: "Lower", dayC: "Olympic", sport: "Sport" };
+    const history = App.state.history || [];
+    const weekStart = this._weekStart();
+    const loggedThisWeek = new Set(
+      history.filter(s => s.date >= weekStart).map(s => s.dayId)
+    );
+    const sessionTarget = 3;
+    const sessionsDone  = Math.min(loggedThisWeek.size, sessionTarget);
 
     wrap.innerHTML = `
-      <header class="page-header">
-        <div class="header-label">${dateStr}</div>
-        <h1 class="page-title">TODAY</h1>
+      <header class="page-header-compact">
+        <div class="compact-date-row">
+          <span class="compact-date">${dateStr}</span>
+          <span class="phase-badge phase-badge-${phaseId}">Wk ${currentWeek} · ${phase.label}</span>
+        </div>
+        <h1 class="page-title-compact">Today</h1>
       </header>
 
-      <div class="week-banner">
-        <div class="week-banner-left">
-          <div class="week-banner-num">WEEK ${currentWeek} <span class="week-of">/ 13</span></div>
-          <div class="week-banner-phase phase-text-${weekData.phaseId}">${phase.label}</div>
-          <div class="week-banner-tip">${phase.tip}</div>
+      <div class="hero-card phase-bg-${phaseId}">
+        <div class="hero-label">Today's Workout</div>
+        <div class="hero-title">${suggested.title}</div>
+        <div class="hero-tip">${phase.tip}</div>
+        <button class="btn-primary" onclick="UI.startDay('${suggestedId}')">Start Workout</button>
+      </div>
+
+      <div class="week-progress-card">
+        <div class="week-progress-top">
+          <span class="week-progress-label">This week</span>
+          <span class="week-progress-count">${sessionsDone} of ${sessionTarget} workouts</span>
         </div>
-        <div class="week-banner-controls">
-          <button class="week-ctrl" onclick="UI.changeWeek(-1)" ${currentWeek <= 1 ? "disabled" : ""}>‹</button>
-          <button class="week-ctrl" onclick="UI.changeWeek(1)"  ${currentWeek >= 13 ? "disabled" : ""}>›</button>
+        <div class="week-progress-bar-wrap">
+          <div class="week-progress-bar" style="width:${(sessionsDone/sessionTarget)*100}%"></div>
+        </div>
+        <div class="week-day-dots">
+          ${dayOrder.map(id => {
+            const done = loggedThisWeek.has(id);
+            const isToday = id === suggestedId;
+            return `
+              <div class="week-dot-col">
+                <div class="week-dot ${done ? "done" : ""} ${isToday && !done ? "today" : ""}"></div>
+                <span class="week-dot-label">${dayLabels[id]}</span>
+              </div>`;
+          }).join("")}
         </div>
       </div>
 
-      <div class="suggested-card phase-bg-${weekData.phaseId}">
-        <div class="suggested-label">SUGGESTED TODAY</div>
-        <div class="suggested-title">${suggested.title}</div>
-        <div class="suggested-why">${scheduleNote}</div>
-        <button class="btn-primary" onclick="UI.startDay('${suggestedId}')">
-          Start ${suggested.label || suggested.id}
-        </button>
-      </div>
-
-      <div class="section-head">THIS WEEK — PICK A DAY</div>
+      <div class="section-head-plain">Other workouts</div>
       <div class="day-picker">
-        ${["dayA","dayB","dayC","sport"].map(id => {
+        ${["dayA","dayB","dayC","sport"].filter(id => id !== suggestedId).map(id => {
           const d = PROGRAM[id];
           return `
             <button class="day-pick-btn" onclick="UI.startDay('${id}')">
@@ -183,12 +199,20 @@ const UI = {
       </div>
 
       <div id="home-stats-area">
-        <div class="loading-text">Loading stats…</div>
+        <div class="loading-text muted">Loading…</div>
       </div>
     `;
 
     this.root.appendChild(wrap);
     this.loadHomeStats();
+  },
+
+  _weekStart() {
+    const d = new Date();
+    const day = d.getDay(); // 0=Sun
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Mon
+    const mon = new Date(d.setDate(diff));
+    return mon.toISOString().split("T")[0];
   },
 
   changeWeek(delta) {
@@ -211,19 +235,24 @@ const UI = {
   },
 
   _renderHomeStatsInto(area, stats) {
+    const last7  = stats.last7  || 0;
+    const last30 = stats.last30 || 0;
+    const avgWk  = (last30 / 4.3).toFixed(1);
+    // Color based on whether on track (3/week target)
+    const wkColor = last7 >= 3 ? "var(--green)" : last7 >= 2 ? "var(--yellow)" : "var(--orange)";
     area.innerHTML = `
-      <div class="section-head">TRAILING ACTIVITY</div>
+      <div class="section-head-plain" style="margin-top:18px">Activity</div>
       <div class="stat-row">
         <div class="stat-box">
-          <div class="stat-num">${stats.last7 || 0}</div>
-          <div class="stat-lbl">last 7 days</div>
+          <div class="stat-num" style="color:${wkColor}">${last7}</div>
+          <div class="stat-lbl">this week<br><span style="color:var(--muted);font-size:10px">goal: 3</span></div>
         </div>
         <div class="stat-box">
-          <div class="stat-num">${stats.last30 || 0}</div>
+          <div class="stat-num">${last30}</div>
           <div class="stat-lbl">last 30 days</div>
         </div>
         <div class="stat-box">
-          <div class="stat-num">${((stats.last30 || 0) / 4.3).toFixed(1)}</div>
+          <div class="stat-num">${avgWk}</div>
           <div class="stat-lbl">avg / week</div>
         </div>
       </div>
@@ -271,26 +300,10 @@ const UI = {
     const wrap = this.el("div", "page");
     const { session, activeDay, loading } = App.state;
 
-    // Guard: if no active session, show day picker instead of infinite loader
+    // Guard: if no active session, redirect to Today
     if (!activeDay || (!loading && !session)) {
-      wrap.innerHTML = `
-        <header class="page-header">
-          <h1 class="page-title">LOG</h1>
-          <div class="header-date">Pick a day to start</div>
-        </header>
-        <div class="section-head">PICK A DAY</div>
-        <div class="day-picker">
-          ${["dayA","dayB","dayC","sport"].map(id => {
-            const d = PROGRAM[id];
-            return `
-              <button class="day-pick-btn" onclick="UI.startDay('${id}')">
-                <span class="dpb-label">${d.label || id}</span>
-                <span class="dpb-title">${d.title}</span>
-              </button>`;
-          }).join("")}
-        </div>
-      `;
-      this.root.appendChild(wrap);
+      App.state.view = "home";
+      this.render();
       return;
     }
 
@@ -302,7 +315,7 @@ const UI = {
 
     const day = PROGRAM[activeDay];
     const lastDate = App.state.lastSession?.date
-      ? `Last: ${App.state.lastSession.date}` : "First session";
+      ? `Last: ${this._fmtDate(App.state.lastSession.date)}` : "First session";
 
     const currentWeek = getCurrentWeek();
     const weekData = WEEKS[currentWeek];
@@ -389,38 +402,56 @@ const UI = {
     }
   },
 
+  // ── DATE HELPERS ──────────────────────────────────────────────────────────
+  _fmtDate(iso) {
+    if (!iso) return "";
+    const s = String(iso).slice(0, 10); // strip time/tz
+    const today = new Date().toISOString().slice(0, 10);
+    const yest  = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+    if (s === today) return "Today";
+    if (s === yest)  return "Yesterday";
+    const d = new Date(s + "T12:00:00");
+    const daysAgo = Math.round((Date.now() - d) / 86400000);
+    if (daysAgo < 7) return `${daysAgo} days ago`;
+    return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+  },
+
   _formatDisplayDate(iso) {
     if (!iso) return "Today";
-    const today = new Date().toISOString().split("T")[0];
-    if (iso === today) return "Today";
-    const d = new Date(iso + "T12:00:00"); // noon to avoid tz edge cases
-    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    return this._fmtDate(iso);
   },
 
   // ── EXERCISE BLOCK ────────────────────────────────────────────────────────
   renderExerciseBlock(ex, ei, session) {
-    const block = this.el("div", "ex-block");
+    const block    = this.el("div", "ex-block");
     const sessionEx = session.exercises[ei];
-    const tipsHTML = ex.tip ? `<div class="ex-tip">${ex.tip}</div>` : "";
+    const setCount  = sessionEx.sets.filter(s => !s.excluded).length;
+    const doneCount = sessionEx.sets.filter(s => s.logged).length;
+    const allDone   = doneCount === setCount && setCount > 0;
+    const restSec   = this._parseRestToSeconds(ex.rest);
 
-    // Parse rest string to seconds for timer
-    const restSec = this._parseRestToSeconds(ex.rest);
-    const restLabel = ex.rest || "—";
+    block.id = `ex-block-${ei}`;
+    if (allDone) block.classList.add("ex-done");
 
     block.innerHTML = `
       <div class="ex-header">
-        <span class="ex-name">${ex.name}</span>
-        <button class="ex-rest-pill" id="rest-pill-${ei}"
-          onclick="UI._startRestTimer(${ei}, ${restSec})"
-          title="Tap after a set to start rest timer">
-          <span class="ex-rest-dot"></span>
-          <span class="rest-label-text">${restLabel}</span>
-        </button>
+        <div class="ex-header-left">
+          <span class="ex-name">${ex.name}</span>
+          ${ex.tip ? `<span class="ex-tip-inline">${ex.tip}</span>` : ""}
+        </div>
+        <div class="ex-header-right">
+          <span class="ex-set-count">${setCount} sets</span>
+          <span class="ex-rest-chip" id="rest-chip-${ei}" onclick="UI._startRestTimer(${ei}, ${restSec})">
+            ${ex.rest || "—"}
+          </span>
+        </div>
       </div>
-      ${tipsHTML}
       <div class="sets-grid">
         <div class="set-row header-row">
-          <span>Set</span><span>Reps</span><span>Weight</span><span>Done</span><span>Skip</span>
+          <span>Set</span>
+          <span class="col-reps-head">Reps</span>
+          <span class="col-weight-head">Weight</span>
+          <span>✓</span>
         </div>
         ${sessionEx.sets.map((set, si) => this._renderSetRow(ex, ei, si, set)).join("")}
       </div>
@@ -430,71 +461,65 @@ const UI = {
 
   _renderSetRow(ex, ei, si, set) {
     const isExcluded = set.excluded || false;
-    const isDone     = set.logged  || false;
+    const isDone     = set.logged   || false;
 
-    // Bodyweight exercises: show the prescription as plain text, no weight column
-    if (ex.bodyweight) {
-      return `
-        <div class="set-row${isExcluded ? " excluded" : ""}" id="set-${ei}-${si}">
-          <span class="set-num">${si + 1}</span>
-          <span class="set-bw-label" colspan="2">${set.reps}</span>
-          <span class="set-bw-spacer"></span>
-          <button class="set-done ${isDone ? "checked" : ""}"
-            onclick="UI.toggleSet(${ei}, ${si})">
-            ${isDone ? "✓" : ""}
-          </button>
-          <button class="set-exclude" onclick="UI.toggleExclude(${ei}, ${si})" title="Skip this set">
-            ${isExcluded ? "↩" : "✕"}
-          </button>
-        </div>
-      `;
-    }
+    if (isExcluded) return `
+      <div class="set-row excluded" id="set-${ei}-${si}">
+        <span class="set-num set-skipped">
+          ${si + 1}
+          <button class="skip-undo" onclick="UI.toggleExclude(${ei},${si})">undo</button>
+        </span>
+        <span class="set-skipped-label">skipped</span>
+        <span></span>
+        <span></span>
+      </div>`;
 
-    // Regular exercise: tapping the set number copies values down to remaining sets
+    if (ex.bodyweight) return `
+      <div class="set-row${isDone ? " set-logged" : ""}" id="set-${ei}-${si}">
+        <span class="set-num">${si + 1}</span>
+        <span class="set-bw-label">${set.reps}</span>
+        <span></span>
+        <button class="set-circle ${isDone ? "checked" : ""}"
+          onclick="UI.toggleSet(${ei},${si})">
+          ${isDone ? `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8l4 4 6-7"/></svg>` : ""}
+        </button>
+      </div>`;
+
     const canCopyDown = si < (App.state.session?.exercises?.[ei]?.sets?.length - 1);
     return `
-      <div class="set-row${isExcluded ? " excluded" : ""}" id="set-${ei}-${si}">
+      <div class="set-row${isDone ? " set-logged" : ""}" id="set-${ei}-${si}">
         <span class="set-num ${canCopyDown ? "copyable" : ""}"
-          onclick="${canCopyDown ? `UI._copySetDown(${ei}, ${si})` : ""}"
-          title="${canCopyDown ? "Tap to copy reps & weight to sets below" : ""}">
+          onclick="${canCopyDown ? `UI._copySetDown(${ei},${si})` : ""}">
           ${si + 1}${set.note ? `<em>${set.note}</em>` : ""}
-          ${canCopyDown ? `<em class="copy-hint">↓</em>` : ""}
+          ${canCopyDown ? `<span class="copy-hint">↓</span>` : ""}
         </span>
-        <input class="set-input" type="number" inputmode="decimal"
-          value="${set.reps}" placeholder="reps"
-          onchange="UI.updateSet(${ei}, ${si}, 'reps', this.value)">
-        <input class="set-input weight-input" type="number" inputmode="decimal"
-          value="${set.weight}" placeholder="lbs"
-          onchange="UI.updateSet(${ei}, ${si}, 'weight', this.value)">
-        <button class="set-done ${isDone ? "checked" : ""}"
-          onclick="UI.toggleSet(${ei}, ${si})">
-          ${isDone ? "✓" : ""}
-        </button>
-        <button class="set-exclude" onclick="UI.toggleExclude(${ei}, ${si})" title="Skip this set">
-          ${isExcluded ? "↩" : "✕"}
+        <span class="stepper" id="reps-stepper-${ei}-${si}">
+          <button class="step-btn" ontouchstart="event.preventDefault()" onclick="UI._step(${ei},${si},'reps',-1)">−</button>
+          <span class="step-val" id="reps-val-${ei}-${si}">${set.reps}</span>
+          <button class="step-btn" ontouchstart="event.preventDefault()" onclick="UI._step(${ei},${si},'reps',1)">+</button>
+        </span>
+        <span class="stepper" id="wt-stepper-${ei}-${si}">
+          <button class="step-btn" ontouchstart="event.preventDefault()" onclick="UI._step(${ei},${si},'weight',-5)">−</button>
+          <span class="step-val" id="wt-val-${ei}-${si}">${set.weight}</span>
+          <button class="step-btn" ontouchstart="event.preventDefault()" onclick="UI._step(${ei},${si},'weight',5)">+</button>
+        </span>
+        <button class="set-circle ${isDone ? "checked" : ""}"
+          onclick="UI.toggleSet(${ei},${si})">
+          ${isDone ? `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8l4 4 6-7"/></svg>` : ""}
         </button>
       </div>
     `;
   },
 
-  // Copy reps+weight from set si down to all subsequent sets in exercise ei
-  _copySetDown(ei, si) {
-    const sets = App.state.session?.exercises?.[ei]?.sets;
-    if (!sets) return;
-    const src = sets[si];
-    for (let i = si + 1; i < sets.length; i++) {
-      if (sets[i].excluded) continue;
-      sets[i].reps   = src.reps;
-      sets[i].weight = src.weight;
-      // Update DOM inputs directly — avoids full re-render
-      const row = document.getElementById(`set-${ei}-${i}`);
-      if (row) {
-        const inputs = row.querySelectorAll(".set-input");
-        if (inputs[0]) inputs[0].value = src.reps;
-        if (inputs[1]) inputs[1].value = src.weight;
-      }
-    }
-    this.showToast("Copied down ↓");
+  // Stepper — updates state and DOM without re-render
+  _step(ei, si, field, delta) {
+    const set = App.state.session?.exercises?.[ei]?.sets?.[si];
+    if (!set) return;
+    const curr = parseFloat(set[field]) || 0;
+    const next = Math.max(0, curr + delta);
+    set[field] = next;
+    const valEl = document.getElementById(field === "reps" ? `reps-val-${ei}-${si}` : `wt-val-${ei}-${si}`);
+    if (valEl) valEl.textContent = next;
   },
 
   renderSportLog(session, day) {
@@ -532,18 +557,37 @@ const UI = {
     }
   },
 
-  // toggleSet now called "set-done" — marks as done/undone
+  // toggleSet — marks done/undone, auto-starts rest timer, dims completed row
   toggleSet(ei, si) {
     const set = App.state.session?.exercises?.[ei]?.sets?.[si];
     if (!set || set.excluded) return;
     set.logged = !set.logged;
+
     const row = document.getElementById(`set-${ei}-${si}`);
     if (row) {
-      const btn = row.querySelector(".set-done");
+      row.classList.toggle("set-logged", set.logged);
+      const btn = row.querySelector(".set-circle");
       if (btn) {
         btn.classList.toggle("checked", set.logged);
-        btn.textContent = set.logged ? "✓" : "";
+        const checkSVG = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8l4 4 6-7"/></svg>`;
+        btn.innerHTML = set.logged ? checkSVG : "";
       }
+    }
+
+    // Update block done state
+    const ex = App.state.session.exercises[ei];
+    const setCount  = ex.sets.filter(s => !s.excluded).length;
+    const doneCount = ex.sets.filter(s => s.logged).length;
+    const block = document.getElementById(`ex-block-${ei}`);
+    if (block) block.classList.toggle("ex-done", doneCount === setCount && setCount > 0);
+
+    // Auto-start rest timer when marking done
+    if (set.logged) {
+      const restSec = this._parseRestToSeconds(ex.rest);
+      if (restSec > 0) this._startRestTimer(ei, restSec);
+    } else {
+      // Cancel timer if un-doing
+      if (this._activeExIdx === ei) this._cancelRestTimer();
     }
   },
 
@@ -570,45 +614,42 @@ const UI = {
     if (m) return parseInt(m[1]) * 60;
     const s = restStr.match(/(\d+)\s*sec/i);
     if (s) return parseInt(s[1]);
-    // "90 sec" or "3 min" handled above; fallback
     const n = parseInt(restStr);
-    if (!isNaN(n)) return n;
-    return 90;
+    return isNaN(n) ? 90 : n;
   },
 
   _startRestTimer(ei, seconds) {
-    // Clear any existing timer
-    if (this._restTimer) {
-      clearInterval(this._restTimer);
-      this._restTimer = null;
-    }
-    if (this._activeRestBtn) {
-      this._activeRestBtn.classList.remove("running");
-    }
+    this._cancelRestTimer();
+    this._activeExIdx  = ei;
+    this._restTarget   = Date.now() + seconds * 1000;
+    this._restTotal    = seconds;
 
-    const btn = document.getElementById(`rest-pill-${ei}`);
-    if (!btn) return;
-
-    this._activeRestBtn = btn;
-    btn.classList.add("running");
-    this._restTarget = Date.now() + seconds * 1000;
+    this._ensureRestBar();
+    const bar = document.getElementById("rest-bar");
+    bar.classList.add("visible");
 
     const update = () => {
       const rem = Math.max(0, Math.ceil((this._restTarget - Date.now()) / 1000));
-      const labelEl = btn.querySelector(".rest-label-text");
-      if (labelEl) {
-        const m = Math.floor(rem / 60);
-        const s = rem % 60;
-        labelEl.textContent = rem > 0 ? `${m}:${String(s).padStart(2,"0")}` : "Done!";
+      const pct = (rem / this._restTotal) * 100;
+      const m   = Math.floor(rem / 60);
+      const s   = String(rem % 60).padStart(2, "0");
+
+      const timeEl  = document.getElementById("rest-bar-time");
+      const fillEl  = document.getElementById("rest-bar-fill");
+      if (timeEl) timeEl.textContent = `${m}:${s}`;
+      if (fillEl) {
+        fillEl.style.width = pct + "%";
+        // Color shift: green → amber → red
+        fillEl.style.background = pct > 50 ? "var(--green)" : pct > 25 ? "var(--orange)" : "#ff3b3b";
       }
+
       if (rem <= 0) {
-        clearInterval(this._restTimer);
-        this._restTimer = null;
-        btn.classList.remove("running");
-        this._showRestDone();
+        this._cancelRestTimer();
+        if (timeEl) timeEl.textContent = "Go!";
         setTimeout(() => {
-          if (labelEl) labelEl.textContent = this._parseRestLabel(btn, seconds);
-        }, 2000);
+          const b = document.getElementById("rest-bar");
+          if (b) b.classList.remove("visible");
+        }, 1500);
       }
     };
 
@@ -616,23 +657,32 @@ const UI = {
     this._restTimer = setInterval(update, 500);
   },
 
-  _parseRestLabel(btn, seconds) {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    if (s === 0) return `${m} min`;
-    return `${m}:${String(s).padStart(2,"0")}`;
+  _cancelRestTimer() {
+    if (this._restTimer) { clearInterval(this._restTimer); this._restTimer = null; }
+    const bar = document.getElementById("rest-bar");
+    if (bar) bar.classList.remove("visible");
   },
 
-  _showRestDone() {
-    let t = document.getElementById("rest-timer-toast");
-    if (!t) {
-      t = document.createElement("div");
-      t.id = "rest-timer-toast";
-      document.body.appendChild(t);
-    }
-    t.textContent = "Rest done — next set!";
-    t.classList.add("show");
-    setTimeout(() => t.classList.remove("show"), 2500);
+  _adjustRest(delta) {
+    if (!this._restTarget) return;
+    this._restTarget   += delta * 1000;
+    this._restTotal    = Math.max(1, this._restTotal + delta);
+  },
+
+  _ensureRestBar() {
+    if (document.getElementById("rest-bar")) return;
+    const bar = document.createElement("div");
+    bar.id = "rest-bar";
+    bar.innerHTML = `
+      <div id="rest-bar-fill"></div>
+      <div id="rest-bar-content">
+        <button class="rest-adj" onclick="UI._adjustRest(-30)">−30</button>
+        <span id="rest-bar-time">0:00</span>
+        <button class="rest-adj" onclick="UI._adjustRest(30)">+30</button>
+        <button class="rest-skip" onclick="UI._cancelRestTimer()">Skip</button>
+      </div>
+    `;
+    document.body.appendChild(bar);
   },
 
   // ── ADD EXERCISE SHEET ────────────────────────────────────────────────────
@@ -960,7 +1010,7 @@ const UI = {
       <div class="bw-history">
         ${entries.slice().reverse().slice(0, 30).map(e => `
           <div class="bw-hist-row">
-            <span class="bw-hist-date">${e.date === today ? "Today" : e.date}</span>
+            <span class="bw-hist-date">${this._fmtDate(e.date)}</span>
             <span class="bw-hist-val">${e.w} lbs</span>
             <button class="bw-hist-del" onclick="App.deleteBodyweight('${e.date}').then(() => { App.state.bwLog = null; UI.setStatsTab('body'); })">✕</button>
           </div>
@@ -1276,7 +1326,7 @@ const UI = {
               <span class="stretch-curr">${stretches[k].current}</span>
               <span class="stretch-arrow">→</span>
               <span class="stretch-target">${stretches[k].target}</span>
-              <span class="stretch-date">${stretches[k].date}</span>
+              <span class="stretch-date">${this._fmtDate(stretches[k].date)}</span>
             </div>
           `).join("")}
         </div>
@@ -1369,7 +1419,7 @@ const UI = {
     content.innerHTML = sessions.map(s => `
       <div class="history-card">
         <div class="history-header">
-          <span class="history-date">${s.date}</span>
+          <span class="history-date">${this._fmtDate(s.date)}</span>
           <span class="history-day">${s.dayTitle}</span>
         </div>
         <div class="history-exercises">
