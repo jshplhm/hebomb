@@ -1,6 +1,6 @@
 {
-  "name": "Training",
-  "short_name": "Training",
+  "name": "hebomb",
+  "short_name": "hebomb",
   "description": "Workout tracker",
   "start_url": "/",
   "scope": "/",
