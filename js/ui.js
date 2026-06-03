@@ -86,7 +86,11 @@ const UI = {
 
   // ── NAV BAR ───────────────────────────────────────────────────────────────
   renderNav() {
+    // Remove any existing nav first
+    document.getElementById("bottom-nav")?.remove();
+
     const nav = document.createElement("nav");
+    nav.id = "bottom-nav";
     nav.className = "bottom-nav";
 
     // SVG icon set — clean, no emojis
@@ -123,7 +127,8 @@ const UI = {
       nav.appendChild(btn);
     });
 
-    this.root.appendChild(nav);
+    // Append to body — fixed positioning works correctly outside #app on Safari
+    document.body.appendChild(nav);
   },
 
   // ── HOME ──────────────────────────────────────────────────────────────────
