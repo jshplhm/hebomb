@@ -838,6 +838,8 @@ const UI = {
     const goal_lo  = CONFIG.GOAL_LB_LOW;
     const goal_hi  = CONFIG.GOAL_LB_HIGH;
     const inGoal   = latest && latest.w >= goal_lo && latest.w <= goal_hi;
+    const today    = new Date().toISOString().split("T")[0];
+    const todayEntry = entries.find(e => e.date === today);
 
     return `
       <div class="bw-log-entry">
@@ -847,40 +849,48 @@ const UI = {
             Goal: ${goal_lo}–${goal_hi} lbs ${inGoal ? "✓" : ""}
           </div>
         </div>
-        <button class="btn-log-bw" onclick="UI.showBWEntry()">+ Log Weight</button>
+      </div>
+
+      <div class="bw-quick-entry">
+        <div class="bw-quick-row">
+          <input type="number" inputmode="decimal" id="bw-quick-input"
+            class="bw-quick-num" placeholder="${todayEntry ? todayEntry.w : "170.0"}"
+            step="0.1" value="${todayEntry ? todayEntry.w : ""}">
+          <span class="bw-quick-unit">lbs</span>
+          <input type="date" id="bw-quick-date" class="bw-quick-date-input"
+            value="${today}" max="${today}">
+          <button class="bw-quick-save" onclick="UI._saveQuickBW()">
+            ${todayEntry ? "Update" : "Save"}
+          </button>
+        </div>
       </div>
 
       ${entries.length >= 2 ? this.renderBWChart(entries) : `
-        <div class="loading-text muted" style="margin:20px 0">
+        <div class="loading-text muted" style="margin:16px 0">
           Log a few weights to see your trend.
         </div>
       `}
 
       <div class="section-head" style="margin-top:16px">HISTORY</div>
       <div class="bw-history">
-        ${entries.slice().reverse().slice(0, 14).map(e => `
+        ${entries.slice().reverse().slice(0, 20).map(e => `
           <div class="bw-hist-row">
-            <span class="bw-hist-date">${e.date}</span>
+            <span class="bw-hist-date">${e.date === today ? "Today" : e.date}</span>
             <span class="bw-hist-val">${e.w} lbs</span>
             <button class="bw-hist-del" onclick="App.deleteBodyweight('${e.date}').then(() => UI.setStatsTab('body'))">✕</button>
           </div>
         `).join("") || `<div class="loading-text muted">No entries yet.</div>`}
       </div>
-
-      <div class="section-head" style="margin-top:16px">IMPORT FROM APPLE HEALTH</div>
-      <div class="import-card">
-        <div class="import-instructions">
-          1. iPhone → Health app → your profile pic → Export All Health Data<br>
-          2. Unzip → find <strong>export.xml</strong><br>
-          3. Drop it below — only bodyweight is read, nothing else stored
-        </div>
-        <label class="btn-import">
-          Choose export.xml
-          <input type="file" accept=".xml" style="display:none"
-            onchange="App.importAppleHealth(this.files[0], () => UI.setStatsTab('body'))">
-        </label>
-      </div>
     `;
+  },
+
+  _saveQuickBW() {
+    const w = parseFloat(document.getElementById("bw-quick-input")?.value);
+    const d = document.getElementById("bw-quick-date")?.value;
+    if (!w || w < 50 || w > 500) { this.showToast("Enter a valid weight"); return; }
+    App.logBodyweight(d, w);
+    this.showToast("Weight saved ✓");
+    setTimeout(() => this.setStatsTab("body"), 600);
   },
 
   renderBWChart(entries) {
@@ -942,37 +952,6 @@ const UI = {
         </div>
       </div>
     `;
-  },
-
-  showBWEntry() {
-    const overlay = this.el("div", "export-overlay");
-    const today = new Date().toISOString().split("T")[0];
-    overlay.innerHTML = `
-      <div class="export-modal bw-entry-modal">
-        <div class="export-modal-head">
-          <span>Log Bodyweight</span>
-          <button onclick="this.closest('.export-overlay').remove()">✕</button>
-        </div>
-        <div class="bw-entry-body">
-          <input type="number" inputmode="decimal" id="bw-input"
-            class="bw-big-input" placeholder="170.0" step="0.1">
-          <span class="bw-unit">lbs</span>
-        </div>
-        <div class="bw-entry-date">
-          <input type="date" id="bw-date" value="${today}" class="set-input">
-        </div>
-        <button class="btn-primary" style="margin:12px;width:calc(100% - 24px)" onclick="
-          const w = parseFloat(document.getElementById('bw-input').value);
-          const d = document.getElementById('bw-date').value;
-          if (!w || w < 50 || w > 500) return;
-          App.logBodyweight(d, w);
-          this.closest('.export-overlay').remove();
-          UI.setStatsTab('body');
-        ">Save</button>
-      </div>
-    `;
-    document.body.appendChild(overlay);
-    setTimeout(() => document.getElementById("bw-input")?.focus(), 100);
   },
 
   // ── LIFTS TAB ─────────────────────────────────────────────────────────────
