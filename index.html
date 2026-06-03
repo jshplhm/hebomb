@@ -1173,6 +1173,35 @@ input[type=number] { -moz-appearance: textfield; }
   white-space: nowrap;
 }
 #rest-timer-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ── BODYWEIGHT ROW ───────────────────────────────────────────────────────── */
+/* BW rows span reps+weight cols with a plain text label */
+.set-bw-label {
+  grid-column: 2 / 4;
+  font-size: 13px;
+  color: var(--sub);
+  padding: 8px 4px;
+  font-style: italic;
+}
+.set-bw-spacer {
+  /* placeholder so done/skip stay in correct columns */
+}
+
+/* ── COPY-DOWN ────────────────────────────────────────────────────────────── */
+.set-num.copyable {
+  cursor: pointer;
+  color: var(--sub);
+  -webkit-tap-highlight-color: transparent;
+}
+.set-num.copyable:active { color: var(--yellow); }
+.copy-hint {
+  display: block;
+  font-size: 9px;
+  color: var(--muted);
+  font-style: normal;
+  line-height: 1;
+  margin-top: 1px;
+}
 </style>
 </head>
 <body>
