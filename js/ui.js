@@ -300,10 +300,36 @@ const UI = {
     const wrap = this.el("div", "page");
     const { session, activeDay, loading } = App.state;
 
-    // Guard: if no active session, redirect to Today
+    // Guard: if no active session, show a clean start-workout prompt
     if (!activeDay || (!loading && !session)) {
-      App.state.view = "home";
-      this.render();
+      const suggestedId = App.getSuggestedDay();
+      const suggested   = PROGRAM[suggestedId];
+      const currentWeek = getCurrentWeek();
+      const weekData    = WEEKS[currentWeek];
+      wrap.innerHTML = `
+        <header class="page-header-compact">
+          <div class="compact-date-row">
+            <span class="compact-date">No active session</span>
+          </div>
+          <h1 class="page-title-compact">Log</h1>
+        </header>
+        <div class="hero-card phase-bg-${weekData.phaseId}" style="margin-bottom:20px">
+          <div class="hero-label">Suggested today</div>
+          <div class="hero-title">${suggested.title}</div>
+          <button class="btn-primary" onclick="UI.startDay('${suggestedId}')">Start Workout</button>
+        </div>
+        <div class="section-head-plain">Or pick a different day</div>
+        <div class="day-picker">
+          ${["dayA","dayB","dayC","sport"].filter(id => id !== suggestedId).map(id => {
+            const d = PROGRAM[id];
+            return `<button class="day-pick-btn" onclick="UI.startDay('${id}')">
+              <span class="dpb-label">${d.label || id}</span>
+              <span class="dpb-title">${d.title}</span>
+            </button>`;
+          }).join("")}
+        </div>
+      `;
+      this.root.appendChild(wrap);
       return;
     }
 
@@ -961,7 +987,7 @@ const UI = {
     const today    = new Date().toISOString().split("T")[0];
     const todayEntry = entries.find(e => e.date === today);
 
-    const rangeLabels = { 30: "30 days", 90: "90 days", 0: "All time" };
+    const rangeLabels = { 30: "30 days", 90: "90 days", 365: "1 year", 0: "All time" };
     const currentRange = this._bwRange;
 
     return `
@@ -990,7 +1016,7 @@ const UI = {
 
       ${entries.length >= 2 ? `
         <div class="bw-range-toggle">
-          ${[30, 90, 0].map(r => `
+          ${[30, 90, 365, 0].map(r => `
             <button class="bw-range-btn ${currentRange === r ? "active" : ""}"
               onclick="UI._setBWRange(${r})">
               ${rangeLabels[r]}
@@ -1021,13 +1047,13 @@ const UI = {
 
   _setBWRange(r) {
     this._bwRange = r;
-    // Swap just the chart area — no re-fetch, no full re-render
     const chartArea = document.getElementById("bw-chart-area");
     if (chartArea && App.state.bwLog) {
       chartArea.innerHTML = this.renderBWChart(App.state.bwLog, r);
     }
+    const labels = { 30:"30 days", 90:"90 days", 365:"1 year", 0:"All time" };
     document.querySelectorAll(".bw-range-btn").forEach(b => {
-      b.classList.toggle("active", b.textContent.trim() === { 30:"30 days", 90:"90 days", 0:"All time" }[r]);
+      b.classList.toggle("active", b.textContent.trim() === labels[r]);
     });
   },
 
@@ -1084,12 +1110,12 @@ const UI = {
           <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="svg-chart">
             <rect x="0" y="${H - goalBot - goalH}%" width="${W}" height="${goalH}%" fill="rgba(232,255,71,.08)"/>
             <line x1="0" y1="${ty0}" x2="${W}" y2="${ty1}" stroke="#5ba4ff" stroke-width="1" stroke-dasharray="4 3" opacity="0.5"/>
-            <polyline points="${pts}" fill="none" stroke="#e8ff47" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            ${data.map((e, i) => {
+            <polyline points="${pts}" fill="none" stroke="#e8ff47" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            ${data.length <= 20 ? data.map((e, i) => {
               const x = data.length < 2 ? W/2 : (i / (data.length - 1)) * W;
               const y = H - ((e.w - min) / range_) * H;
-              return `<circle cx="${x}" cy="${y}" r="3" fill="#e8ff47"/>`;
-            }).join("")}
+              return `<circle cx="${x}" cy="${y}" r="2.5" fill="#e8ff47"/>`;
+            }).join("") : ""}
           </svg>
           <div class="svg-y-labels">
             <span>${max.toFixed(0)}</span>
