@@ -7,11 +7,65 @@ const UI = {
   // ── INIT ──────────────────────────────────────────────────────────────────
   init() {
     this.root = document.getElementById("app");
-    this._restTimer = null;        // interval handle for active rest countdown
-    this._restTarget = null;       // ms timestamp when rest ends
-    this._activeRestBtn = null;    // DOM button currently pulsing
-    this._logDate = null;          // date override for logging (null = today)
+    this._restTimer    = null;
+    this._restTarget   = null;
+    this._activeRestBtn = null;
+    this._logDate      = null;
+    this._bwRange      = 30;   // default chart range: 30 | 90 | 0 (all)
+
+    // Pre-warm all caches in parallel on load — everything is ready by the
+    // time the user taps any tab
+    this._prefetch();
     this.render();
+  },
+
+  // Fetch everything in parallel and store in App.state
+  async _prefetch() {
+    try {
+      const [stats, bwResult, histResult] = await Promise.all([
+        App.state.stats   ? Promise.resolve(App.state.stats)   : App.fetchStats(),
+        App.state.bwLog   ? Promise.resolve({ entries: App.state.bwLog }) : App.fetchBodyweightLog?.() || this._fetchBWFallback(),
+        App.state.history ? Promise.resolve({ sessions: App.state.history }) : App.fetchHistory()
+      ]);
+      App.state.stats   = stats;
+      App.state.bwLog   = bwResult.entries || bwResult;
+      App.state.history = histResult.sessions || histResult;
+      // If home or stats is already showing, refresh the live area quietly
+      this._refreshOpenView();
+    } catch(e) {
+      // Silently fail — views handle their own empty states
+    }
+  },
+
+  // Fetch BW via App.getBodyweightLog (sync local) or App.fetchBodyweightLog (async remote)
+  async _fetchBWFallback() {
+    // App.getBodyweightLog() returns entries synchronously from localStorage or cache
+    const entries = await App.getBodyweightLog();
+    return { entries };
+  },
+
+  // After prefetch completes, update any already-rendered dynamic areas
+  _refreshOpenView() {
+    const { view } = App.state;
+    if (view === "home") {
+      const area = document.getElementById("home-stats-area");
+      if (area && App.state.stats) this._renderHomeStatsInto(area, App.state.stats);
+    }
+    if (view === "stats") {
+      const content = document.getElementById("stats-tab-content");
+      if (content) this.renderStatsTab(App.state.stats);
+    }
+    if (view === "history") {
+      const content = document.getElementById("history-content");
+      if (content && App.state.history) this._renderHistoryInto(content, App.state.history);
+    }
+  },
+
+  // Invalidate caches after a save so next view is fresh
+  _invalidateCache() {
+    App.state.stats   = null;
+    App.state.bwLog   = null;
+    App.state.history = null;
   },
 
   render() {
@@ -148,29 +202,33 @@ const UI = {
     const area = document.getElementById("home-stats-area");
     if (!area) return;
     try {
-      const stats = await App.fetchStats();
+      const stats = App.state.stats || await App.fetchStats();
       App.state.stats = stats;
-      area.innerHTML = `
-        <div class="section-head">TRAILING ACTIVITY</div>
-        <div class="stat-row">
-          <div class="stat-box">
-            <div class="stat-num">${stats.last7 || 0}</div>
-            <div class="stat-lbl">last 7 days</div>
-          </div>
-          <div class="stat-box">
-            <div class="stat-num">${stats.last30 || 0}</div>
-            <div class="stat-lbl">last 30 days</div>
-          </div>
-          <div class="stat-box">
-            <div class="stat-num">${((stats.last30 || 0) / 4.3).toFixed(1)}</div>
-            <div class="stat-lbl">avg / week</div>
-          </div>
-        </div>
-        ${this.renderTopStretches(stats.stretches)}
-      `;
+      this._renderHomeStatsInto(area, stats);
     } catch(e) {
       area.innerHTML = `<div class="loading-text muted">No data yet — log your first session.</div>`;
     }
+  },
+
+  _renderHomeStatsInto(area, stats) {
+    area.innerHTML = `
+      <div class="section-head">TRAILING ACTIVITY</div>
+      <div class="stat-row">
+        <div class="stat-box">
+          <div class="stat-num">${stats.last7 || 0}</div>
+          <div class="stat-lbl">last 7 days</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-num">${stats.last30 || 0}</div>
+          <div class="stat-lbl">last 30 days</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-num">${((stats.last30 || 0) / 4.3).toFixed(1)}</div>
+          <div class="stat-lbl">avg / week</div>
+        </div>
+      </div>
+      ${this.renderTopStretches(stats.stretches)}
+    `;
   },
 
   renderTopStretches(stretches) {
@@ -776,6 +834,7 @@ const UI = {
 
     try {
       const result = await App.saveSession(sessionToSave);
+      this._invalidateCache();  // force fresh fetch next time
       this.showToast(result.local ? "Saved locally ✓" : "Saved to Sheets ✓");
       setTimeout(() => { App.state.view = "home"; this.render(); }, 1200);
     } catch(e) {
@@ -805,14 +864,18 @@ const UI = {
     `;
     this.root.appendChild(wrap);
 
-    const stats = App.state.stats || await App.fetchStats();
-    App.state.stats = stats;
-    this.renderStatsTab(stats);
+    // Use cache — prefetch may have already populated this
+    if (App.state.stats) {
+      this.renderStatsTab(App.state.stats);
+    } else {
+      const stats = await App.fetchStats();
+      App.state.stats = stats;
+      this.renderStatsTab(stats);
+    }
   },
 
   setStatsTab(tab) {
     App.state.statsTab = tab;
-    // Update tab button styles immediately (no re-render of whole page)
     document.querySelectorAll(".stats-tab").forEach(b => {
       b.classList.toggle("active", b.textContent.toLowerCase().trim() === tab);
     });
@@ -833,13 +896,23 @@ const UI = {
 
   // ── BODY TAB ──────────────────────────────────────────────────────────────
   async renderBodyTab() {
-    const entries  = await App.getBodyweightLog();
+    // Use cache if warm — App.getBodyweightLog() is sync from localStorage,
+    // but the remote copy lives in App.state.bwLog after prefetch
+    let entries = App.state.bwLog;
+    if (!entries) {
+      entries = await App.getBodyweightLog();
+      App.state.bwLog = entries;
+    }
+
     const latest   = entries.length ? entries[entries.length - 1] : null;
     const goal_lo  = CONFIG.GOAL_LB_LOW;
     const goal_hi  = CONFIG.GOAL_LB_HIGH;
     const inGoal   = latest && latest.w >= goal_lo && latest.w <= goal_hi;
     const today    = new Date().toISOString().split("T")[0];
     const todayEntry = entries.find(e => e.date === today);
+
+    const rangeLabels = { 30: "30 days", 90: "90 days", 0: "All time" };
+    const currentRange = this._bwRange;
 
     return `
       <div class="bw-log-entry">
@@ -865,7 +938,19 @@ const UI = {
         </div>
       </div>
 
-      ${entries.length >= 2 ? this.renderBWChart(entries) : `
+      ${entries.length >= 2 ? `
+        <div class="bw-range-toggle">
+          ${[30, 90, 0].map(r => `
+            <button class="bw-range-btn ${currentRange === r ? "active" : ""}"
+              onclick="UI._setBWRange(${r})">
+              ${rangeLabels[r]}
+            </button>
+          `).join("")}
+        </div>
+        <div id="bw-chart-area">
+          ${this.renderBWChart(entries, currentRange)}
+        </div>
+      ` : `
         <div class="loading-text muted" style="margin:16px 0">
           Log a few weights to see your trend.
         </div>
@@ -873,15 +958,27 @@ const UI = {
 
       <div class="section-head" style="margin-top:16px">HISTORY</div>
       <div class="bw-history">
-        ${entries.slice().reverse().slice(0, 20).map(e => `
+        ${entries.slice().reverse().slice(0, 30).map(e => `
           <div class="bw-hist-row">
             <span class="bw-hist-date">${e.date === today ? "Today" : e.date}</span>
             <span class="bw-hist-val">${e.w} lbs</span>
-            <button class="bw-hist-del" onclick="App.deleteBodyweight('${e.date}').then(() => UI.setStatsTab('body'))">✕</button>
+            <button class="bw-hist-del" onclick="App.deleteBodyweight('${e.date}').then(() => { App.state.bwLog = null; UI.setStatsTab('body'); })">✕</button>
           </div>
         `).join("") || `<div class="loading-text muted">No entries yet.</div>`}
       </div>
     `;
+  },
+
+  _setBWRange(r) {
+    this._bwRange = r;
+    // Swap just the chart area — no re-fetch, no full re-render
+    const chartArea = document.getElementById("bw-chart-area");
+    if (chartArea && App.state.bwLog) {
+      chartArea.innerHTML = this.renderBWChart(App.state.bwLog, r);
+    }
+    document.querySelectorAll(".bw-range-btn").forEach(b => {
+      b.classList.toggle("active", b.textContent.trim() === { 30:"30 days", 90:"90 days", 0:"All time" }[r]);
+    });
   },
 
   _saveQuickBW() {
@@ -889,27 +986,30 @@ const UI = {
     const d = document.getElementById("bw-quick-date")?.value;
     if (!w || w < 50 || w > 500) { this.showToast("Enter a valid weight"); return; }
     App.logBodyweight(d, w);
+    App.state.bwLog = null;  // invalidate BW cache only
     this.showToast("Weight saved ✓");
     setTimeout(() => this.setStatsTab("body"), 600);
   },
 
-  renderBWChart(entries) {
-    const data = entries.slice(-30);
+  renderBWChart(entries, range) {
+    // range: 30 = last 30 entries, 90 = last 90, 0 = all
+    const data = range > 0 ? entries.slice(-range) : entries;
+    if (data.length < 2) return "";
     const weights = data.map(e => e.w);
     const min = Math.min(...weights) - 2;
     const max = Math.max(...weights) + 2;
-    const range = max - min || 1;
+    const range_ = max - min || 1;
     const goal_lo = CONFIG.GOAL_LB_LOW;
     const goal_hi = CONFIG.GOAL_LB_HIGH;
-    const gLoPct  = ((goal_lo - min) / range) * 100;
-    const gHiPct  = ((goal_hi - min) / range) * 100;
+    const gLoPct  = ((goal_lo - min) / range_) * 100;
+    const gHiPct  = ((goal_hi - min) / range_) * 100;
     const goalH   = Math.max(0, Math.min(100, gHiPct - gLoPct));
     const goalBot = Math.max(0, Math.min(100, gLoPct));
 
     const W = 320, H = 100;
     const pts = data.map((e, i) => {
       const x = data.length < 2 ? W/2 : (i / (data.length - 1)) * W;
-      const y = H - ((e.w - min) / range) * H;
+      const y = H - ((e.w - min) / range_) * H;
       return `${x},${y}`;
     }).join(" ");
 
@@ -920,14 +1020,14 @@ const UI = {
     const sumX2 = data.reduce((s,_,i) => s+i*i, 0);
     const slope = (n*sumXY - sumX*sumY) / (n*sumX2 - sumX*sumX || 1);
     const intercept = (sumY - slope*sumX) / n;
-    const ty0 = H - ((intercept - min) / range) * H;
-    const ty1 = H - (((slope*(n-1)+intercept) - min) / range) * H;
+    const ty0 = H - ((intercept - min) / range_) * H;
+    const ty1 = H - (((slope*(n-1)+intercept) - min) / range_) * H;
     const trendDir = slope < -0.05 ? "↓ trending down" : slope > 0.05 ? "↑ trending up" : "→ holding steady";
 
     return `
       <div class="chart-block" style="padding:14px 14px 10px">
         <div class="chart-title-row">
-          <span class="chart-title">Bodyweight — Last ${data.length} entries</span>
+          <span class="chart-title">Bodyweight — ${data.length} entries</span>
           <span class="chart-trend">${trendDir}</span>
         </div>
         <div class="svg-chart-wrap">
@@ -937,7 +1037,7 @@ const UI = {
             <polyline points="${pts}" fill="none" stroke="#e8ff47" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             ${data.map((e, i) => {
               const x = data.length < 2 ? W/2 : (i / (data.length - 1)) * W;
-              const y = H - ((e.w - min) / range) * H;
+              const y = H - ((e.w - min) / range_) * H;
               return `<circle cx="${x}" cy="${y}" r="3" fill="#e8ff47"/>`;
             }).join("")}
           </svg>
@@ -1248,15 +1348,24 @@ const UI = {
     `;
     this.root.appendChild(wrap);
 
-    const { sessions } = await App.fetchHistory();
+    // Render from cache instantly if warm
     const content = document.getElementById("history-content");
     if (!content) return;
 
-    if (!sessions.length) {
+    if (App.state.history) {
+      this._renderHistoryInto(content, App.state.history);
+    } else {
+      const { sessions } = await App.fetchHistory();
+      App.state.history = sessions;
+      this._renderHistoryInto(content, sessions);
+    }
+  },
+
+  _renderHistoryInto(content, sessions) {
+    if (!sessions || !sessions.length) {
       content.innerHTML = `<div class="loading-text muted">No sessions logged yet.</div>`;
       return;
     }
-
     content.innerHTML = sessions.map(s => `
       <div class="history-card">
         <div class="history-header">
