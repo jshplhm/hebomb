@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#111214">
-<title>Training</title>
+<title>Hebomb</title>
 <link rel="manifest" href="manifest.json">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
 
@@ -40,9 +40,9 @@
   --blue:    #5ba4ff;
   --purple:  #b87fff;
 
-  /* Nav */
-  --nav-h:   68px;
-  --safe-bot: env(safe-area-inset-bottom, 0px);
+  /* Nav — tall enough that content clears the home indicator */
+  --nav-h:    68px;
+  --safe-bot: env(safe-area-inset-bottom, 16px);
 }
 
 /* ── BASE ───────────────────────────────────────────────────────────────── */
@@ -1662,10 +1662,10 @@ input[type=number] { -moz-appearance: textfield; }
 <div id="app"></div>
 
 <!-- ?v=YYYYMMDD-N — increment the number each deploy to bust browser/PWA cache -->
-<script src="js/config.js?v=20260603-8"></script>
-<script src="js/program.js?v=20260603-8"></script>
-<script src="js/app.js?v=20260603-8"></script>
-<script src="js/ui.js?v=20260603-8"></script>
+<script src="js/config.js?v=20260603-9"></script>
+<script src="js/program.js?v=20260603-9"></script>
+<script src="js/app.js?v=20260603-9"></script>
+<script src="js/ui.js?v=20260603-9"></script>
 <script>
   document.addEventListener("DOMContentLoaded", () => UI.init());
 </script>
