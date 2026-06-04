@@ -144,10 +144,10 @@ input[type=number] { -moz-appearance:textfield; }
 */
 .sr {
   display:grid;
-  grid-template-columns:32px 1fr 1fr 52px 26px;
+  grid-template-columns:32px 1fr 1fr 52px;
   gap:6px;
   align-items:center;
-  padding:6px 12px 6px 0;
+  padding:6px 14px 6px 0;
   border-bottom:1px solid var(--border);
   border-left:3px solid transparent;
   padding-left:15px;
@@ -191,7 +191,161 @@ input[type=number] { -moz-appearance:textfield; }
 .sr-del { background:transparent; border:none; color:var(--muted); cursor:pointer; display:flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:4px; -webkit-tap-highlight-color:transparent; transition:color 0.15s; flex-shrink:0; padding:0; }
 .sr-del:active { color:var(--red); }
 
-/* ── SESSION BOTTOM BAR ── */
+/* ── SWIPE TO DELETE ── */
+.sr-swipe-wrap {
+  position: relative;
+  overflow: hidden;
+  border-bottom: 1px solid var(--border);
+}
+.sr-swipe-wrap:last-of-type { border-bottom: none; }
+.sr-swipe-wrap .sr { border-bottom: none; transition: transform 0.15s ease; }
+.sr-delete-reveal {
+  position: absolute;
+  right: 0; top: 0; bottom: 0;
+  width: 80px;
+  background: var(--red);
+  color: #fff;
+  border: none;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+}
+.sr-swipe-wrap.swiped .sr { transform: translateX(-80px); }
+
+/* ── FULL-SCREEN EXERCISE PICKER ── */
+.ex-picker-fullscreen {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  z-index: 400;
+  display: flex;
+  flex-direction: column;
+}
+.ex-picker-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: calc(var(--safe-top) + 8px) 16px 12px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.ex-picker-back {
+  background: transparent;
+  border: 1px solid var(--border2);
+  color: var(--sub);
+  font-size: 18px;
+  width: 36px; height: 36px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+.ex-picker-title {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text);
+}
+.ex-picker-search {
+  padding: 10px 14px;
+  flex-shrink: 0;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.ex-picker-search input {
+  width: 100%;
+  background: var(--card2);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 15px;
+  padding: 10px 12px;
+}
+.ex-picker-search input:focus { outline: none; border-color: var(--yellow); }
+.ex-picker-search input::placeholder { color: var(--muted); }
+.ex-picker-list {
+  overflow-y: auto;
+  flex: 1;
+  padding-bottom: calc(var(--safe-bot) + 16px);
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ── PICKER PREVIEW PAGE ── */
+.preview-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  color: var(--sub);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px 0;
+  margin-bottom: 16px;
+  -webkit-tap-highlight-color: transparent;
+}
+.preview-back:active { color: var(--text); }
+.preview-title {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 36px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: -0.5px;
+  color: var(--text);
+  line-height: 1;
+  margin-bottom: 4px;
+}
+.preview-label {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 20px;
+}
+.preview-exercises {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.preview-ex-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+}
+.preview-ex-row:last-child { border-bottom: none; }
+.preview-ex-name { color: var(--sub); font-weight: 500; }
+.preview-ex-sets { color: var(--muted); font-size: 12px; }
+
+/* ── PICKER OTHER HINT ── */
+.picker-other-hint {
+  display: block;
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 6px;
+  font-family: 'Barlow Condensed', sans-serif;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+/* Remove old del button styles */
+.sr-del { display: none; }
 .sess-bottom { flex-shrink:0; background:var(--surface); border-top:1px solid var(--border); padding:10px 14px calc(var(--safe-bot) + 10px); display:flex; gap:8px; }
 .sess-add-ex-btn { flex:1; background:transparent; border:1.5px dashed var(--border2); color:var(--sub); font-family:'Barlow Condensed',sans-serif; font-size:13px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; padding:11px; border-radius:6px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:7px; -webkit-tap-highlight-color:transparent; transition:all 0.15s; }
 .sess-add-ex-btn:active { border-color:var(--yellow); color:var(--yellow); }
@@ -328,10 +482,10 @@ input[type=number] { -moz-appearance:textfield; }
 <body>
 <div id="app"></div>
 <!-- Increment ?v= on every deploy to bust cache -->
-<script src="js/config.js?v=20260604-2"></script>
-<script src="js/program.js?v=20260604-2"></script>
-<script src="js/app.js?v=20260604-2"></script>
-<script src="js/ui.js?v=20260604-2"></script>
+<script src="js/config.js?v=20260604-3"></script>
+<script src="js/program.js?v=20260604-3"></script>
+<script src="js/app.js?v=20260604-3"></script>
+<script src="js/ui.js?v=20260604-3"></script>
 <script>
   document.addEventListener("DOMContentLoaded", () => UI.init());
 </script>
