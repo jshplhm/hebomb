@@ -167,9 +167,14 @@ const UI = {
           <button class="sess-ex-name" id="sess-ex-name"
             ontouchstart="UI._lpStart(event)" ontouchend="UI._lpEnd()" ontouchmove="UI._lpEnd()"
             oncontextmenu="event.preventDefault();UI._showExMenu()">—</button>
-          <span class="sess-counter" id="sess-counter"></span>
+          <div class="sess-counter-block">
+            <span class="sess-counter" id="sess-counter"></span>
+            <span class="sess-counter-lbl">SETS DONE</span>
+          </div>
         </div>
-        <div class="sess-rest-wrap" id="sess-rest-wrap">
+        <div class="sess-dots-row" id="sess-dots-row"></div>
+        <!-- Rest timer banner — only present in DOM when active -->
+        <div class="sess-rest-banner" id="sess-rest-banner" style="display:none">
           <div class="sess-rest-track"><div class="sess-rest-bar" id="sess-rest-bar"></div></div>
           <div class="sess-rest-row">
             <button class="sess-rest-adj" onclick="UI._adjRest(-30)">−30s</button>
@@ -179,19 +184,39 @@ const UI = {
           </div>
         </div>
       </div>
+      <div class="sess-col-header" id="sess-col-header">
+        <span class="sess-col-reps">REPS</span>
+        <span class="sess-col-weight">WEIGHT</span>
+      </div>
       <div class="sess-body" id="sess-body"></div>
       <div class="sess-bottom" id="sess-bottom">
         <button class="sess-add-ex-btn" onclick="UI._openAddEx(false)">
           <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 1v12M1 7h12"/></svg>
-          Add Exercise
+          + Exercise
         </button>
-        <button class="sess-save-btn" id="sess-save-btn" onclick="UI._confirmFinish()">Save</button>
+        <button class="sess-save-btn" id="sess-save-btn" onclick="UI._bottomAction()">Save</button>
       </div>`;
     this.root.appendChild(wrap);
     this._buildBody();
     this._updateHeader();
     setTimeout(() => this._syncBodyPadding(), 0);
     this._scrollToActive();
+  },
+
+  _bottomAction() {
+    const ei = this._activeExIdx;
+    const ex = App.state.session?.exercises?.[ei];
+    if (!ex) { this._confirmFinish(); return; }
+    const exDone = ex.sets.filter(s=>!s.excluded).every(s=>s.logged);
+    const allDone = App.state.session.exercises.every(ex=>ex.sets.filter(s=>!s.excluded).every(s=>s.logged));
+    if (allDone) { this._confirmFinish(); return; }
+    if (exDone) {
+      // Jump to next incomplete exercise
+      const next = App.state.session.exercises.findIndex((ex,i)=>i>ei&&!ex.sets.filter(s=>!s.excluded).every(s=>s.logged));
+      if (next >= 0) this._goTo(next);
+    } else {
+      this._confirmFinish();
+    }
   },
 
   // Build the full exercise list into sess-body
@@ -258,17 +283,16 @@ const UI = {
   _setRowHTML(ei, si) {
     const ex   = App.state.session.exercises[ei];
     const s    = ex.sets[si];
-    const sc   = this._setClass(ei, si);     // "done" | "current" | "upcoming"
+    const sc   = this._setClass(ei, si);
     const g    = this._ghostVals(ei, si);
-    const showR = s.claimed?.reps    !== undefined ? s.claimed.reps    : g.reps;
-    const showW = s.claimed?.weight  !== undefined ? s.claimed.weight  : g.weight;
-    const rGhost = s.claimed?.reps    === undefined;
-    const wGhost = s.claimed?.weight  === undefined;
+    const showR = s.claimed?.reps   !== undefined ? s.claimed.reps   : g.reps;
+    const showW = s.claimed?.weight !== undefined ? s.claimed.weight : g.weight;
+    const rGhost = s.claimed?.reps   === undefined;
+    const wGhost = s.claimed?.weight === undefined;
 
-    // Set number: 0 for warmup, 1-based for working
-    const wSets     = ex.sets.filter(x=>!x.excluded&&!x.isWarmup);
-    const numLabel  = s.isWarmup ? "0" : String(wSets.indexOf(s)+1);
-    const numCls    = s.isWarmup ? "sn sn-zero" : "sn";
+    const wSets    = ex.sets.filter(x=>!x.excluded&&!x.isWarmup);
+    const numLabel = s.isWarmup ? "W" : String(wSets.indexOf(s)+1);
+    const numCls   = s.isWarmup ? "sn sn-zero" : "sn";
 
     if (s.excluded) return `
       <div class="sr sr-excluded" id="sr-${ei}-${si}">
@@ -279,14 +303,16 @@ const UI = {
 
     const CHECK = `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l5 5 7-8"/></svg>`;
 
-    if (ex.bodyweight) return `
-      <div class="sr sr-${sc}" id="sr-${ei}-${si}" onclick="UI._claimSet(${ei},${si})">
+    // Done sets collapse to a compact summary line; tap to uncollapse/undo
+    if (sc === "done") return `
+      <div class="sr sr-done sr-collapsed" id="sr-${ei}-${si}"
+        onclick="UI._uncollapseDone(${ei},${si})">
         <span class="${numCls}">${numLabel}</span>
-        <span class="sr-bw" style="grid-column:2/4">${showR}</span>
-        <button class="sr-circ${s.logged?" checked":""}" onclick="event.stopPropagation();UI._tapDone(${ei},${si})">${s.logged?CHECK:""}</button>
-        <span></span>
+        <span class="sr-summary">${showR} reps · ${showW} lbs</span>
+        <button class="sr-circ checked" onclick="event.stopPropagation();UI._tapDone(${ei},${si})">${CHECK}</button>
       </div>`;
 
+    // Swipe wrapper for undone rows
     return `
       <div class="sr-swipe-wrap" id="srw-${ei}-${si}"
         ontouchstart="UI._swipeStart(event,${ei},${si})"
@@ -296,18 +322,29 @@ const UI = {
           <span class="${numCls}">${numLabel}</span>
           <div class="sr-step" onclick="event.stopPropagation()">
             <button class="sr-s-btn" onclick="UI._step(${ei},${si},'reps',-1)">−</button>
-            <span class="sr-val${rGhost&&sc!=="done"?" ghost":""}" id="rv-${ei}-${si}">${showR}</span>
+            <span class="sr-val${rGhost?" ghost":""}" id="rv-${ei}-${si}">${showR}</span>
             <button class="sr-s-btn" onclick="UI._step(${ei},${si},'reps',1)">+</button>
           </div>
           <div class="sr-step" onclick="event.stopPropagation()">
             <button class="sr-s-btn" onclick="UI._step(${ei},${si},'weight',-1)">−</button>
-            <span class="sr-val${wGhost&&sc!=="done"?" ghost":""}" id="wv-${ei}-${si}">${showW}</span>
+            <span class="sr-val${wGhost?" ghost":""}" id="wv-${ei}-${si}">${showW}</span>
             <button class="sr-s-btn" onclick="UI._step(${ei},${si},'weight',1)">+</button>
           </div>
-          <button class="sr-circ${s.logged?" checked":""}" onclick="event.stopPropagation();UI._tapDone(${ei},${si})">${s.logged?CHECK:""}</button>
+          <button class="sr-circ" onclick="event.stopPropagation();UI._tapDone(${ei},${si})"></button>
         </div>
         <button class="sr-delete-reveal" onclick="UI._delSet(${ei},${si});UI._resetSwipe(${ei},${si})">Delete</button>
       </div>`;
+  },
+
+  // Tap collapsed done row — uncheck so it expands for editing
+  _uncollapseDone(ei, si) {
+    const s = App.state.session?.exercises?.[ei]?.sets?.[si];
+    if (!s) return;
+    s.logged = false;
+    this._stopRest();
+    this._rebuildActive();
+    this._updateHeader();
+    this._updateCollapsed(ei);
   },
 
   // Three-tier classification
@@ -362,21 +399,36 @@ const UI = {
     const ei  = this._activeExIdx;
     const ex  = App.state.session?.exercises?.[ei];
     if (!ex) return;
-    const done  = ex.sets.filter(s=>s.logged).length;
-    const total = ex.sets.filter(s=>!s.excluded).length;
     const wDone = ex.sets.filter(s=>!s.isWarmup&&s.logged).length;
     const wTot  = ex.sets.filter(s=>!s.isWarmup&&!s.excluded).length;
+
     const nameEl = document.getElementById("sess-ex-name");
     const ctrEl  = document.getElementById("sess-counter");
     if (nameEl) nameEl.textContent = ex.name;
     if (ctrEl)  ctrEl.textContent  = `${wDone} / ${wTot}`;
-    // Update save button
-    const allDone = App.state.session.exercises.every(ex =>
-      ex.sets.filter(s=>!s.excluded).every(s=>s.logged));
-    const saveBtn = document.getElementById("sess-save-btn");
-    if (saveBtn) {
-      saveBtn.classList.toggle("ready", allDone);
-      saveBtn.textContent = allDone ? "Save ✓" : "Save";
+
+    // Set dots — filled=done, ring=next, tiny=warmup
+    const dotsEl = document.getElementById("sess-dots-row");
+    if (dotsEl) {
+      dotsEl.innerHTML = ex.sets.filter(s=>!s.excluded).map((s,i) => {
+        const allSets = ex.sets.filter(x=>!x.excluded);
+        const firstUndone = allSets.findIndex(x=>!x.logged);
+        if (s.isWarmup) return `<span class="sdot sdot-warm"></span>`;
+        if (s.logged)   return `<span class="sdot sdot-done"></span>`;
+        if (i === firstUndone) return `<span class="sdot sdot-next"></span>`;
+        return `<span class="sdot sdot-up"></span>`;
+      }).join("");
+    }
+
+    // Bottom button: contextual
+    const exDone = ex.sets.filter(s=>!s.excluded).every(s=>s.logged);
+    const allDone = App.state.session.exercises.every(ex=>ex.sets.filter(s=>!s.excluded).every(s=>s.logged));
+    const btn = document.getElementById("sess-save-btn");
+    if (btn) {
+      btn.classList.toggle("ready", exDone || allDone);
+      if (allDone)       { btn.textContent = "Finish ✓"; }
+      else if (exDone)   { btn.textContent = "Next →"; }
+      else               { btn.textContent = "Save"; }
     }
   },
 
@@ -576,19 +628,21 @@ const UI = {
   },
 
   _syncBodyPadding() {
-    const body = document.getElementById("sess-body");
-    const hdr  = document.getElementById("sess-header");
-    if (body && hdr) body.style.paddingTop = (hdr.offsetHeight + 1) + "px";
+    const body   = document.getElementById("sess-body");
+    const hdr    = document.getElementById("sess-header");
+    const colHdr = document.getElementById("sess-col-header");
+    if (!body || !hdr) return;
+    const total = (hdr.offsetHeight||0) + (colHdr?.offsetHeight||0) + 1;
+    body.style.paddingTop = total + "px";
   },
 
   _startRest(sec) {
     this._stopRest();
     this._restTarget = Date.now() + sec*1000;
     this._restTotal  = sec;
-    const wrap = document.getElementById("sess-rest-wrap");
-    if (wrap) wrap.classList.add("active");
-    // Delay sync until transition completes (~300ms)
-    setTimeout(() => this._syncBodyPadding(), 320);
+    const banner = document.getElementById("sess-rest-banner");
+    if (banner) banner.style.display = "block";
+    setTimeout(() => this._syncBodyPadding(), 20);
     const tick = () => {
       const rem = Math.max(0, Math.ceil((this._restTarget-Date.now())/1000));
       const pct = rem/this._restTotal*100;
@@ -599,9 +653,9 @@ const UI = {
       if (rem<=0) {
         this._stopRest();
         if(navigator.vibrate) navigator.vibrate([150,80,150]);
-        if(tEl) tEl.textContent="go!";
+        if(tEl) { tEl.textContent="go!"; tEl.style.color="var(--yellow)"; }
         if(bEl) { bEl.style.width="100%"; bEl.style.background="var(--yellow)"; }
-        setTimeout(()=>{ const w=document.getElementById("sess-rest-wrap"); if(w)w.classList.remove("active"); this._syncBodyPadding(); },2000);
+        setTimeout(()=>{ const b=document.getElementById("sess-rest-banner"); if(b)b.style.display="none"; this._syncBodyPadding(); tEl&&(tEl.style.color=""); },2000);
       }
     };
     tick();
@@ -610,8 +664,8 @@ const UI = {
 
   _stopRest() {
     if (this._restTimer) { clearInterval(this._restTimer); this._restTimer=null; }
-    const w=document.getElementById("sess-rest-wrap");
-    if (w) { w.classList.remove("active"); setTimeout(()=>this._syncBodyPadding(), 320); }
+    const b=document.getElementById("sess-rest-banner");
+    if (b) { b.style.display="none"; setTimeout(()=>this._syncBodyPadding(), 20); }
   },
 
   _adjRest(d) {
