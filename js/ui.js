@@ -266,6 +266,7 @@ const UI = {
 
   // Rebuild just the active exercise block (after set actions)
   _rebuildActive() {
+    this._resetAllSwipes();
     const ei  = this._activeExIdx;
     const exb = document.getElementById(`exb-${ei}`);
     if (!exb) return;
@@ -277,6 +278,14 @@ const UI = {
       </div>
       ${ex.sets.map((_,si) => this._setRowHTML(ei,si)).join("")}
       <button class="ex-add-set-btn" onclick="UI._addSet(${ei})">+ Add set</button>`;
+  },
+
+  _resetAllSwipes() {
+    document.querySelectorAll(".sr-swipe-wrap.swiped").forEach(w => {
+      w.classList.remove("swiped");
+      const inner = w.querySelector(".sr");
+      if (inner) inner.style.transform = "";
+    });
   },
 
   // ── SET ROW HTML ──────────────────────────────────────────────────────────
@@ -543,11 +552,19 @@ const UI = {
 
   // ── SWIPE TO DELETE ───────────────────────────────────────────────────────
   _swipeStart(e, ei, si) {
+    // Close any other open swipe first
+    document.querySelectorAll(".sr-swipe-wrap.swiped").forEach(w => {
+      if (w.id !== `srw-${ei}-${si}`) {
+        w.classList.remove("swiped");
+        const inner = w.querySelector(".sr");
+        if (inner) { inner.style.transition="transform 0.2s"; inner.style.transform=""; setTimeout(()=>{inner.style.transition="";},220); }
+      }
+    });
     this._swTouchId = e.touches[0].identifier;
     this._swStartX  = e.touches[0].clientX;
     this._swStartY  = e.touches[0].clientY;
     this._swEi = ei; this._swSi = si;
-    this._swLocked = false;
+    this._swLocked = null; // null=undecided, true=horizontal, false=vertical
   },
 
   _swipeMove(e, ei, si) {
@@ -555,34 +572,45 @@ const UI = {
     if (!t) return;
     const dx = t.clientX - this._swStartX;
     const dy = Math.abs(t.clientY - this._swStartY);
-    if (!this._swLocked && dy > 8) { this._swLocked = true; return; } // vertical scroll wins
-    if (dy > 12) return;
-    if (dx < -8) {
+
+    // Determine direction lock on first significant movement
+    if (this._swLocked === null) {
+      if (Math.abs(dx) < 6 && dy < 6) return; // not moved enough yet
+      this._swLocked = Math.abs(dx) > dy; // true=horizontal wins
+    }
+
+    if (!this._swLocked) return; // vertical — let scroll handle it
+
+    if (dx < -10) {
+      e.preventDefault(); // prevent scroll while swiping left
       const inner = document.getElementById(`sr-${ei}-${si}`);
-      if (inner) inner.style.transform = `translateX(${Math.max(dx, -80)}px)`;
-      e.preventDefault();
+      if (inner) inner.style.transform = `translateX(${Math.max(dx, -84)}px)`;
+    } else if (dx > 10) {
+      // Swiping right — snap back if was open
+      const wrap = document.getElementById(`srw-${ei}-${si}`);
+      if (wrap?.classList.contains("swiped")) this._resetSwipe(ei, si);
     }
   },
 
   _swipeEnd(e, ei, si) {
     const t = Array.from(e.changedTouches).find(t=>t.identifier===this._swTouchId);
-    if (!t) return;
+    if (!t || !this._swLocked) return;
     const dx = t.clientX - this._swStartX;
-    const inner = document.getElementById(`sr-${ei}-${si}`);
-    const wrap  = document.getElementById(`srw-${ei}-${si}`);
-    if (dx < -60) {
-      // Reveal delete
-      if (inner) inner.style.transform = "translateX(-80px)";
+    if (dx < -64) {
+      const inner = document.getElementById(`sr-${ei}-${si}`);
+      const wrap  = document.getElementById(`srw-${ei}-${si}`);
+      if (inner) inner.style.transform = "translateX(-84px)";
       if (wrap)  wrap.classList.add("swiped");
     } else {
       this._resetSwipe(ei, si);
     }
+    this._swLocked = null;
   },
 
   _resetSwipe(ei, si) {
     const inner = document.getElementById(`sr-${ei}-${si}`);
     const wrap  = document.getElementById(`srw-${ei}-${si}`);
-    if (inner) { inner.style.transition = "transform 0.2s"; inner.style.transform = ""; setTimeout(()=>{ if(inner) inner.style.transition=""; },220); }
+    if (inner) { inner.style.transition="transform 0.2s"; inner.style.transform=""; setTimeout(()=>{if(inner)inner.style.transition="";},220); }
     if (wrap)  wrap.classList.remove("swiped");
   },
 
