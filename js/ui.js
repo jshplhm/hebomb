@@ -177,7 +177,6 @@ const UI = {
               <span class="week-dot-label">${dayLabels[id]}</span>
             </div>`;
           }).join("")}
-          }).join("")}
         </div>
       </div>
 
