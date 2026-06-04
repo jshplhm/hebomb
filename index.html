@@ -120,7 +120,10 @@ input[type=number] { -moz-appearance:textfield; }
 .ex-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; border:1.5px solid var(--border2); background:transparent; transition:all 0.2s; }
 .ex-dot.done { background:var(--yellow); border-color:var(--yellow); }
 .ex-dot.partial { border-color:var(--yellow); box-shadow:0 0 0 2px rgba(232,255,71,.15); }
+/* next = currently active exercise shown in collapsed list */
+.ex-dot.next { border-color:var(--yellow); background:rgba(232,255,71,.2); box-shadow:0 0 0 2px rgba(232,255,71,.15); }
 .ex-col-name { font-family:'Barlow Condensed',sans-serif; font-size:16px; font-weight:700; text-transform:uppercase; color:var(--sub); letter-spacing:0.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; transition:color 0.2s; }
+.ex-col-name-next { color:var(--yellow) !important; }
 .ex-all-done .ex-col-name { color:var(--muted); text-decoration:line-through; }
 .ex-col-meta { font-family:'Barlow Condensed',sans-serif; font-size:12px; color:var(--muted); white-space:nowrap; flex-shrink:0; }
 
@@ -325,10 +328,10 @@ input[type=number] { -moz-appearance:textfield; }
 <body>
 <div id="app"></div>
 <!-- Increment ?v= on every deploy to bust cache -->
-<script src="js/config.js?v=20260604-1"></script>
-<script src="js/program.js?v=20260604-1"></script>
-<script src="js/app.js?v=20260604-1"></script>
-<script src="js/ui.js?v=20260604-1"></script>
+<script src="js/config.js?v=20260604-2"></script>
+<script src="js/program.js?v=20260604-2"></script>
+<script src="js/app.js?v=20260604-2"></script>
+<script src="js/ui.js?v=20260604-2"></script>
 <script>
   document.addEventListener("DOMContentLoaded", () => UI.init());
 </script>
