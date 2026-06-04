@@ -109,11 +109,11 @@ const UI = {
   // ── HOME — pure progress dashboard, no workout picker ─────────────────────
   renderHome() {
     const wrap = this.el("div", "page");
-    const dateStr    = new Date().toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
+    const dateStr     = new Date().toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
     const currentWeek = getCurrentWeek();
-    const weekData   = WEEKS[currentWeek];
-    const phaseId    = weekData.phaseId;
-    const phase      = weekData.phase;
+    const weekData    = WEEKS[currentWeek] || {};
+    const phaseId     = weekData.phaseId || "strength";
+    const phase       = weekData.phase   || {};
 
     // BW data
     const bwEntries  = App.state.bwLog || [];
@@ -140,7 +140,7 @@ const UI = {
       <header class="page-header-compact">
         <div class="compact-date-row">
           <span class="compact-date">${dateStr}</span>
-          <span class="phase-badge phase-badge-${phaseId}">Wk ${currentWeek} · ${phase.label}</span>
+          <span class="phase-badge phase-badge-${phaseId}">Wk ${currentWeek} · ${phase.label || ""}</span>
         </div>
       </header>
 
@@ -150,10 +150,10 @@ const UI = {
           <div>
             <div class="home-bw-val">${latest ? latest.w + " lbs" : "—"}</div>
             <div class="home-bw-sub ${inGoal ? "in-goal" : ""}">
-              ${delta !== null ? `${parseFloat(delta) > 0 ? "+" : ""}${delta} from yesterday · ` : ""}${inGoal ? "In goal range" : `Goal: ${goal_lo}–${goal_hi}`}
+              ${delta !== null ? `${parseFloat(delta) > 0 ? "+" : ""}${delta} from yesterday · ` : ""}${inGoal ? "In goal range ✓" : `Goal: ${goal_lo}–${goal_hi}`}
             </div>
           </div>
-          <div class="home-bw-range">30 days</div>
+          <span class="home-bw-range">30 days</span>
         </div>
         ${sparkHTML}
       </div>
@@ -171,10 +171,12 @@ const UI = {
           ${dayOrder.map(id => {
             const done    = loggedThisWeek.has(id);
             const isToday = id === suggestedId;
+            const cls     = ["week-dot", done?"done":"", isToday&&!done?"today":""].filter(Boolean).join(" ");
             return `<div class="week-dot-col">
-              <div class="week-dot ${done?"done":""} ${isToday&&!done?"today":""}"></div>
+              <div class="${cls}"></div>
               <span class="week-dot-label">${dayLabels[id]}</span>
             </div>`;
+          }).join("")}
           }).join("")}
         </div>
       </div>
@@ -333,7 +335,12 @@ const UI = {
   // ── SESSION — full-screen takeover ────────────────────────────────────────
   renderSession() {
     const { session, activeDay } = App.state;
-    if (!session || !activeDay) { this.nav("log"); return; }
+    // If session failed to initialize, show error rather than silently redirecting
+    if (!activeDay) { this.nav("log"); return; }
+    if (!session) {
+      this.root.innerHTML = `<div class="loading-text" style="padding-top:120px">Loading session…</div>`;
+      return;
+    }
 
     const day = PROGRAM[activeDay];
     const currentWeek = getCurrentWeek();
@@ -524,11 +531,21 @@ const UI = {
     sheet.innerHTML = `
       <div class="confirm-sheet">
         <div class="confirm-sheet-title">End workout?</div>
-        <div class="confirm-sheet-sub">Your logged sets will be saved.</div>
+        <div class="confirm-sheet-sub">Choose what to do with this session.</div>
         <button class="btn-primary" style="margin-bottom:10px" onclick="UI._doSaveSession()">Save & Exit</button>
-        <button class="btn-ghost" onclick="this.closest('.confirm-sheet-overlay').remove()">Keep Going</button>
+        <button class="btn-ghost" style="margin-bottom:10px;width:100%;color:var(--orange);border-color:var(--orange)" onclick="UI._discardSession()">Discard — don't save</button>
+        <button class="btn-ghost" style="width:100%" onclick="this.closest('.confirm-sheet-overlay').remove()">Keep Going</button>
       </div>`;
     document.body.appendChild(sheet);
+  },
+
+  _discardSession() {
+    document.querySelector(".confirm-sheet-overlay")?.remove();
+    this._cancelRestTimer();
+    App.state.session   = null;
+    App.state.activeDay = null;
+    App.state.view = "log";
+    this.render();
   },
 
   _confirmFinish() {
