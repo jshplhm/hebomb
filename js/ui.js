@@ -72,12 +72,14 @@ const UI = {
         <div class="picker-suggested-name">${sug.title}</div>
         <button class="btn-start" onclick="UI.startDay('${sid}')">Start</button>
       </div>
+      <div class="section-head-plain" style="margin-bottom:8px">Other days</div>
       <div class="picker-others">
-        ${["dayA","dayB","dayC","sport"].filter(id=>id!==sid).map(id => {
+        ${["dayA","dayB","dayC"].filter(id=>id!==sid).map(id => {
           const d = PROGRAM[id];
-          return `<button class="picker-other-btn" onclick="UI.startDay('${id}')">
+          return `<button class="picker-other-btn" onclick="UI._previewDay('${id}')">
             <span class="picker-other-label">${d.label||id}</span>
             <span class="picker-other-title">${d.title}</span>
+            <span class="picker-other-hint">Tap to preview →</span>
           </button>`;
         }).join("")}
       </div>
@@ -88,6 +90,32 @@ const UI = {
           max="${new Date().toISOString().split("T")[0]}">
       </div>`;
     this.root.appendChild(wrap);
+  },
+
+  // Preview a day before committing — shows exercise list with Start button
+  _previewDay(dayId) {
+    const wrap = this.el("div","picker-page");
+    const d = PROGRAM[dayId];
+    const cw = getCurrentWeek();
+    const exNames = (d.exercises||[]).map(ex=>ex.name).join(", ") || d.title;
+
+    wrap.innerHTML = `
+      <button class="preview-back" onclick="UI.nav('picker')">← Back</button>
+      <div class="preview-title">${d.title}</div>
+      <div class="preview-label">${d.label||""}</div>
+      <div class="preview-exercises">
+        ${(d.exercises||[]).map(ex=>`
+          <div class="preview-ex-row">
+            <span class="preview-ex-name">${ex.name}</span>
+            <span class="preview-ex-sets">${ex.sets?.length||""} sets</span>
+          </div>`).join("") || `<div style="color:var(--sub);font-size:14px;padding:16px 0">${d.title}</div>`}
+      </div>
+      <button class="btn-start" style="margin-top:20px" onclick="UI.startDay('${dayId}')">Start ${d.title}</button>
+    `;
+    this.root.innerHTML = "";
+    document.getElementById("bottom-nav")?.remove();
+    this.root.appendChild(wrap);
+    this._nav();
   },
 
   // ── START ─────────────────────────────────────────────────────────────────
@@ -102,11 +130,15 @@ const UI = {
     const last = await App.fetchLastSession(dayId);
     App.state.lastSession = last;
     App.state.session = App.applyLastSession(session, last);
-    // Seed prev values on each set for ghost logic
+    // Seed prev values and isWarmup flag on each set
     App.state.session.exercises.forEach(ex => {
       ex.sets.forEach(s => {
         if (!s.prev) s.prev = { reps: s.reps, weight: s.weight };
-        s.claimed = {};  // {reps: val, weight: val} — claimed this session
+        s.claimed = {};
+        // Detect warm-up sets from the note field (program.js sets note:"warm-up")
+        if (!s.hasOwnProperty("isWarmup")) {
+          s.isWarmup = (s.note === "warm-up" || s.note === "warmup" || s.note === "warm up");
+        }
       });
     });
     this._activeExIdx = 0;
@@ -246,31 +278,35 @@ const UI = {
       </div>`;
 
     const CHECK = `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l5 5 7-8"/></svg>`;
-    const DEL   = `<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7"/></svg>`;
 
     if (ex.bodyweight) return `
-      <div class="sr sr-${sc}" id="sr-${ei}-${si}">
+      <div class="sr sr-${sc}" id="sr-${ei}-${si}" onclick="UI._claimSet(${ei},${si})">
         <span class="${numCls}">${numLabel}</span>
         <span class="sr-bw" style="grid-column:2/4">${showR}</span>
-        <button class="sr-circ${s.logged?" checked":""}" onclick="UI._tapDone(${ei},${si})">${s.logged?CHECK:""}</button>
-        <button class="sr-del" onclick="UI._delSet(${ei},${si})">${DEL}</button>
+        <button class="sr-circ${s.logged?" checked":""}" onclick="event.stopPropagation();UI._tapDone(${ei},${si})">${s.logged?CHECK:""}</button>
+        <span></span>
       </div>`;
 
     return `
-      <div class="sr sr-${sc}" id="sr-${ei}-${si}" onclick="UI._claimSet(${ei},${si})">
-        <span class="${numCls}">${numLabel}</span>
-        <div class="sr-step" onclick="event.stopPropagation()">
-          <button class="sr-s-btn" onclick="UI._step(${ei},${si},'reps',-1)">−</button>
-          <span class="sr-val${rGhost&&sc!=="done"?" ghost":""}" id="rv-${ei}-${si}">${showR}</span>
-          <button class="sr-s-btn" onclick="UI._step(${ei},${si},'reps',1)">+</button>
+      <div class="sr-swipe-wrap" id="srw-${ei}-${si}"
+        ontouchstart="UI._swipeStart(event,${ei},${si})"
+        ontouchmove="UI._swipeMove(event,${ei},${si})"
+        ontouchend="UI._swipeEnd(event,${ei},${si})">
+        <div class="sr sr-${sc}" id="sr-${ei}-${si}" onclick="UI._claimSet(${ei},${si})">
+          <span class="${numCls}">${numLabel}</span>
+          <div class="sr-step" onclick="event.stopPropagation()">
+            <button class="sr-s-btn" onclick="UI._step(${ei},${si},'reps',-1)">−</button>
+            <span class="sr-val${rGhost&&sc!=="done"?" ghost":""}" id="rv-${ei}-${si}">${showR}</span>
+            <button class="sr-s-btn" onclick="UI._step(${ei},${si},'reps',1)">+</button>
+          </div>
+          <div class="sr-step" onclick="event.stopPropagation()">
+            <button class="sr-s-btn" onclick="UI._step(${ei},${si},'weight',-1)">−</button>
+            <span class="sr-val${wGhost&&sc!=="done"?" ghost":""}" id="wv-${ei}-${si}">${showW}</span>
+            <button class="sr-s-btn" onclick="UI._step(${ei},${si},'weight',1)">+</button>
+          </div>
+          <button class="sr-circ${s.logged?" checked":""}" onclick="event.stopPropagation();UI._tapDone(${ei},${si})">${s.logged?CHECK:""}</button>
         </div>
-        <div class="sr-step" onclick="event.stopPropagation()">
-          <button class="sr-s-btn" onclick="UI._step(${ei},${si},'weight',-1)">−</button>
-          <span class="sr-val${wGhost&&sc!=="done"?" ghost":""}" id="wv-${ei}-${si}">${showW}</span>
-          <button class="sr-s-btn" onclick="UI._step(${ei},${si},'weight',1)">+</button>
-        </div>
-        <button class="sr-circ${s.logged?" checked":""}" onclick="event.stopPropagation();UI._tapDone(${ei},${si})">${s.logged?CHECK:""}</button>
-        <button class="sr-del" onclick="event.stopPropagation();UI._delSet(${ei},${si})">${DEL}</button>
+        <button class="sr-delete-reveal" onclick="UI._delSet(${ei},${si});UI._resetSwipe(${ei},${si})">Delete</button>
       </div>`;
   },
 
@@ -453,6 +489,51 @@ const UI = {
     }
   },
 
+  // ── SWIPE TO DELETE ───────────────────────────────────────────────────────
+  _swipeStart(e, ei, si) {
+    this._swTouchId = e.touches[0].identifier;
+    this._swStartX  = e.touches[0].clientX;
+    this._swStartY  = e.touches[0].clientY;
+    this._swEi = ei; this._swSi = si;
+    this._swLocked = false;
+  },
+
+  _swipeMove(e, ei, si) {
+    const t = Array.from(e.touches).find(t=>t.identifier===this._swTouchId);
+    if (!t) return;
+    const dx = t.clientX - this._swStartX;
+    const dy = Math.abs(t.clientY - this._swStartY);
+    if (!this._swLocked && dy > 8) { this._swLocked = true; return; } // vertical scroll wins
+    if (dy > 12) return;
+    if (dx < -8) {
+      const inner = document.getElementById(`sr-${ei}-${si}`);
+      if (inner) inner.style.transform = `translateX(${Math.max(dx, -80)}px)`;
+      e.preventDefault();
+    }
+  },
+
+  _swipeEnd(e, ei, si) {
+    const t = Array.from(e.changedTouches).find(t=>t.identifier===this._swTouchId);
+    if (!t) return;
+    const dx = t.clientX - this._swStartX;
+    const inner = document.getElementById(`sr-${ei}-${si}`);
+    const wrap  = document.getElementById(`srw-${ei}-${si}`);
+    if (dx < -60) {
+      // Reveal delete
+      if (inner) inner.style.transform = "translateX(-80px)";
+      if (wrap)  wrap.classList.add("swiped");
+    } else {
+      this._resetSwipe(ei, si);
+    }
+  },
+
+  _resetSwipe(ei, si) {
+    const inner = document.getElementById(`sr-${ei}-${si}`);
+    const wrap  = document.getElementById(`srw-${ei}-${si}`);
+    if (inner) { inner.style.transition = "transform 0.2s"; inner.style.transform = ""; setTimeout(()=>{ if(inner) inner.style.transition=""; },220); }
+    if (wrap)  wrap.classList.remove("swiped");
+  },
+
   _toggleExclude(ei, si) {
     const s = App.state.session?.exercises?.[ei]?.sets?.[si];
     if (!s) return;
@@ -616,11 +697,6 @@ const UI = {
       if (!exMap[ex.name]) exMap[ex.name] = {...ex, group:"Main Lifts"};
     });
     const all = Object.values(exMap).sort((a,b)=>a.name.localeCompare(b.name));
-
-    const overlay = document.createElement("div");
-    overlay.id = "sess-sheet";
-    overlay.className = "sheet-overlay";
-
     const byGroup = {};
     all.forEach(e => (byGroup[e.group]=byGroup[e.group]||[]).push(e));
     const listHTML = Object.entries(byGroup).map(([g,exs]) => `
@@ -630,14 +706,17 @@ const UI = {
         <span class="sheet-item-add">+</span>
       </div>`).join("")}`).join("");
 
-    overlay.innerHTML = `<div class="sheet">
-      <div class="sheet-handle"></div>
-      <div class="sheet-header">
-        <span class="sheet-title">${isSwap?"Swap Exercise":"Add Exercise"}</span>
-        <button class="sheet-close" onclick="UI._closeSheet()">✕</button>
+    // Full-screen overlay instead of bottom sheet
+    const overlay = document.createElement("div");
+    overlay.id = "sess-sheet";
+    overlay.className = "ex-picker-fullscreen";
+    overlay.innerHTML = `
+      <div class="ex-picker-head">
+        <button class="ex-picker-back" onclick="UI._closeSheet()">✕</button>
+        <span class="ex-picker-title">${isSwap?"Swap Exercise":"Add Exercise"}</span>
       </div>
-      <div class="sheet-search">
-        <input type="search" placeholder="Search…" id="ex-search" autocomplete="off" autocorrect="off"
+      <div class="ex-picker-search">
+        <input type="search" placeholder="Search exercises…" id="ex-search" autocomplete="off" autocorrect="off"
           oninput="
             const q=this.value.toLowerCase();
             document.querySelectorAll('#sess-sheet .sheet-item').forEach(el=>{
@@ -649,9 +728,8 @@ const UI = {
               l.style.display=v?'':'none';
             });">
       </div>
-      <div class="sheet-list">${listHTML}</div>
-    </div>`;
-    overlay.addEventListener("click", e=>{ if(e.target===overlay) this._closeSheet(); });
+      <div class="ex-picker-list">${listHTML}</div>
+    `;
     document.body.appendChild(overlay);
     setTimeout(()=>document.getElementById("ex-search")?.focus(), 200);
   },
