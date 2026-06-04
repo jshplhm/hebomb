@@ -162,8 +162,9 @@ input[type=number] { -moz-appearance:textfield; }
 .sr-swipe-wrap { position:relative; overflow:hidden; border-bottom:1px solid var(--border); }
 .sr-swipe-wrap:last-of-type { border-bottom:none; }
 .sr-swipe-wrap .sr { border-bottom:none; transition:transform 0.15s ease; }
-.sr-delete-reveal { position:absolute; right:0; top:0; bottom:0; width:80px; background:var(--red); color:#fff; border:none; font-family:'Barlow Condensed',sans-serif; font-size:13px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; cursor:pointer; display:flex; align-items:center; justify-content:center; -webkit-tap-highlight-color:transparent; }
-.sr-swipe-wrap.swiped .sr { transform:translateX(-80px); }
+.sr-delete-reveal { position:absolute; right:0; top:0; bottom:0; width:84px; background:var(--red); color:#fff; border:none; font-family:'Barlow Condensed',sans-serif; font-size:13px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; cursor:pointer; display:flex; align-items:center; justify-content:center; -webkit-tap-highlight-color:transparent; transform:translateX(84px); transition:transform 0.15s ease; }
+.sr-swipe-wrap.swiped .sr { transform:translateX(-84px); }
+.sr-swipe-wrap.swiped .sr-delete-reveal { transform:translateX(0); }
 
 /* ── SESSION BOTTOM BAR ── */
 .sess-bottom { flex-shrink:0; background:var(--surface); border-top:1px solid var(--border); padding:10px 14px calc(var(--safe-bot) + 10px); display:flex; gap:8px; }
@@ -435,10 +436,10 @@ input[type=number] { -moz-appearance:textfield; }
 <body>
 <div id="app"></div>
 <!-- Increment ?v= on every deploy to bust cache -->
-<script src="js/config.js?v=20260604-4"></script>
-<script src="js/program.js?v=20260604-4"></script>
-<script src="js/app.js?v=20260604-4"></script>
-<script src="js/ui.js?v=20260604-4"></script>
+<script src="js/config.js?v=20260604-5"></script>
+<script src="js/program.js?v=20260604-5"></script>
+<script src="js/app.js?v=20260604-5"></script>
+<script src="js/ui.js?v=20260604-5"></script>
 <script>
   document.addEventListener("DOMContentLoaded", () => UI.init());
 </script>
