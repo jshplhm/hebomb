@@ -158,6 +158,7 @@ const UI = {
     this.root.appendChild(wrap);
     this._buildBody();
     this._updateHeader();
+    setTimeout(() => this._syncBodyPadding(), 0);
     this._scrollToActive();
   },
 
@@ -165,8 +166,6 @@ const UI = {
   _buildBody() {
     const body = document.getElementById("sess-body");
     if (!body) return;
-    const hh = document.getElementById("sess-header")?.offsetHeight || 100;
-    body.style.paddingTop = (hh + 1) + "px";
 
     const { session } = App.state;
     const ei = this._activeExIdx;
@@ -190,16 +189,17 @@ const UI = {
       }
 
       const dot = allDone ? "done" : partial ? "partial" : "untouched";
+      const isCurrent = i === ei;
       const meta = allDone
         ? `<span style="color:var(--green);font-size:11px">✓</span>`
         : partial
           ? `<span style="color:var(--yellow);font-size:11px">${doneC}/${totC}</span>`
           : `<span style="font-size:11px;color:var(--muted)">${totC} sets</span>`;
       return `<div class="ex-block${allDone?" ex-all-done":""}" id="exb-${i}">
-        <div class="ex-collapsed" onclick="UI._goTo(${i})">
+        <div class="ex-collapsed${isCurrent?" ex-is-next":""}" onclick="UI._goTo(${i})">
           <div class="ex-col-left">
-            <div class="ex-dot ${dot}"></div>
-            <span class="ex-col-name">${ex.name}</span>
+            <div class="ex-dot ${isCurrent?"next":dot}"></div>
+            <span class="ex-col-name${isCurrent?" ex-col-name-next":""}">${ex.name}</span>
           </div>
           <span class="ex-col-meta">${meta}</span>
         </div>
@@ -257,20 +257,20 @@ const UI = {
       </div>`;
 
     return `
-      <div class="sr sr-${sc}" id="sr-${ei}-${si}">
+      <div class="sr sr-${sc}" id="sr-${ei}-${si}" onclick="UI._claimSet(${ei},${si})">
         <span class="${numCls}">${numLabel}</span>
-        <div class="sr-step">
+        <div class="sr-step" onclick="event.stopPropagation()">
           <button class="sr-s-btn" onclick="UI._step(${ei},${si},'reps',-1)">−</button>
           <span class="sr-val${rGhost&&sc!=="done"?" ghost":""}" id="rv-${ei}-${si}">${showR}</span>
           <button class="sr-s-btn" onclick="UI._step(${ei},${si},'reps',1)">+</button>
         </div>
-        <div class="sr-step">
+        <div class="sr-step" onclick="event.stopPropagation()">
           <button class="sr-s-btn" onclick="UI._step(${ei},${si},'weight',-1)">−</button>
           <span class="sr-val${wGhost&&sc!=="done"?" ghost":""}" id="wv-${ei}-${si}">${showW}</span>
           <button class="sr-s-btn" onclick="UI._step(${ei},${si},'weight',1)">+</button>
         </div>
-        <button class="sr-circ${s.logged?" checked":""}" onclick="UI._tapDone(${ei},${si})">${s.logged?CHECK:""}</button>
-        <button class="sr-del" onclick="UI._delSet(${ei},${si})">${DEL}</button>
+        <button class="sr-circ${s.logged?" checked":""}" onclick="event.stopPropagation();UI._tapDone(${ei},${si})">${s.logged?CHECK:""}</button>
+        <button class="sr-del" onclick="event.stopPropagation();UI._delSet(${ei},${si})">${DEL}</button>
       </div>`;
   },
 
@@ -283,18 +283,27 @@ const UI = {
     return si === firstUndone ? "current" : "upcoming";
   },
 
-  // Ghost values: cascade from last done set in this exercise, else prev session
+  // Ghost values: cascade from last done WORKING set only (skip warmup as source)
+  // Warmup ghost always comes from prev session only
   _ghostVals(ei, si) {
     const sets = App.state.session.exercises[ei].sets;
+    const s    = sets[si];
+
+    // Warmup sets always use their own prev session value — never cascade from above
+    if (s.isWarmup) {
+      return { reps: s.prev?.reps ?? s.reps, weight: s.prev?.weight ?? s.weight };
+    }
+
+    // Working sets: find the last done non-warmup set above this one
     for (let i = si - 1; i >= 0; i--) {
-      if (sets[i].logged) {
+      if (sets[i].logged && !sets[i].isWarmup) {
         return {
-          reps:   sets[i].claimed?.reps    !== undefined ? sets[i].claimed.reps    : sets[i].reps,
-          weight: sets[i].claimed?.weight  !== undefined ? sets[i].claimed.weight  : sets[i].weight,
+          reps:   sets[i].claimed?.reps   !== undefined ? sets[i].claimed.reps   : sets[i].reps,
+          weight: sets[i].claimed?.weight !== undefined ? sets[i].claimed.weight : sets[i].weight,
         };
       }
     }
-    const s = sets[si];
+    // Fall back to prev session
     return { reps: s.prev?.reps ?? s.reps, weight: s.prev?.weight ?? s.weight };
   },
 
@@ -360,14 +369,28 @@ const UI = {
   _goTo(ei) {
     const prev = this._activeExIdx;
     this._activeExIdx = ei;
-    // Rebuild body entirely — exercise blocks need to swap active/collapsed
     this._buildBody();
     this._updateHeader();
-    setTimeout(() => this._scrollToActive(), 60);
+    setTimeout(() => { this._syncBodyPadding(); this._scrollToActive(); }, 20);
   },
 
   // ── SET ACTIONS ───────────────────────────────────────────────────────────
   _wtStep(w) { return w < 30 ? 2.5 : 5; },
+
+  // Claim the ghost values for a set (solidify dim italic → white)
+  _claimSet(ei, si) {
+    const s = App.state.session?.exercises?.[ei]?.sets?.[si];
+    if (!s || s.logged || s.excluded) return;
+    if (!s.claimed) s.claimed = {};
+    const g = this._ghostVals(ei, si);
+    if (s.claimed.reps   === undefined) s.claimed.reps   = g.reps;
+    if (s.claimed.weight === undefined) s.claimed.weight = g.weight;
+    // Update DOM to show claimed (non-ghost) state
+    const rv = document.getElementById(`rv-${ei}-${si}`);
+    const wv = document.getElementById(`wv-${ei}-${si}`);
+    if (rv) { rv.textContent = s.claimed.reps;   rv.classList.remove("ghost"); }
+    if (wv) { wv.textContent = s.claimed.weight; wv.classList.remove("ghost"); }
+  },
 
   _step(ei, si, field, dir) {
     const s = App.state.session?.exercises?.[ei]?.sets?.[si];
@@ -381,7 +404,7 @@ const UI = {
     const id = field==="reps" ? `rv-${ei}-${si}` : `wv-${ei}-${si}`;
     const el = document.getElementById(id);
     if (el) { el.textContent = next; el.classList.remove("ghost"); }
-    // Cascade ghosts to subsequent undone sets
+    // Cascade ghosts to subsequent undone non-warmup sets
     this._refreshGhosts(ei, si+1);
   },
 
@@ -389,7 +412,7 @@ const UI = {
     const sets = App.state.session.exercises[ei].sets;
     for (let si = fromSi; si < sets.length; si++) {
       const s = sets[si];
-      if (s.logged || s.excluded) continue;
+      if (s.logged || s.excluded || s.isWarmup) continue;
       const g = this._ghostVals(ei, si);
       if (s.claimed?.reps === undefined) {
         const el = document.getElementById(`rv-${ei}-${si}`);
@@ -405,6 +428,10 @@ const UI = {
   _tapDone(ei, si) {
     const s = App.state.session?.exercises?.[ei]?.sets?.[si];
     if (!s || s.excluded) return;
+
+    // Claim ghost values first — circle tap solidifies whatever is showing
+    this._claimSet(ei, si);
+
     s.logged = !s.logged;
     // Commit claimed values on done
     if (s.logged && s.claimed) {
@@ -467,12 +494,20 @@ const UI = {
     const n=parseInt(s); return isNaN(n)?90:n;
   },
 
+  _syncBodyPadding() {
+    const body = document.getElementById("sess-body");
+    const hdr  = document.getElementById("sess-header");
+    if (body && hdr) body.style.paddingTop = (hdr.offsetHeight + 1) + "px";
+  },
+
   _startRest(sec) {
     this._stopRest();
     this._restTarget = Date.now() + sec*1000;
     this._restTotal  = sec;
     const wrap = document.getElementById("sess-rest-wrap");
     if (wrap) wrap.classList.add("active");
+    // Delay sync until transition completes (~300ms)
+    setTimeout(() => this._syncBodyPadding(), 320);
     const tick = () => {
       const rem = Math.max(0, Math.ceil((this._restTarget-Date.now())/1000));
       const pct = rem/this._restTotal*100;
@@ -485,7 +520,7 @@ const UI = {
         if(navigator.vibrate) navigator.vibrate([150,80,150]);
         if(tEl) tEl.textContent="go!";
         if(bEl) { bEl.style.width="100%"; bEl.style.background="var(--yellow)"; }
-        setTimeout(()=>{ const w=document.getElementById("sess-rest-wrap"); if(w)w.classList.remove("active"); },2000);
+        setTimeout(()=>{ const w=document.getElementById("sess-rest-wrap"); if(w)w.classList.remove("active"); this._syncBodyPadding(); },2000);
       }
     };
     tick();
@@ -494,7 +529,8 @@ const UI = {
 
   _stopRest() {
     if (this._restTimer) { clearInterval(this._restTimer); this._restTimer=null; }
-    const w=document.getElementById("sess-rest-wrap"); if(w)w.classList.remove("active");
+    const w=document.getElementById("sess-rest-wrap");
+    if (w) { w.classList.remove("active"); setTimeout(()=>this._syncBodyPadding(), 320); }
   },
 
   _adjRest(d) {
