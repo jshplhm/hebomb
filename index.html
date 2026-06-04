@@ -545,21 +545,22 @@ input[type=number] { -moz-appearance: textfield; }
 
 /* ── SETS GRID ────────────────────────────────────────────────────────────── */
 .sets-grid {
-  padding: 4px 10px 10px;
+  padding: 4px 12px 10px;
 }
 
-/* 5-col: set-num | reps | weight | done-toggle | exclude */
+/* 4-col: set-num | reps stepper | weight stepper | circle */
 .set-row {
   display: grid;
-  grid-template-columns: 52px 1fr 1fr 44px 36px;
-  gap: 5px;
+  grid-template-columns: 44px 1fr 1fr 48px;
+  gap: 6px;
   align-items: center;
-  padding: 4px 0;
+  padding: 5px 0;
   border-bottom: 1px solid var(--border);
   transition: opacity 0.2s;
 }
 .set-row:last-child { border-bottom: none; }
-.set-row.excluded { opacity: 0.35; }
+.set-row.set-logged { opacity: 0.4; }
+.set-row.excluded   { opacity: 0.25; }
 
 .set-row.header-row {
   font-family: 'Barlow Condensed', sans-serif;
@@ -570,8 +571,9 @@ input[type=number] { -moz-appearance: textfield; }
   color: var(--muted);
   padding-bottom: 6px;
   border-bottom: 1px solid var(--border);
+  opacity: 1 !important;
 }
-.set-row.header-row:last-child { border-bottom: 1px solid var(--border); }
+.col-reps-head, .col-weight-head { padding-left: 10px; }
 
 .set-num {
   font-size: 13px;
@@ -1261,7 +1263,7 @@ input[type=number] { -moz-appearance: textfield; }
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   z-index: 50;
-  padding: 48px 16px 0;
+  padding: calc(env(safe-area-inset-top, 44px) + 8px) 16px 0;
   flex-shrink: 0;
 }
 
@@ -1443,6 +1445,70 @@ input[type=number] { -moz-appearance: textfield; }
   font-style: italic;
 }
 
+/* ── STEPPER WIDGET ───────────────────────────────────────────────────────── */
+.stepper {
+  display: flex;
+  align-items: center;
+  background: var(--card2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  height: 44px;
+}
+.step-btn {
+  background: transparent;
+  border: none;
+  color: var(--sub);
+  font-size: 20px;
+  font-weight: 300;
+  width: 36px;
+  height: 100%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.1s, color 0.1s;
+  user-select: none;
+}
+.step-btn:active { background: var(--lift); color: var(--yellow); }
+.step-val {
+  flex: 1;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+  min-width: 0;
+  line-height: 1;
+}
+
+/* ── CIRCLE DONE BUTTON ───────────────────────────────────────────────────── */
+.set-circle {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: transparent;
+  border: 2px solid var(--border2);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
+  padding: 0;
+  /* Prevent iOS from making this an oval */
+  min-width: 44px;
+  min-height: 44px;
+  max-width: 44px;
+  max-height: 44px;
+}
+.set-circle:active { border-color: var(--yellow); background: rgba(232,255,71,.15); }
+.set-circle.checked { background: var(--yellow); border-color: var(--yellow); }
+.set-circle.checked svg { stroke: #0a0a0a; }
+.set-circle svg { width: 18px; height: 18px; }
+
 /* Confirm end-session sheet */
 .confirm-sheet-overlay {
   position: fixed;
@@ -1528,10 +1594,10 @@ input[type=number] { -moz-appearance: textfield; }
 <div id="app"></div>
 
 <!-- Increment ?v= on every deploy to bust cache -->
-<script src="js/config.js?v=20260603-12"></script>
-<script src="js/program.js?v=20260603-12"></script>
-<script src="js/app.js?v=20260603-12"></script>
-<script src="js/ui.js?v=20260603-12"></script>
+<script src="js/config.js?v=20260603-13"></script>
+<script src="js/program.js?v=20260603-13"></script>
+<script src="js/app.js?v=20260603-13"></script>
+<script src="js/ui.js?v=20260603-13"></script>
 <script>
   document.addEventListener("DOMContentLoaded", () => UI.init());
 </script>
