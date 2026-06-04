@@ -106,35 +106,29 @@ const UI = {
     document.body.appendChild(nav);
   },
 
-  // ── HOME — pure progress dashboard, no workout picker ─────────────────────
+  // ── HOME — pure progress dashboard ────────────────────────────────────────
   renderHome() {
     const wrap = this.el("div", "page");
-    const dateStr     = new Date().toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
+    const dateStr     = new Date().toLocaleDateString("en-US", { weekday:"long", month:"short", day:"numeric" });
     const currentWeek = getCurrentWeek();
     const weekData    = WEEKS[currentWeek] || {};
     const phaseId     = weekData.phaseId || "strength";
     const phase       = weekData.phase   || {};
 
-    // BW data
-    const bwEntries  = App.state.bwLog || [];
-    const latest     = bwEntries.length ? bwEntries[bwEntries.length - 1] : null;
-    const prev       = bwEntries.length > 1 ? bwEntries[bwEntries.length - 2] : null;
-    const delta      = latest && prev ? (latest.w - prev.w).toFixed(1) : null;
-    const goal_lo    = CONFIG.GOAL_LB_LOW;
-    const goal_hi    = CONFIG.GOAL_LB_HIGH;
-    const inGoal     = latest && latest.w >= goal_lo && latest.w <= goal_hi;
-
-    // Week progress
-    const dayOrder   = ["dayA","dayB","dayC","sport"];
-    const dayLabels  = { dayA:"Upper", dayB:"Lower", dayC:"Olympic", sport:"Sport" };
+    const dayOrder    = ["dayA","dayB","dayC","sport"];
+    const dayLabels   = { dayA:"Upper", dayB:"Lower", dayC:"Olympic", sport:"Sport" };
     const suggestedId = App.getSuggestedDay();
-    const history    = App.state.history || [];
-    const weekStart  = this._weekStart();
+    const history     = App.state.history || [];
+    const weekStart   = this._weekStart();
     const loggedThisWeek = new Set(history.filter(s => s.date >= weekStart).map(s => s.dayId));
-    const sessionsDone = Math.min(loggedThisWeek.size, 3);
+    const sessionsDone   = Math.min(loggedThisWeek.size, 3);
 
-    // BW sparkline (last 30)
-    const sparkHTML = this._renderSparkline(bwEntries.slice(-30), goal_lo, goal_hi);
+    const dotHTML = dayOrder.map(id => {
+      const done    = loggedThisWeek.has(id);
+      const isToday = id === suggestedId;
+      const cls = ["week-dot", done?"done":"", isToday&&!done?"today":""].filter(Boolean).join(" ");
+      return `<div class="week-dot-col"><div class="${cls}"></div><span class="week-dot-label">${dayLabels[id]}</span></div>`;
+    }).join("");
 
     wrap.innerHTML = `
       <header class="page-header-compact">
@@ -144,21 +138,6 @@ const UI = {
         </div>
       </header>
 
-      <!-- Bodyweight card -->
-      <div class="home-bw-card">
-        <div class="home-bw-top">
-          <div>
-            <div class="home-bw-val">${latest ? latest.w + " lbs" : "—"}</div>
-            <div class="home-bw-sub ${inGoal ? "in-goal" : ""}">
-              ${delta !== null ? `${parseFloat(delta) > 0 ? "+" : ""}${delta} from yesterday · ` : ""}${inGoal ? "In goal range ✓" : `Goal: ${goal_lo}–${goal_hi}`}
-            </div>
-          </div>
-          <span class="home-bw-range">30 days</span>
-        </div>
-        ${sparkHTML}
-      </div>
-
-      <!-- Week progress -->
       <div class="week-progress-card">
         <div class="week-progress-top">
           <span class="week-progress-label">This week</span>
@@ -167,23 +146,14 @@ const UI = {
         <div class="week-progress-bar-wrap">
           <div class="week-progress-bar" style="width:${(sessionsDone/3)*100}%"></div>
         </div>
-        <div class="week-day-dots">
-          ${dayOrder.map(id => {
-            const done    = loggedThisWeek.has(id);
-            const isToday = id === suggestedId;
-            const cls     = ["week-dot", done?"done":"", isToday&&!done?"today":""].filter(Boolean).join(" ");
-            return `<div class="week-dot-col">
-              <div class="${cls}"></div>
-              <span class="week-dot-label">${dayLabels[id]}</span>
-            </div>`;
-          }).join("")}
-        </div>
+        <div class="week-day-dots">${dotHTML}</div>
       </div>
 
-      <div id="home-stats-area" style="min-height:180px">
-        <div class="loading-text muted">Loading…</div>
+      <div id="home-stats-area" style="min-height:200px">
+        <div class="loading-text muted" style="padding-top:20px">Loading…</div>
       </div>
     `;
+
     this.root.appendChild(wrap);
     this.loadHomeStats();
   },
@@ -331,36 +301,38 @@ const UI = {
     this.render();
   },
 
-  // ── SESSION — full-screen takeover ────────────────────────────────────────
+  // ── SESSION — focused single-exercise view ────────────────────────────────
   renderSession() {
     const { session, activeDay } = App.state;
-    // If session failed to initialize, show error rather than silently redirecting
     if (!activeDay) { this.nav("log"); return; }
     if (!session) {
-      this.root.innerHTML = `<div class="loading-text" style="padding-top:120px">Loading session…</div>`;
+      this.root.innerHTML = `<div class="loading-text" style="padding-top:120px">Loading…</div>`;
       return;
     }
 
     const day = PROGRAM[activeDay];
     const currentWeek = getCurrentWeek();
-    const weekData = WEEKS[currentWeek];
-    const phaseId = day.phaseId || weekData.phaseId;
+    const weekData = WEEKS[currentWeek] || {};
+    const phaseId = day.phaseId || weekData.phaseId || "strength";
 
-    // Build full screen
     const wrap = document.createElement("div");
     wrap.id = "session-wrap";
 
-    // Sticky header
+    // ── Header: end button, phase, exercise name, set count, rest timer
     const hdr = document.createElement("div");
     hdr.id = "session-header";
     hdr.className = "session-header";
     hdr.innerHTML = `
       <div class="session-header-top">
         <button class="session-end-btn" onclick="UI._confirmEndSession()">✕ End</button>
-        <span class="session-phase-badge phase-badge-${phaseId}">Wk ${currentWeek} · ${weekData.phase.label}</span>
+        <span class="phase-badge phase-badge-${phaseId}">Wk ${currentWeek} · ${weekData.phase?.label || ""}</span>
       </div>
       <div class="session-title-row">
-        <span class="session-ex-name" id="session-ex-name">—</span>
+        <button class="session-ex-name" id="session-ex-name"
+          oncontextmenu="event.preventDefault();UI._showExMenu()"
+          ontouchstart="UI._longPressStart(event)"
+          ontouchend="UI._longPressEnd()"
+          ontouchmove="UI._longPressEnd()">—</button>
         <span class="session-set-count" id="session-set-count"></span>
       </div>
       <div id="rest-bar-inline" class="rest-bar-inline">
@@ -375,28 +347,13 @@ const UI = {
     `;
     wrap.appendChild(hdr);
 
-    // Scrollable exercise list
+    // ── Body: single focused exercise block (swappable)
     const body = document.createElement("div");
     body.id = "session-body";
     body.className = "session-body";
-
-    if (day.sportOnly) {
-      body.appendChild(this.renderSportLog(session, day));
-    } else {
-      session.exercises.forEach((ex, ei) => {
-        body.appendChild(this._renderSessionExBlock(ex, ei, session));
-      });
-
-      // Add exercise
-      const addBtn = this.el("button", "btn-add-exercise");
-      addBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg> Add Exercise`;
-      addBtn.onclick = () => this.showExercisePicker(day, session);
-      body.appendChild(addBtn);
-    }
-
     wrap.appendChild(body);
 
-    // Bottom bar: exercise pills + finish button
+    // ── Bottom bar: pills + finish
     const bottom = document.createElement("div");
     bottom.id = "session-bottom";
     bottom.className = "session-bottom";
@@ -404,23 +361,40 @@ const UI = {
     wrap.appendChild(bottom);
 
     this.root.appendChild(wrap);
+    this._renderActiveExercise();
     this._updateSessionHeader();
-    this._setupSwipeToSkip();
+  },
+
+  // Render only the currently active exercise into session-body
+  _renderActiveExercise() {
+    const body = document.getElementById("session-body");
+    if (!body) return;
+    const { session } = App.state;
+    const ei = this._activeExIdx || 0;
+    if (!session?.exercises?.[ei]) return;
+
+    const ex = session.exercises[ei];
+    body.innerHTML = "";
+    body.appendChild(this._renderSessionExBlock(ex, ei, session));
+
+    // Add exercise button at bottom
+    const addBtn = this.el("button", "btn-add-exercise");
+    addBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg> Add Exercise`;
+    addBtn.onclick = () => this.showExercisePicker(PROGRAM[App.state.activeDay], session);
+    body.appendChild(addBtn);
   },
 
   _renderSessionExBlock(ex, ei, session) {
     const block = this.el("div", "ex-block session-ex-block");
     block.id = `ex-block-${ei}`;
-    block.dataset.ei = ei;
 
     const sets = session.exercises[ei].sets;
-    const setCount  = sets.filter(s => !s.excluded).length;
     const doneCount = sets.filter(s => s.logged).length;
+    const setCount  = sets.filter(s => !s.excluded).length;
     if (doneCount === setCount && setCount > 0) block.classList.add("ex-done");
 
     block.innerHTML = `
-      <div class="ex-block-name">${ex.name}</div>
-      ${ex.tip ? `<div class="ex-tip-inline">${ex.tip}</div>` : ""}
+      ${ex.tip ? `<div class="ex-tip-session">${ex.tip}</div>` : ""}
       <div class="sets-grid">
         <div class="set-row header-row">
           <span>Set</span>
@@ -436,9 +410,9 @@ const UI = {
 
   _renderExPills(session) {
     const pills = session.exercises.map((ex, ei) => {
-      const sets = ex.sets;
-      const done = sets.filter(s => s.logged).length;
-      const total = sets.filter(s => !s.excluded).length;
+      const sets    = ex.sets;
+      const done    = sets.filter(s => s.logged).length;
+      const total   = sets.filter(s => !s.excluded).length;
       const allDone = done === total && total > 0;
       const active  = ei === (this._activeExIdx || 0);
       return `<button class="ex-pill ${active?"active":""} ${allDone?"done":""}"
@@ -449,20 +423,16 @@ const UI = {
     return `
       <div class="ex-pill-scroll">${pills}</div>
       <button class="btn-finish ${allFinished?"ready":""}" onclick="UI._confirmFinish()">
-        ${allFinished ? "Finish ✓" : "Finish"}
+        ${allFinished?"Finish ✓":"Finish"}
       </button>`;
   },
 
   _jumpToEx(ei) {
     this._activeExIdx = ei;
-    const block = document.getElementById(`ex-block-${ei}`);
-    if (block) {
-      const headerH = document.getElementById("session-header")?.offsetHeight || 0;
-      const bodyEl  = document.getElementById("session-body");
-      if (bodyEl) bodyEl.scrollTo({ top: block.offsetTop - headerH - 12, behavior: "smooth" });
-    }
+    this._renderActiveExercise();
     this._updateSessionHeader();
     this._updatePills();
+    document.getElementById("session-body")?.scrollTo({ top: 0, behavior: "instant" });
   },
 
   _updateSessionHeader() {
@@ -471,13 +441,13 @@ const UI = {
     if (!session) return;
     const ex = session.exercises[ei];
     if (!ex) return;
-    const sets = ex.sets;
-    const done  = sets.filter(s => s.logged).length;
-    const total = sets.filter(s => !s.excluded).length;
-    const nameEl  = document.getElementById("session-ex-name");
-    const countEl = document.getElementById("session-set-count");
+    const sets      = ex.sets;
+    const done      = sets.filter(s => s.logged).length;
+    const total     = sets.filter(s => !s.excluded).length;
+    const nameEl    = document.getElementById("session-ex-name");
+    const countEl   = document.getElementById("session-set-count");
     if (nameEl)  nameEl.textContent  = ex.name;
-    if (countEl) countEl.textContent = `Set ${Math.min(done + 1, total)} of ${total}`;
+    if (countEl) countEl.textContent = `Set ${Math.min(done+1,total)} of ${total}`;
   },
 
   _updatePills() {
@@ -485,42 +455,69 @@ const UI = {
     if (bottom && App.state.session) bottom.innerHTML = this._renderExPills(App.state.session);
   },
 
-  // Swipe left on a set row to skip it
-  _setupSwipeToSkip() {
-    const body = document.getElementById("session-body");
-    if (!body) return;
-    let startX = 0, startY = 0, target = null;
+  // Long-press on exercise name to open management menu
+  _longPressStart(e) {
+    this._longPressTimer = setTimeout(() => {
+      if (navigator.vibrate) navigator.vibrate(50);
+      this._showExMenu();
+    }, 500);
+  },
+  _longPressEnd() {
+    clearTimeout(this._longPressTimer);
+  },
 
-    body.addEventListener("touchstart", e => {
-      startX = e.touches[0].clientX;
-      startY = e.touches[0].clientY;
-      target = e.target.closest(".set-row:not(.header-row):not(.excluded)");
-    }, { passive: true });
+  _showExMenu() {
+    const ei = this._activeExIdx || 0;
+    const session = App.state.session;
+    const ex = session?.exercises?.[ei];
+    if (!ex) return;
 
-    body.addEventListener("touchmove", e => {
-      if (!target) return;
-      const dx = e.touches[0].clientX - startX;
-      const dy = Math.abs(e.touches[0].clientY - startY);
-      if (dy > 20) { target = null; return; }
-      if (dx < -20) target.style.transform = `translateX(${Math.max(dx, -80)}px)`;
-    }, { passive: true });
+    const canMoveUp   = ei > 0;
+    const canMoveDown = ei < session.exercises.length - 1;
 
-    body.addEventListener("touchend", e => {
-      if (!target) return;
-      const dx = e.changedTouches[0].clientX - startX;
-      if (dx < -70) {
-        // Extract ei/si from row id
-        const id = target.id; // "set-{ei}-{si}"
-        const parts = id.split("-");
-        const ei = parseInt(parts[1]);
-        const si = parseInt(parts[2]);
-        target.style.transform = "";
-        this.toggleExclude(ei, si);
-      } else {
-        target.style.transform = "";
-      }
-      target = null;
-    }, { passive: true });
+    const sheet = document.createElement("div");
+    sheet.className = "confirm-sheet-overlay";
+    sheet.innerHTML = `
+      <div class="confirm-sheet">
+        <div class="confirm-sheet-title">${ex.name}</div>
+        <div class="ex-menu-actions">
+          ${canMoveUp ? `<button class="ex-menu-btn" onclick="UI._moveEx(${ei},-1);this.closest('.confirm-sheet-overlay').remove()">↑ Move Up</button>` : ""}
+          ${canMoveDown ? `<button class="ex-menu-btn" onclick="UI._moveEx(${ei},1);this.closest('.confirm-sheet-overlay').remove()">↓ Move Down</button>` : ""}
+          <button class="ex-menu-btn" onclick="UI._swapEx(${ei});this.closest('.confirm-sheet-overlay').remove()">⇄ Swap Exercise</button>
+          <button class="ex-menu-btn danger" onclick="UI._removeEx(${ei});this.closest('.confirm-sheet-overlay').remove()">✕ Remove</button>
+        </div>
+        <button class="btn-ghost" style="width:100%;margin-top:10px" onclick="this.closest('.confirm-sheet-overlay').remove()">Cancel</button>
+      </div>`;
+    document.body.appendChild(sheet);
+  },
+
+  _moveEx(ei, dir) {
+    const exs = App.state.session?.exercises;
+    if (!exs) return;
+    const ni = ei + dir;
+    if (ni < 0 || ni >= exs.length) return;
+    [exs[ei], exs[ni]] = [exs[ni], exs[ei]];
+    this._activeExIdx = ni;
+    this._renderActiveExercise();
+    this._updateSessionHeader();
+    this._updatePills();
+  },
+
+  _removeEx(ei) {
+    const exs = App.state.session?.exercises;
+    if (!exs || exs.length <= 1) { this.showToast("Can't remove last exercise"); return; }
+    exs.splice(ei, 1);
+    this._activeExIdx = Math.min(ei, exs.length - 1);
+    this._renderActiveExercise();
+    this._updateSessionHeader();
+    this._updatePills();
+  },
+
+  _swapEx(ei) {
+    // Open exercise picker — on selection it will replace this exercise
+    this._swappingEi = ei;
+    const day = PROGRAM[App.state.activeDay];
+    this.showExercisePicker(day, App.state.session, true);
   },
 
   // Confirm before ending session
@@ -655,16 +652,16 @@ const UI = {
     const block = document.getElementById(`ex-block-${ei}`);
     if (block) block.classList.toggle("ex-done", doneCount===setCount && setCount>0);
 
-    // Advance active exercise index when all sets done
+    // Advance to next exercise when all sets done
     if (set.logged && doneCount === setCount) {
       const nextEi = ei + 1;
       if (nextEi < App.state.session.exercises.length) {
-        setTimeout(() => this._jumpToEx(nextEi), 400);
+        setTimeout(() => this._jumpToEx(nextEi), 600);
       }
+    } else {
+      this._updateSessionHeader();
+      this._updatePills();
     }
-
-    this._updateSessionHeader();
-    this._updatePills();
 
     if (set.logged) {
       const restSec = this._parseRestToSeconds(ex.rest);
@@ -679,13 +676,8 @@ const UI = {
     if (!set) return;
     set.excluded = !set.excluded;
     if (set.excluded) set.logged = false;
-    // Re-render just this block
-    const ex = App.state.session.exercises[ei];
-    const block = document.getElementById(`ex-block-${ei}`);
-    if (block) {
-      const newBlock = this._renderSessionExBlock(ex, ei, App.state.session);
-      block.replaceWith(newBlock);
-    }
+    this._renderActiveExercise();
+    this._updateSessionHeader();
     this._updatePills();
   },
 
@@ -872,15 +864,28 @@ const UI = {
     const day = PROGRAM[activeDay];
     if (!session || !day) return;
     const currentWeek = getCurrentWeek();
-    const weekData = WEEKS[currentWeek];
-    const phaseId = day.phaseId || weekData.phaseId;
+    const weekData = WEEKS[currentWeek] || {};
+    const phaseId = day.phaseId || weekData.phaseId || "strength";
     const ww = Math.round(((baseline||45) * (phaseId==="strength"?1.0:phaseId==="hypertrophy"?0.85:0.70)) / 5) * 5;
     const sets = Array.from({length:3}, () => ({reps:8, weight:ww}));
-    session.exercises.push({id, name, sets, rest:"90 sec", tip:"", bodyweight: baseline===0});
+    const newEx = {id, name, sets, rest:"90 sec", tip:"", bodyweight: baseline===0};
+
     document.getElementById("exercise-picker-overlay")?.remove();
+
+    if (this._swappingEi !== undefined) {
+      // Swap mode — replace existing exercise
+      session.exercises[this._swappingEi] = newEx;
+      this._swappingEi = undefined;
+    } else {
+      // Add mode — append
+      session.exercises.push(newEx);
+      this._activeExIdx = session.exercises.length - 1;
+    }
+
     App.state.view = "session";
-    this.render();
-    setTimeout(() => window.scrollTo({top:document.body.scrollHeight,behavior:"smooth"}), 100);
+    this._renderActiveExercise();
+    this._updateSessionHeader();
+    this._updatePills();
   },
 
   // ── SPORT LOG ─────────────────────────────────────────────────────────────
