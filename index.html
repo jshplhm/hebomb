@@ -551,7 +551,7 @@ input[type=number] { -moz-appearance: textfield; }
 /* 4-col: set-num | reps stepper | weight stepper | circle */
 .set-row {
   display: grid;
-  grid-template-columns: 44px 1fr 1fr 48px;
+  grid-template-columns: 36px 1fr 1fr 52px;
   gap: 6px;
   align-items: center;
   padding: 5px 0;
@@ -1453,15 +1453,15 @@ input[type=number] { -moz-appearance: textfield; }
   border: 1px solid var(--border);
   border-radius: 6px;
   overflow: hidden;
-  height: 44px;
+  height: 52px;
 }
 .step-btn {
   background: transparent;
   border: none;
   color: var(--sub);
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 300;
-  width: 36px;
+  width: 48px;
   height: 100%;
   cursor: pointer;
   display: flex;
@@ -1476,7 +1476,7 @@ input[type=number] { -moz-appearance: textfield; }
 .step-val {
   flex: 1;
   text-align: center;
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 600;
   color: var(--text);
   min-width: 0;
@@ -1485,8 +1485,8 @@ input[type=number] { -moz-appearance: textfield; }
 
 /* ── CIRCLE DONE BUTTON ───────────────────────────────────────────────────── */
 .set-circle {
-  width: 44px;
-  height: 44px;
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
   background: transparent;
   border: 2px solid var(--border2);
@@ -1498,16 +1498,71 @@ input[type=number] { -moz-appearance: textfield; }
   -webkit-tap-highlight-color: transparent;
   flex-shrink: 0;
   padding: 0;
-  /* Prevent iOS from making this an oval */
-  min-width: 44px;
-  min-height: 44px;
-  max-width: 44px;
-  max-height: 44px;
+  min-width: 48px;
+  min-height: 48px;
+  max-width: 48px;
+  max-height: 48px;
 }
 .set-circle:active { border-color: var(--yellow); background: rgba(232,255,71,.15); }
 .set-circle.checked { background: var(--yellow); border-color: var(--yellow); }
 .set-circle.checked svg { stroke: #0a0a0a; }
-.set-circle svg { width: 18px; height: 18px; }
+.set-circle svg { width: 20px; height: 20px; }
+
+/* ── EXERCISE TIP IN SESSION ──────────────────────────────────────────────── */
+.ex-tip-session {
+  font-size: 12px;
+  color: var(--sub);
+  font-style: italic;
+  padding: 8px 12px 0;
+  line-height: 1.4;
+}
+
+/* ── EXERCISE MANAGEMENT MENU ─────────────────────────────────────────────── */
+.session-ex-name {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 28px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text);
+  line-height: 1;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+}
+.session-ex-name::after {
+  content: " ···";
+  font-size: 16px;
+  color: var(--muted);
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+.ex-menu-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.ex-menu-btn {
+  background: var(--card2);
+  border: 1px solid var(--border2);
+  color: var(--text);
+  font-family: 'Barlow', sans-serif;
+  font-size: 15px;
+  padding: 13px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.1s;
+}
+.ex-menu-btn:active { background: var(--lift); }
+.ex-menu-btn.danger { color: var(--orange); border-color: rgba(255,107,53,.3); }
 
 /* Confirm end-session sheet */
 .confirm-sheet-overlay {
@@ -1594,10 +1649,10 @@ input[type=number] { -moz-appearance: textfield; }
 <div id="app"></div>
 
 <!-- Increment ?v= on every deploy to bust cache -->
-<script src="js/config.js?v=20260603-13"></script>
-<script src="js/program.js?v=20260603-13"></script>
-<script src="js/app.js?v=20260603-13"></script>
-<script src="js/ui.js?v=20260603-13"></script>
+<script src="js/config.js?v=20260603-14"></script>
+<script src="js/program.js?v=20260603-14"></script>
+<script src="js/app.js?v=20260603-14"></script>
+<script src="js/ui.js?v=20260603-14"></script>
 <script>
   document.addEventListener("DOMContentLoaded", () => UI.init());
 </script>
