@@ -55,8 +55,9 @@ input[type=number] { -moz-appearance:textfield; }
 
 /* ── PICKER PAGE ── */
 .picker-page { padding-top:calc(var(--safe-top) + 16px); }
-.picker-top { display:flex; align-items:center; justify-content:space-between; margin-bottom:28px; }
-.picker-date { font-size:14px; color:var(--sub); }
+.picker-greeting { display:flex; align-items:center; justify-content:space-between; margin-bottom:4px; }
+.picker-hi { font-family:'Barlow Condensed',sans-serif; font-size:28px; font-weight:900; color:var(--text); letter-spacing:-0.3px; line-height:1; }
+.picker-subline { font-size:14px; color:var(--sub); margin-bottom:24px; }
 .picker-suggested { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:24px 20px 22px; margin-bottom:16px; }
 .picker-suggested-label { font-family:'Barlow Condensed',sans-serif; font-size:11px; font-weight:700; letter-spacing:4px; text-transform:uppercase; color:var(--muted); margin-bottom:8px; }
 .picker-suggested-name { font-family:'Barlow Condensed',sans-serif; font-size:40px; font-weight:900; text-transform:uppercase; letter-spacing:-0.5px; line-height:1; color:var(--text); margin-bottom:20px; }
@@ -439,10 +440,10 @@ input[type=number] { -moz-appearance:textfield; }
 <body>
 <div id="app"></div>
 <!-- Increment ?v= on every deploy to bust cache -->
-<script src="js/config.js?v=20260604-6"></script>
-<script src="js/program.js?v=20260604-6"></script>
-<script src="js/app.js?v=20260604-6"></script>
-<script src="js/ui.js?v=20260604-6"></script>
+<script src="js/config.js?v=20260604-7"></script>
+<script src="js/program.js?v=20260604-7"></script>
+<script src="js/app.js?v=20260604-7"></script>
+<script src="js/ui.js?v=20260604-7"></script>
 <script>
   document.addEventListener("DOMContentLoaded", () => UI.init());
 </script>
