@@ -64,7 +64,7 @@ const UI = {
     const hour = new Date().getHours();
     const greeting = hour < 12 ? "Morning" : hour < 17 ? "Afternoon" : "Evening";
 
-    // Only show lifting days in "other days"
+    // Only show lifting days — no sport
     const liftingDays = ["dayA","dayB","dayC"];
     const otherDays = liftingDays.filter(id => id !== sid);
 
@@ -98,8 +98,8 @@ const UI = {
       <div class="picker-past">
         <label class="picker-past-label" for="log-past-date">Log for a past date</label>
         <input type="date" id="log-past-date" class="picker-date-input"
-          value="${new Date().toISOString().split("T")[0]}"
-          max="${new Date().toISOString().split("T")[0]}">
+          value="${UI._today()}"
+          max="${UI._today()}">
       </div>`;
     this.root.appendChild(wrap);
   },
@@ -135,7 +135,7 @@ const UI = {
     this.root.innerHTML = `<div class="session-loading">Loading…</div>`;
     document.getElementById("bottom-nav")?.remove();
     this._logDate = document.getElementById("log-past-date")?.value || null;
-    const today = new Date().toISOString().split("T")[0];
+    const today = this._today();
     if (this._logDate === today) this._logDate = null;
     App.state.activeDay = dayId;
     const session = App.newSession(dayId);
@@ -182,19 +182,10 @@ const UI = {
           <div class="sess-counter-block">
             <span class="sess-counter" id="sess-counter"></span>
             <span class="sess-counter-lbl">SETS DONE</span>
+            <span class="sess-rest-inline" id="sess-rest-inline"></span>
           </div>
         </div>
         <div class="sess-dots-row" id="sess-dots-row"></div>
-        <!-- Rest timer banner — only present in DOM when active -->
-        <div class="sess-rest-banner" id="sess-rest-banner" style="display:none">
-          <div class="sess-rest-track"><div class="sess-rest-bar" id="sess-rest-bar"></div></div>
-          <div class="sess-rest-row">
-            <button class="sess-rest-adj" onclick="UI._adjRest(-30)">−30s</button>
-            <span class="sess-rest-time" id="sess-rest-time">0:00</span>
-            <button class="sess-rest-adj" onclick="UI._adjRest(30)">+30s</button>
-            <button class="sess-rest-skip" onclick="UI._stopRest()">skip</button>
-          </div>
-        </div>
       </div>
       <div class="sess-col-header" id="sess-col-header">
         <span class="sess-col-reps">REPS</span>
@@ -204,7 +195,7 @@ const UI = {
       <div class="sess-bottom" id="sess-bottom">
         <button class="sess-add-ex-btn" onclick="UI._openAddEx(false)">
           <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 1v12M1 7h12"/></svg>
-          + Exercise
+          Exercise
         </button>
         <button class="sess-save-btn" id="sess-save-btn" onclick="UI._bottomAction()">Save</button>
       </div>`;
@@ -698,12 +689,12 @@ const UI = {
     const exb = document.getElementById(`exb-${ei}`);
     if (!exb) return;
     // exb.offsetTop includes paddingTop. Subtract it so the block's
-    // top edge lands exactly at the header bottom (visible top of scroll area).
+    // top edge is exactly flush with the header bottom.
     const targetTop = exb.offsetTop - (padTop || 0);
-    if (instant || instant === undefined) {
-      body.scrollTop = targetTop;
-    } else {
+    if (instant === false) {
       body.scrollTo({ top: targetTop, behavior: "smooth" });
+    } else {
+      body.scrollTop = targetTop;
     }
   },
 
@@ -711,22 +702,19 @@ const UI = {
     this._stopRest();
     this._restTarget = Date.now() + sec*1000;
     this._restTotal  = sec;
-    const banner = document.getElementById("sess-rest-banner");
-    if (banner) banner.style.display = "block";
-    setTimeout(() => this._syncBodyPadding(), 20);
     const tick = () => {
-      const rem = Math.max(0, Math.ceil((this._restTarget-Date.now())/1000));
-      const pct = rem/this._restTotal*100;
-      const tEl = document.getElementById("sess-rest-time");
-      const bEl = document.getElementById("sess-rest-bar");
-      if (tEl) tEl.textContent = `${Math.floor(rem/60)}:${String(rem%60).padStart(2,"0")}`;
-      if (bEl) { bEl.style.width=pct+"%"; bEl.style.background=pct>50?"var(--green)":pct>25?"var(--orange)":"var(--red)"; }
-      if (rem<=0) {
+      const rem = Math.max(0, Math.ceil((this._restTarget - Date.now()) / 1000));
+      const el  = document.getElementById("sess-rest-inline");
+      if (!el) return;
+      if (rem > 0) {
+        el.textContent = `${rem}s`;
+        el.style.color = rem > 30 ? "var(--green)" : rem > 10 ? "var(--orange)" : "var(--red)";
+      } else {
+        el.textContent = "go";
+        el.style.color = "var(--yellow)";
+        if (navigator.vibrate) navigator.vibrate([150,80,150]);
         this._stopRest();
-        if(navigator.vibrate) navigator.vibrate([150,80,150]);
-        if(tEl) { tEl.textContent="go!"; tEl.style.color="var(--yellow)"; }
-        if(bEl) { bEl.style.width="100%"; bEl.style.background="var(--yellow)"; }
-        setTimeout(()=>{ const b=document.getElementById("sess-rest-banner"); if(b)b.style.display="none"; this._syncBodyPadding(); tEl&&(tEl.style.color=""); },2000);
+        setTimeout(() => { if (el) { el.textContent = ""; el.style.color = ""; } }, 2000);
       }
     };
     tick();
@@ -734,15 +722,15 @@ const UI = {
   },
 
   _stopRest() {
-    if (this._restTimer) { clearInterval(this._restTimer); this._restTimer=null; }
-    const b=document.getElementById("sess-rest-banner");
-    if (b) { b.style.display="none"; setTimeout(()=>this._syncBodyPadding(), 20); }
+    if (this._restTimer) { clearInterval(this._restTimer); this._restTimer = null; }
+    const el = document.getElementById("sess-rest-inline");
+    if (el) { el.textContent = ""; el.style.color = ""; }
   },
 
   _adjRest(d) {
     if (!this._restTarget) return;
     this._restTarget += d*1000;
-    this._restTotal = Math.max(1, this._restTotal+d);
+    this._restTotal = Math.max(1, this._restTotal + d);
   },
 
   // ── EXERCISE MANAGEMENT (long-press on exercise name) ─────────────────────
@@ -1216,7 +1204,11 @@ const UI = {
     this._toastT=setTimeout(()=>t.classList.remove("show"),2500);
   },
 
-  // Legacy shims
+  // Local date as YYYY-MM-DD (not UTC)
+  _today() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+  },
   showToast(m){this._toast(m);},
   saveSession(){return this._save();},
   toggleSet(ei,si){this._tapDone(ei,si);},
