@@ -111,31 +111,79 @@ const UI = {
 `;
   },
 
-  // Preview page — shows full exercise list, Start button at bottom
+  // Preview page — shows full exercise list, editable before starting
   _previewDay(dayId) {
     const d   = PROGRAM[dayId];
     const cw  = getCurrentWeek();
     const wd  = WEEKS[cw] || {};
     const pid = d.phaseId || wd.phaseId || "strength";
-    const wrap = this.el("div","picker-page");
 
-    // Build set count for each exercise
-    const exRows = (d.exercises||[]).map(ex => {
+    // Build a working draft of the day's exercises that the user can edit
+    // before starting. We deep-clone so we don't mutate PROGRAM.
+    if (!this._draft || this._draft.dayId !== dayId) {
+      this._draft = {
+        dayId,
+        exercises: (d.exercises||[]).map(ex => ({
+          id: ex.id,
+          name: ex.name,
+          sets: (ex.sets||[]).map(s => ({...s}))
+        }))
+      };
+      // Append cardio finisher to the draft for non-sport days
+      if (!d.sportOnly) {
+        this._draft.exercises.push({
+          id: "cardio_finisher",
+          name: "Incline Walk Finisher",
+          isFinisher: true,
+          sets: [{ reps: "15 min", weight: 0, note: "12% incline · 3.0–3.5 mph" }]
+        });
+      }
+      this._draftEditing = false;
+    }
+
+    this._renderPreview(dayId, d, cw, pid);
+  },
+
+  _renderPreview(dayId, d, cw, pid) {
+    const wrap = this.el("div","picker-page");
+    const editing = this._draftEditing;
+    const exs = this._draft.exercises;
+
+    const exRows = exs.map((ex, i) => {
       const setCount = ex.sets?.length || 0;
-      const warmups  = ex.sets?.filter(s=>s.note==="warm-up").length || 0;
+      const warmups  = ex.sets?.filter(s=>s.note==="warm-up"||s.isWarmup).length || 0;
       const working  = setCount - warmups;
-      const detail   = warmups > 0 ? `${working} sets + warmup` : `${setCount} sets`;
-      return `<div class="preview-ex-row">
+      let detail;
+      if (ex.isFinisher) {
+        detail = ex.sets[0]?.reps || "finisher";
+      } else {
+        detail = warmups > 0 ? `${working} sets + warmup` : `${setCount} sets`;
+      }
+      const finisherCls = ex.isFinisher ? " preview-ex-finisher" : "";
+      const editControls = editing ? `
+        <div class="preview-ex-controls">
+          ${i>0?`<button class="preview-ctrl" onclick="UI._draftMove(${i},-1)" aria-label="Move up">↑</button>`:`<span class="preview-ctrl-spacer"></span>`}
+          ${i<exs.length-1?`<button class="preview-ctrl" onclick="UI._draftMove(${i},1)" aria-label="Move down">↓</button>`:`<span class="preview-ctrl-spacer"></span>`}
+          <button class="preview-ctrl danger" onclick="UI._draftRemove(${i})" aria-label="Remove">✕</button>
+        </div>` : "";
+      return `<div class="preview-ex-row${finisherCls}">
         <span class="preview-ex-name">${ex.name}</span>
         <span class="preview-ex-sets">${detail}</span>
+        ${editControls}
       </div>`;
     }).join("") || `<div style="color:var(--sub);font-size:14px;padding:16px 0">${d.title}</div>`;
 
     wrap.innerHTML = `
-      <button class="preview-back" onclick="UI.nav('picker')">← Back</button>
+      <button class="preview-back" onclick="UI._exitPreview()">← Back</button>
       <div class="preview-header">
         <div class="preview-title${d.title.length>18?" preview-title-sm":""}">${d.title}</div>
         <span class="phase-badge phase-badge-${pid}">Wk ${cw}</span>
+      </div>
+      <div class="preview-edit-bar">
+        <button class="preview-edit-toggle${editing?" active":""}" onclick="UI._toggleDraftEdit()">
+          ${editing?"DONE":"EDIT"}
+        </button>
+        ${editing?`<button class="preview-edit-add" onclick="UI._draftAdd()">+ ADD EXERCISE</button>`:""}
       </div>
       <div class="preview-exercises">${exRows}</div>
       <div class="preview-footer">
@@ -151,6 +199,47 @@ const UI = {
     document.getElementById("bottom-nav")?.remove();
     this.root.appendChild(wrap);
     this._nav();
+  },
+
+  _exitPreview() {
+    this._draft = null;
+    this._draftEditing = false;
+    this.nav("picker");
+  },
+
+  _toggleDraftEdit() {
+    this._draftEditing = !this._draftEditing;
+    const d = PROGRAM[this._draft.dayId];
+    const cw = getCurrentWeek();
+    const wd = WEEKS[cw] || {};
+    const pid = d.phaseId || wd.phaseId || "strength";
+    this._renderPreview(this._draft.dayId, d, cw, pid);
+  },
+
+  _draftMove(i, dir) {
+    const exs = this._draft.exercises;
+    const ni = i+dir;
+    if (ni<0||ni>=exs.length) return;
+    [exs[i], exs[ni]] = [exs[ni], exs[i]];
+    const d = PROGRAM[this._draft.dayId];
+    const cw = getCurrentWeek();
+    const pid = d.phaseId || WEEKS[cw]?.phaseId || "strength";
+    this._renderPreview(this._draft.dayId, d, cw, pid);
+  },
+
+  _draftRemove(i) {
+    if (this._draft.exercises.length <= 1) { this._toast("Can't remove the last exercise"); return; }
+    this._draft.exercises.splice(i, 1);
+    const d = PROGRAM[this._draft.dayId];
+    const cw = getCurrentWeek();
+    const pid = d.phaseId || WEEKS[cw]?.phaseId || "strength";
+    this._renderPreview(this._draft.dayId, d, cw, pid);
+  },
+
+  _draftAdd() {
+    // Open the add-exercise sheet against the draft (not a live session)
+    this._draftAddOpen = true;
+    this._openAddEx(false);
   },
 
   _startFromPreview(dayId) {
@@ -180,6 +269,29 @@ const UI = {
     const last = await App.fetchLastSession(dayId);
     App.state.lastSession = last;
     App.state.session = App.applyLastSession(session, last);
+
+    // If the user edited the draft on the preview page, use it. Otherwise
+    // append the cardio finisher to every strength day by default.
+    if (this._draft && this._draft.dayId === dayId) {
+      App.state.session.exercises = this._draft.exercises.map(ex => ({
+        ...ex,
+        sets: (ex.sets||[]).map(s => ({...s}))
+      }));
+      this._draft = null;
+      this._draftEditing = false;
+    } else if (!PROGRAM[dayId]?.sportOnly) {
+      App.state.session.exercises.push({
+        id: "cardio_finisher",
+        name: "Incline Walk Finisher",
+        isFinisher: true,
+        sets: [{
+          reps: "15 min",
+          weight: 0,
+          note: "12% incline · 3.0–3.5 mph"
+        }]
+      });
+    }
+
     // Seed prev values and isWarmup flag on each set
     App.state.session.exercises.forEach(ex => {
       ex.sets.forEach(s => {
@@ -207,17 +319,18 @@ const UI = {
     wrap.id = "session-wrap";
 
     wrap.innerHTML = `
-      <!-- ① Pinned header: PROGRAM | EXERCISE NAME | END -->
+      <!-- ① Pinned header: PROGRAM icon | EXERCISE NAME (true center) | END icon -->
       <div class="sess-header" id="sess-header">
         <div class="sess-hdr-row">
-          <button class="sess-prog-btn" id="sess-prog-btn" onclick="UI._toggleDrawer()">
-            <svg width="12" height="10" viewBox="0 0 12 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="0" y1="1.5" x2="12" y2="1.5"/><line x1="0" y1="5" x2="8" y2="5"/><line x1="0" y1="8.5" x2="5" y2="8.5"/></svg>
-            PROGRAM
+          <button class="sess-icon-btn" id="sess-prog-btn" onclick="UI._toggleDrawer()" aria-label="Program">
+            <svg width="20" height="16" viewBox="0 0 20 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="0" y1="2" x2="20" y2="2"/><line x1="0" y1="8" x2="14" y2="8"/><line x1="0" y1="14" x2="9" y2="14"/></svg>
           </button>
           <button class="sess-ex-name" id="sess-ex-name"
             ontouchstart="UI._lpStart(event)" ontouchend="UI._lpEnd()" ontouchmove="UI._lpEnd()"
             oncontextmenu="event.preventDefault();UI._showExMenu()">—</button>
-          <button class="sess-end" onclick="UI._confirmEnd()">END</button>
+          <button class="sess-icon-btn sess-icon-end" onclick="UI._confirmEnd()" aria-label="End workout">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="12" height="12" rx="1.5"/></svg>
+          </button>
         </div>
         <div class="sess-dots-row" id="sess-dots-row"></div>
       </div>
@@ -277,7 +390,9 @@ const UI = {
       <div id="rest-screen">
         <div class="rest-header">
           <span class="rest-label" id="rest-mode-label">REST</span>
-          <button class="sess-end" onclick="UI._confirmEnd()" style="opacity:0.5">END</button>
+          <button class="sess-icon-btn sess-icon-end" onclick="UI._confirmEnd()" aria-label="End workout" style="opacity:0.6">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="12" height="12" rx="1.5"/></svg>
+          </button>
         </div>
         <div class="rest-ring-wrap">
           <svg class="rest-ring-svg" viewBox="0 0 260 260">
@@ -1054,26 +1169,75 @@ const UI = {
     if (!el) return;
     const exs = App.state.session?.exercises || [];
     const ei  = this._activeExIdx;
-    el.innerHTML = exs.map((ex, i) => {
+    const editing = this._drawerEditing;
+
+    // Inject edit-bar at top of list
+    const editBar = `<div class="drawer-edit-bar">
+        <button class="preview-edit-toggle${editing?" active":""}" onclick="UI._toggleDrawerEdit()">
+          ${editing?"DONE":"EDIT"}
+        </button>
+        ${editing?`<button class="preview-edit-add" onclick="UI._openAddEx(false);UI._closeDrawer()">+ ADD EXERCISE</button>`:""}
+      </div>`;
+
+    const rows = exs.map((ex, i) => {
       const wDone = ex.sets.filter(s=>!s.isWarmup&&s.logged).length;
       const wTot  = ex.sets.filter(s=>!s.isWarmup&&!s.excluded).length;
       const isCur = i === ei;
       const allDone = wDone === wTot && wTot > 0;
       const progCls = allDone ? "drawer-ex-progress done" : "drawer-ex-progress";
-      const progTxt = allDone ? `${wTot}/${wTot} ✓` : `${wDone}/${wTot}`;
-      return `<div class="drawer-ex-row${isCur?" current":""}" onclick="UI._goTo(${i});UI._closeDrawer()">
+      const progTxt = ex.isFinisher ? (ex.sets[0]?.reps||"") : (allDone ? `${wTot}/${wTot} ✓` : `${wDone}/${wTot}`);
+      const finisherIcon = ex.isFinisher ? "🚶 " : "";
+
+      if (editing) {
+        return `<div class="drawer-ex-row${isCur?" current":""}${ex.isFinisher?" finisher":""}">
+          <span class="drawer-ex-num">${i+1}</span>
+          <div class="drawer-ex-info">
+            <div class="drawer-ex-name${isCur?" current":""}">${finisherIcon}${ex.name}</div>
+          </div>
+          <div class="drawer-row-controls">
+            ${i>0?`<button class="preview-ctrl" onclick="UI._sessionMove(${i},-1)">↑</button>`:`<span class="preview-ctrl-spacer"></span>`}
+            ${i<exs.length-1?`<button class="preview-ctrl" onclick="UI._sessionMove(${i},1)">↓</button>`:`<span class="preview-ctrl-spacer"></span>`}
+            <button class="preview-ctrl danger" onclick="UI._removeEx(${i})">✕</button>
+          </div>
+        </div>`;
+      }
+
+      return `<div class="drawer-ex-row${isCur?" current":""}${ex.isFinisher?" finisher":""}" onclick="UI._goTo(${i});UI._closeDrawer()">
         <span class="drawer-ex-num${isCur?" current":""}">${i+1}</span>
         <div class="drawer-ex-info">
-          <div class="drawer-ex-name${isCur?" current":""}">${ex.name}</div>
+          <div class="drawer-ex-name${isCur?" current":""}">${finisherIcon}${ex.name}</div>
           ${isCur?`<span class="drawer-ex-here">← YOU'RE HERE</span>`:""}
         </div>
         <span class="${progCls}">${progTxt}</span>
       </div>`;
     }).join("");
+
+    el.innerHTML = editBar + rows;
+
     // Update day name
     const dn = document.getElementById("drawer-day-name");
     const day = PROGRAM[App.state.activeDay] || {};
     if (dn) dn.textContent = day.title || "";
+  },
+
+  _toggleDrawerEdit() {
+    this._drawerEditing = !this._drawerEditing;
+    this._updateDrawer();
+  },
+
+  // Move an exercise in the live session (different from _moveEx which moves the active one)
+  _sessionMove(i, dir) {
+    const exs = App.state.session?.exercises;
+    const ni = i+dir;
+    if (!exs || ni<0 || ni>=exs.length) return;
+    [exs[i], exs[ni]] = [exs[ni], exs[i]];
+    // If we moved the active exercise, follow it
+    if (this._activeExIdx === i) this._activeExIdx = ni;
+    else if (this._activeExIdx === ni) this._activeExIdx = i;
+    this._updateFocusView();
+    this._updateHeader();
+    this._updateQueue();
+    this._updateDrawer();
   },
   _lpStart() {
     this._lpTimer = setTimeout(() => {
@@ -1104,7 +1268,7 @@ const UI = {
     document.body.appendChild(sheet);
   },
 
-  _closeSheet() { document.getElementById("sess-sheet")?.remove(); },
+  _closeSheet() { document.getElementById("sess-sheet")?.remove(); this._draftAddOpen = false; },
 
   _moveEx(ei, dir) {
     const exs = App.state.session?.exercises;
@@ -1192,8 +1356,6 @@ const UI = {
 
   _pickEx(id, name, baseline) {
     this._closeSheet();
-    const { session } = App.state;
-    if (!session) return;
     const ww = Math.round(((baseline||45)*0.85)/5)*5;
     const newEx = {
       id, name, rest:"90 sec", tip:"", bodyweight:baseline===0,
@@ -1202,6 +1364,24 @@ const UI = {
         prev:{reps:8,weight:ww}, claimed:{}, logged:false, excluded:false
       }))
     };
+
+    // Adding from preview-draft context (no live session yet)
+    if (this._draftAddOpen && this._draft) {
+      this._draftAddOpen = false;
+      // Insert before the finisher if it exists
+      const exs = this._draft.exercises;
+      const fIdx = exs.findIndex(e=>e.isFinisher);
+      if (fIdx >= 0) exs.splice(fIdx, 0, newEx);
+      else exs.push(newEx);
+      const d = PROGRAM[this._draft.dayId];
+      const cw = getCurrentWeek();
+      const pid = d.phaseId || WEEKS[cw]?.phaseId || "strength";
+      this._renderPreview(this._draft.dayId, d, cw, pid);
+      return;
+    }
+
+    const { session } = App.state;
+    if (!session) return;
     if (this._swappingEi !== undefined) {
       session.exercises[this._swappingEi] = newEx;
       this._swappingEi = undefined;
@@ -1212,6 +1392,7 @@ const UI = {
     this._updateFocusView();
     this._updateHeader();
     this._updateQueue();
+    this._updateDrawer();
   },
 
   // ── CONFIRM / SAVE ────────────────────────────────────────────────────────
@@ -1275,11 +1456,188 @@ const UI = {
     }
     try {
       await App.saveSession(toSave);
-      this._toast("Saved ✓");
+      // Show celebration before clearing state
+      const summary = this._buildSessionSummary(toSave);
       App.state.session = App.state.activeDay = null;
       App.state.history = null;
-      setTimeout(()=>this.nav("picker"), 800);
+      this._renderFinishScreen(summary, day);
     } catch(e) { this._toast("Save failed"); }
+  },
+
+  _buildSessionSummary(toSave) {
+    const exs = toSave.exercises || [];
+    const totalSets = exs.reduce((n,ex)=>n + (ex.sets?.filter(s=>!s.isWarmup&&s.logged).length||0), 0);
+    let totalReps = 0;
+    let totalVolume = 0;
+    let topLift = null;
+    exs.forEach(ex => {
+      (ex.sets||[]).forEach(s => {
+        if (s.isWarmup || !s.logged) return;
+        const reps = parseInt(s.reps) || 0;
+        const wt   = parseFloat(s.weight) || 0;
+        totalReps += reps;
+        totalVolume += reps * wt;
+        if (wt > 0 && (!topLift || wt > topLift.weight)) {
+          topLift = { name: ex.name, weight: wt, reps };
+        }
+      });
+    });
+    // Best PR from prev
+    let pr = null;
+    exs.forEach(ex => {
+      (ex.sets||[]).forEach(s => {
+        if (s.isWarmup || !s.logged) return;
+        const wt   = parseFloat(s.weight) || 0;
+        const prevWt = parseFloat(s.prev?.weight) || 0;
+        if (wt > prevWt && prevWt > 0 && wt - prevWt >= 2.5) {
+          if (!pr || (wt - prevWt) > (pr.diff)) {
+            pr = { name: ex.name, weight: wt, diff: wt - prevWt };
+          }
+        }
+      });
+    });
+    return { exCount: exs.filter(ex=>!ex.isFinisher).length, totalSets, totalReps, totalVolume, topLift, pr };
+  },
+
+  _renderFinishScreen(summary, day) {
+    this.root.innerHTML = "";
+    document.getElementById("bottom-nav")?.remove();
+
+    const motivations = [
+      "Showed up. That's the whole game.",
+      "Every rep is a vote for who you're becoming.",
+      "Rest hard. Lift harder.",
+      "Progress doesn't ask if you felt like it.",
+      "Today's work is tomorrow's strength.",
+      "You did the thing. Now eat.",
+      "Logged. Done. Onward.",
+      "The bar doesn't lie. Neither do you.",
+      "Stack the days. That's how it compounds."
+    ];
+    const motivation = motivations[Math.floor(Math.random() * motivations.length)];
+
+    const dayTitle = day?.title || "Workout";
+    const volStr = summary.totalVolume > 0
+      ? `${Math.round(summary.totalVolume).toLocaleString()} <span class="finish-unit">lbs moved</span>`
+      : "";
+
+    const wrap = document.createElement("div");
+    wrap.id = "finish-screen";
+    wrap.innerHTML = `
+      <canvas id="confetti-canvas"></canvas>
+      <div class="finish-inner">
+        <div class="finish-check">
+          <svg width="72" height="72" viewBox="0 0 72 72" fill="none">
+            <circle cx="36" cy="36" r="34" stroke="var(--green)" stroke-width="3" fill="rgba(61,255,160,.08)"/>
+            <path d="M22 37l10 10 18-22" stroke="var(--green)" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          </svg>
+        </div>
+        <div class="finish-eyebrow">WORKOUT COMPLETE</div>
+        <div class="finish-title">${dayTitle}</div>
+        <div class="finish-motivation">${motivation}</div>
+
+        <div class="finish-stats">
+          <div class="finish-stat">
+            <div class="finish-stat-num">${summary.totalSets}</div>
+            <div class="finish-stat-lbl">Sets</div>
+          </div>
+          <div class="finish-stat">
+            <div class="finish-stat-num">${summary.totalReps}</div>
+            <div class="finish-stat-lbl">Reps</div>
+          </div>
+          <div class="finish-stat">
+            <div class="finish-stat-num">${summary.exCount}</div>
+            <div class="finish-stat-lbl">Lifts</div>
+          </div>
+        </div>
+
+        ${volStr ? `<div class="finish-volume">${volStr}</div>` : ""}
+
+        ${summary.pr ? `
+          <div class="finish-pr">
+            <div class="finish-pr-badge">NEW PR</div>
+            <div class="finish-pr-text">${summary.pr.name} — ${summary.pr.weight} lbs <span class="finish-pr-diff">(+${summary.pr.diff})</span></div>
+          </div>` : ""}
+
+        <button class="finish-cta" onclick="UI._closeFinish()">DONE</button>
+      </div>
+    `;
+    this.root.appendChild(wrap);
+
+    // Fire confetti
+    this._fireConfetti();
+
+    // Haptic
+    if (navigator.vibrate) navigator.vibrate([60, 40, 60, 40, 120]);
+  },
+
+  _closeFinish() {
+    if (this._confettiRaf) { cancelAnimationFrame(this._confettiRaf); this._confettiRaf = null; }
+    this.nav("history");
+  },
+
+  _fireConfetti() {
+    const cv = document.getElementById("confetti-canvas");
+    if (!cv) return;
+    const dpr = window.devicePixelRatio || 1;
+    const W = window.innerWidth;
+    const H = window.innerHeight;
+    cv.width = W * dpr; cv.height = H * dpr;
+    cv.style.width = W + "px"; cv.style.height = H + "px";
+    const ctx = cv.getContext("2d");
+    ctx.scale(dpr, dpr);
+
+    const colors = ["#E8FF47", "#3DFFA0", "#FF6B35", "#5BA4FF", "#FFFFFF", "#B87FFF"];
+    const N = 140;
+    const start = performance.now();
+    const particles = [];
+    for (let i = 0; i < N; i++) {
+      particles.push({
+        x: W / 2 + (Math.random() - 0.5) * 60,
+        y: H * 0.35,
+        vx: (Math.random() - 0.5) * 14,
+        vy: -Math.random() * 16 - 6,
+        rot: Math.random() * Math.PI * 2,
+        vrot: (Math.random() - 0.5) * 0.3,
+        size: 6 + Math.random() * 6,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        shape: Math.random() < 0.5 ? "rect" : "circ"
+      });
+    }
+    const G = 0.45;
+    const DRAG = 0.992;
+    const tick = (now) => {
+      const elapsed = now - start;
+      ctx.clearRect(0, 0, W, H);
+      particles.forEach(p => {
+        p.vy += G;
+        p.vx *= DRAG;
+        p.vy *= DRAG;
+        p.x += p.vx;
+        p.y += p.vy;
+        p.rot += p.vrot;
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rot);
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = Math.max(0, 1 - elapsed / 3000);
+        if (p.shape === "rect") {
+          ctx.fillRect(-p.size/2, -p.size/4, p.size, p.size/2);
+        } else {
+          ctx.beginPath();
+          ctx.arc(0, 0, p.size/2, 0, Math.PI*2);
+          ctx.fill();
+        }
+        ctx.restore();
+      });
+      if (elapsed < 3000) {
+        this._confettiRaf = requestAnimationFrame(tick);
+      } else {
+        ctx.clearRect(0, 0, W, H);
+        this._confettiRaf = null;
+      }
+    };
+    this._confettiRaf = requestAnimationFrame(tick);
   },
 
   // ── SPORT LOG ─────────────────────────────────────────────────────────────
@@ -1336,7 +1694,7 @@ const UI = {
     const latest = entries.length ? entries[entries.length-1] : null;
     const gl=CONFIG.GOAL_LB_LOW, gh=CONFIG.GOAL_LB_HIGH;
     const inGoal = latest && latest.w>=gl && latest.w<=gh;
-    const today  = new Date().toISOString().split("T")[0];
+    const today  = this._today();
     const todayE = entries.find(e=>e.date===today);
     const r = this._bwRange;
     const rl = {30:"30 days",90:"90 days",365:"1 year",0:"All time"};
@@ -1520,21 +1878,53 @@ const UI = {
           rows.push(`<div class="hist-gap">${Math.abs(gapDays)}-day gap</div>`);
         }
       }
-      // Session row
+      // Session row — top 3 lifts as preview
       const topSets = s.exercises.slice(0,3).map(ex => {
         const best = ex.sets?.reduce((b,st)=>parseFloat(st.weight)>parseFloat(b?.weight||0)?st:b,null);
         return best?.weight ? `${ex.name} ${best.weight}×${best.reps}` : ex.name;
       });
-      rows.push(`<div class="hist-row">
-        <div class="hist-row-left">
-          <span class="hist-row-date">${this._date(s.date)}</span>
-          <span class="hist-row-day">${s.dayTitle}</span>
+
+      // Full detail — all exercises and all their sets
+      const fullDetail = (s.exercises||[]).map(ex => {
+        const setLines = (ex.sets||[]).map((st, i) => {
+          const isWarm = st.note === "warm-up" || st.isWarmup;
+          const wt = st.weight ? `${st.weight} lbs` : "";
+          const reps = st.reps || "";
+          const noteTag = isWarm ? `<span class="hist-set-tag">WARM</span>` : "";
+          return `<div class="hist-set-row">
+            <span class="hist-set-num">${i+1}</span>
+            <span class="hist-set-detail">${reps}${wt?` × ${wt}`:""}</span>
+            ${noteTag}
+          </div>`;
+        }).join("");
+        return `<div class="hist-ex-block">
+          <div class="hist-ex-name">${ex.name}</div>
+          <div class="hist-ex-sets">${setLines}</div>
+        </div>`;
+      }).join("");
+
+      rows.push(`<div class="hist-row-wrap" data-idx="${idx}">
+        <div class="hist-row" onclick="UI._toggleHistRow(${idx})">
+          <div class="hist-row-left">
+            <span class="hist-row-date">${this._date(s.date)}</span>
+            <span class="hist-row-day">${s.dayTitle}</span>
+          </div>
+          <div class="hist-row-detail">${topSets.join(" · ")}</div>
+          <span class="hist-row-chev" id="hist-chev-${idx}">▾</span>
         </div>
-        <div class="hist-row-detail">${topSets.join(" · ")}</div>
+        <div class="hist-expanded" id="hist-exp-${idx}">${fullDetail}</div>
       </div>`);
       prevDate = s.date;
     });
     el.innerHTML = rows.join("");
+  },
+
+  _toggleHistRow(idx) {
+    const exp = document.getElementById(`hist-exp-${idx}`);
+    const chev = document.getElementById(`hist-chev-${idx}`);
+    if (!exp) return;
+    const open = exp.classList.toggle("open");
+    if (chev) chev.textContent = open ? "▴" : "▾";
   },
 
   // ── HELPERS ───────────────────────────────────────────────────────────────
@@ -1553,15 +1943,18 @@ const UI = {
   },
 
   _date(iso) {
-    if(!iso)return"";
+    if(!iso)return"—";
     const s=String(iso).slice(0,10);
-    const today=new Date().toISOString().slice(0,10);
-    const yest=new Date(Date.now()-86400000).toISOString().slice(0,10);
+    // Guard: must look like YYYY-MM-DD
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(s))return"—";
+    const today=this._today();
+    const yest=(()=>{const d=new Date();d.setDate(d.getDate()-1);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;})();
     if(s===today)return"Today";
     if(s===yest)return"Yesterday";
     const d=new Date(s+"T12:00:00");
+    if(isNaN(d.getTime()))return"—";
     const ago=Math.round((Date.now()-d)/86400000);
-    if(ago<7)return`${ago} days ago`;
+    if(ago>=0&&ago<7)return`${ago} days ago`;
     return d.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"});
   },
 
