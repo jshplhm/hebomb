@@ -55,50 +55,54 @@ const UI = {
   // ── PICKER ────────────────────────────────────────────────────────────────
   renderPicker() {
     const wrap = this.el("div","picker-page");
-    const cw   = getCurrentWeek();
-    const wd   = WEEKS[cw] || {};
-    const pid  = wd.phaseId || "strength";
-
+    const cw  = getCurrentWeek();
+    const wd  = WEEKS[cw] || {};
+    const pid = wd.phaseId || "strength";
     const hour = new Date().getHours();
     const greeting = hour < 12 ? "Morning" : hour < 17 ? "Afternoon" : "Evening";
-
-    // Skip sport days — always show a lifting day
-    let sid = App.getSuggestedDay();
-    if (!sid || sid === "sport" || PROGRAM[sid]?.sportOnly) {
-      sid = ["dayA","dayB","dayC"].find(id => PROGRAM[id] && !PROGRAM[id].sportOnly) || "dayA";
+    this._renderPickerInto(wrap, cw, wd, pid, greeting);
+    this.root.appendChild(wrap);
+    // Fetch history in background to get last-done dates, then re-render
+    if (!App.state.history) {
+      App.fetchHistory().then(({sessions}) => {
+        App.state.history = sessions;
+        this.root.innerHTML = "";
+        document.getElementById("bottom-nav")?.remove();
+        const w2 = this.el("div","picker-page");
+        this._renderPickerInto(w2, cw, wd, pid, greeting);
+        this.root.appendChild(w2);
+        this._nav();
+      }).catch(()=>{});
     }
-    const sug = PROGRAM[sid];
+  },
 
-    // Only lifting days
-    const liftingDays = ["dayA","dayB","dayC"];
-    const otherDays = liftingDays.filter(id => id !== sid);
+  _renderPickerInto(wrap, cw, wd, pid, greeting) {
+    const history = App.state.history || [];
+    const lastDone = {};
+    history.forEach(s => {
+      if (!lastDone[s.dayId] || s.date > lastDone[s.dayId]) lastDone[s.dayId] = s.date;
+    });
 
     wrap.innerHTML = `
       <div class="picker-greeting">
         <span class="picker-hi">${greeting}, Josh.</span>
         <span class="phase-badge phase-badge-${pid}">Wk ${cw} · ${wd.phase?.label||""}</span>
       </div>
-      <div class="picker-subline">What are we doing today?</div>
 
-      <div class="picker-suggested">
-        <div class="picker-suggested-label">Suggested</div>
-        <div class="picker-suggested-name">${sug.title}</div>
-        <button class="btn-start" onclick="UI.startDay('${sid}')">Start</button>
+      <div class="picker-day-list">
+        ${["dayA","dayB","dayC"].map(id => {
+          const d = PROGRAM[id];
+          const last = lastDone[id];
+          const lastStr = last ? UI._daysAgo(last) : "not done yet";
+          return `<button class="picker-day-card" onclick="UI._previewDay('${id}')">
+            <div class="picker-day-card-left">
+              <span class="picker-day-title">${d.title}</span>
+              <span class="picker-day-last">${lastStr}</span>
+            </div>
+            <span class="picker-day-arrow">→</span>
+          </button>`;
+        }).join("")}
       </div>
-
-      ${otherDays.length ? `
-        <div class="section-head-plain" style="margin-bottom:8px">Other days</div>
-        <div class="picker-others">
-          ${otherDays.map(id => {
-            const d = PROGRAM[id];
-            return `<button class="picker-other-btn" onclick="UI._previewDay('${id}')">
-              <span class="picker-other-label">${d.label||id}</span>
-              <span class="picker-other-title">${d.title}</span>
-              <span class="picker-other-hint">Tap to preview →</span>
-            </button>`;
-          }).join("")}
-        </div>
-      ` : ""}
 
       <div class="picker-past">
         <label class="picker-past-label" for="log-past-date">Log for a past date</label>
@@ -109,30 +113,58 @@ const UI = {
     this.root.appendChild(wrap);
   },
 
-  // Preview a day before committing — shows exercise list with Start button
+  // Preview page — shows full exercise list, Start button at bottom
   _previewDay(dayId) {
+    const d   = PROGRAM[dayId];
+    const cw  = getCurrentWeek();
+    const wd  = WEEKS[cw] || {};
+    const pid = d.phaseId || wd.phaseId || "strength";
     const wrap = this.el("div","picker-page");
-    const d = PROGRAM[dayId];
-    const cw = getCurrentWeek();
-    const exNames = (d.exercises||[]).map(ex=>ex.name).join(", ") || d.title;
+
+    // Build set count for each exercise
+    const exRows = (d.exercises||[]).map(ex => {
+      const setCount = ex.sets?.length || 0;
+      const warmups  = ex.sets?.filter(s=>s.note==="warm-up").length || 0;
+      const working  = setCount - warmups;
+      const detail   = warmups > 0 ? `${working} sets + warmup` : `${setCount} sets`;
+      return `<div class="preview-ex-row">
+        <span class="preview-ex-name">${ex.name}</span>
+        <span class="preview-ex-sets">${detail}</span>
+      </div>`;
+    }).join("") || `<div style="color:var(--sub);font-size:14px;padding:16px 0">${d.title}</div>`;
 
     wrap.innerHTML = `
       <button class="preview-back" onclick="UI.nav('picker')">← Back</button>
-      <div class="preview-title">${d.title}</div>
-      <div class="preview-label">${d.label||""}</div>
-      <div class="preview-exercises">
-        ${(d.exercises||[]).map(ex=>`
-          <div class="preview-ex-row">
-            <span class="preview-ex-name">${ex.name}</span>
-            <span class="preview-ex-sets">${ex.sets?.length||""} sets</span>
-          </div>`).join("") || `<div style="color:var(--sub);font-size:14px;padding:16px 0">${d.title}</div>`}
+      <div class="preview-header">
+        <div class="preview-title">${d.title}</div>
+        <span class="phase-badge phase-badge-${pid}">${d.label||""}</span>
       </div>
-      <button class="btn-start" style="margin-top:20px" onclick="UI.startDay('${dayId}')">Start ${d.title}</button>
+      <div class="preview-exercises">${exRows}</div>
+      <div class="preview-footer">
+        <div class="picker-past" style="margin-bottom:12px">
+          <label class="picker-past-label" for="preview-date">Log for a past date</label>
+          <input type="date" id="preview-date" class="picker-date-input"
+            value="${UI._today()}" max="${UI._today()}">
+        </div>
+        <button class="btn-start" onclick="UI._startFromPreview('${dayId}')">Start ${d.title}</button>
+      </div>
     `;
     this.root.innerHTML = "";
     document.getElementById("bottom-nav")?.remove();
     this.root.appendChild(wrap);
     this._nav();
+  },
+
+  _startFromPreview(dayId) {
+    // Pick up date from preview page if set
+    const previewDate = document.getElementById("preview-date")?.value;
+    if (previewDate) {
+      const el = document.createElement("input");
+      el.id = "log-past-date"; el.type = "date"; el.value = previewDate;
+      el.style.display = "none";
+      document.body.appendChild(el);
+    }
+    this.startDay(dayId);
   },
 
   // ── START ─────────────────────────────────────────────────────────────────
@@ -176,16 +208,13 @@ const UI = {
     wrap.id = "session-wrap";
     wrap.innerHTML = `
       <div class="sess-header" id="sess-header">
-        <div class="sess-hdr-top">
+        <div class="sess-hdr-row">
           <button class="sess-end" onclick="UI._confirmEnd()">← End</button>
-        </div>
-        <div class="sess-hdr-name-row">
           <button class="sess-ex-name" id="sess-ex-name"
             ontouchstart="UI._lpStart(event)" ontouchend="UI._lpEnd()" ontouchmove="UI._lpEnd()"
             oncontextmenu="event.preventDefault();UI._showExMenu()">—</button>
           <div class="sess-counter-block">
             <span class="sess-counter" id="sess-counter"></span>
-            <span class="sess-counter-lbl">SETS DONE</span>
             <span class="sess-rest-inline" id="sess-rest-inline"></span>
           </div>
         </div>
@@ -1167,7 +1196,7 @@ const UI = {
     const wrap=this.el("div","page");
     wrap.innerHTML=`
       <header class="page-header-compact">
-        <div class="compact-date-row"><span class="compact-date">All sessions</span></div>
+        <div class="compact-date-row"><span class="compact-date">Training log</span></div>
         <h1 class="page-title-compact">History</h1>
       </header>
       <div id="hist-content"><div class="loading-text">Loading…</div></div>`;
@@ -1176,23 +1205,49 @@ const UI = {
     const el=document.getElementById("hist-content");
     if(!el)return;
     const sessions=App.state.history;
-    if(!sessions?.length){el.innerHTML=`<div class="loading-text muted">No sessions yet.</div>`;return;}
-    el.innerHTML=sessions.map(s=>`
-      <div class="history-card">
-        <div class="history-header">
-          <span class="history-date">${this._date(s.date)}</span>
-          <span class="history-day">${s.dayTitle}</span>
+    if(!sessions?.length){el.innerHTML=`<div class="loading-text muted">No sessions logged yet.</div>`;return;}
+
+    // Group by week, show gaps
+    const rows = [];
+    let prevDate = null;
+    sessions.forEach((s, idx) => {
+      // Gap indicator — if more than 5 days since last session
+      if (prevDate) {
+        const gapDays = Math.round((new Date(s.date+"T12:00:00") - new Date(prevDate+"T12:00:00")) / 86400000);
+        if (gapDays < 0 && Math.abs(gapDays) > 5) {
+          rows.push(`<div class="hist-gap">${Math.abs(gapDays)}-day gap</div>`);
+        }
+      }
+      // Session row
+      const topSets = s.exercises.slice(0,3).map(ex => {
+        const best = ex.sets?.reduce((b,st)=>parseFloat(st.weight)>parseFloat(b?.weight||0)?st:b,null);
+        return best?.weight ? `${ex.name} ${best.weight}×${best.reps}` : ex.name;
+      });
+      rows.push(`<div class="hist-row">
+        <div class="hist-row-left">
+          <span class="hist-row-date">${this._date(s.date)}</span>
+          <span class="hist-row-day">${s.dayTitle}</span>
         </div>
-        <div class="history-exercises">
-          ${s.exercises.map(ex=>{
-            const best=ex.sets?.reduce((b,st)=>parseFloat(st.weight)>parseFloat(b?.weight||0)?st:b,null);
-            return`<div class="history-ex"><span class="history-ex-name">${ex.name}</span><span class="history-ex-sets">${best&&best.weight?`${best.weight}×${best.reps}`:""}</span></div>`;
-          }).join("")}
-        </div>
-      </div>`).join("");
+        <div class="hist-row-detail">${topSets.join(" · ")}</div>
+      </div>`);
+      prevDate = s.date;
+    });
+    el.innerHTML = rows.join("");
   },
 
   // ── HELPERS ───────────────────────────────────────────────────────────────
+  _daysAgo(iso) {
+    if (!iso) return "";
+    const d = new Date(iso+"T12:00:00");
+    const days = Math.round((Date.now() - d) / 86400000);
+    if (days === 0) return "today";
+    if (days === 1) return "yesterday";
+    if (days < 7)  return `${days} days ago`;
+    if (days < 14) return "last week";
+    const weeks = Math.round(days / 7);
+    return `${weeks} weeks ago`;
+  },
+
   _date(iso) {
     if(!iso)return"";
     const s=String(iso).slice(0,10);
