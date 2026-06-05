@@ -60,29 +60,41 @@ const UI = {
     const pid  = wd.phaseId || "strength";
     const sid  = App.getSuggestedDay();
     const sug  = PROGRAM[sid];
-    const date = new Date().toLocaleDateString("en-US",{weekday:"long",month:"short",day:"numeric"});
+
+    const hour = new Date().getHours();
+    const greeting = hour < 12 ? "Morning" : hour < 17 ? "Afternoon" : "Evening";
+
+    // Only show lifting days in "other days"
+    const liftingDays = ["dayA","dayB","dayC"];
+    const otherDays = liftingDays.filter(id => id !== sid);
 
     wrap.innerHTML = `
-      <div class="picker-top">
-        <div class="picker-date">${date}</div>
+      <div class="picker-greeting">
+        <span class="picker-hi">${greeting}, Josh.</span>
         <span class="phase-badge phase-badge-${pid}">Wk ${cw} · ${wd.phase?.label||""}</span>
       </div>
+      <div class="picker-subline">What are we doing today?</div>
+
       <div class="picker-suggested">
-        <div class="picker-suggested-label">Today</div>
+        <div class="picker-suggested-label">Suggested</div>
         <div class="picker-suggested-name">${sug.title}</div>
         <button class="btn-start" onclick="UI.startDay('${sid}')">Start</button>
       </div>
-      <div class="section-head-plain" style="margin-bottom:8px">Other days</div>
-      <div class="picker-others">
-        ${["dayA","dayB","dayC"].filter(id=>id!==sid).map(id => {
-          const d = PROGRAM[id];
-          return `<button class="picker-other-btn" onclick="UI._previewDay('${id}')">
-            <span class="picker-other-label">${d.label||id}</span>
-            <span class="picker-other-title">${d.title}</span>
-            <span class="picker-other-hint">Tap to preview →</span>
-          </button>`;
-        }).join("")}
-      </div>
+
+      ${otherDays.length ? `
+        <div class="section-head-plain" style="margin-bottom:8px">Other days</div>
+        <div class="picker-others">
+          ${otherDays.map(id => {
+            const d = PROGRAM[id];
+            return `<button class="picker-other-btn" onclick="UI._previewDay('${id}')">
+              <span class="picker-other-label">${d.label||id}</span>
+              <span class="picker-other-title">${d.title}</span>
+              <span class="picker-other-hint">Tap to preview →</span>
+            </button>`;
+          }).join("")}
+        </div>
+      ` : ""}
+
       <div class="picker-past">
         <label class="picker-past-label" for="log-past-date">Log for a past date</label>
         <input type="date" id="log-past-date" class="picker-date-input"
@@ -199,10 +211,7 @@ const UI = {
     this.root.appendChild(wrap);
     this._buildBody();
     this._updateHeader();
-    requestAnimationFrame(() => {
-      this._syncBodyPadding();
-      requestAnimationFrame(() => this._scrollToActive(true));
-    });
+    this._scrollToActive(true);
   },
 
   _bottomAction() {
@@ -477,11 +486,7 @@ const UI = {
     this._activeExIdx = ei;
     this._buildBody();
     this._updateHeader();
-    // Sync padding first (measures header), then snap scroll instantly
-    requestAnimationFrame(() => {
-      this._syncBodyPadding();
-      requestAnimationFrame(() => this._scrollToActive(true));
-    });
+    this._scrollToActive(true);
   },
 
   // ── SET ACTIONS ───────────────────────────────────────────────────────────
@@ -675,6 +680,25 @@ const UI = {
     if (!body || !hdr) return;
     const total = (hdr.offsetHeight||0) + (colHdr?.offsetHeight||0) + 1;
     body.style.paddingTop = total + "px";
+    return total; // return value so callers can chain
+  },
+
+  _scrollToActive(instant) {
+    const body = document.getElementById("sess-body");
+    if (!body) return;
+    // Sync padding first so offsetTop is accurate
+    this._syncBodyPadding();
+    const ei  = this._activeExIdx;
+    const exb = document.getElementById(`exb-${ei}`);
+    if (!exb) return;
+    // exb.offsetTop is relative to sess-body scroll container
+    // We want the active block flush at the visible top (scrollTop = block's offsetTop)
+    const targetTop = exb.offsetTop;
+    if (instant || instant === undefined) {
+      body.scrollTop = targetTop;
+    } else {
+      body.scrollTo({ top: targetTop, behavior: "smooth" });
+    }
   },
 
   _startRest(sec) {
@@ -755,10 +779,7 @@ const UI = {
     this._activeExIdx = ni;
     this._buildBody();
     this._updateHeader();
-    requestAnimationFrame(() => {
-      this._syncBodyPadding();
-      requestAnimationFrame(() => this._scrollToActive(true));
-    });
+    this._scrollToActive(true);
   },
 
   _removeEx(ei) {
