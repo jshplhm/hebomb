@@ -58,13 +58,18 @@ const UI = {
     const cw   = getCurrentWeek();
     const wd   = WEEKS[cw] || {};
     const pid  = wd.phaseId || "strength";
-    const sid  = App.getSuggestedDay();
-    const sug  = PROGRAM[sid];
 
     const hour = new Date().getHours();
     const greeting = hour < 12 ? "Morning" : hour < 17 ? "Afternoon" : "Evening";
 
-    // Only show lifting days — no sport
+    // Skip sport days — always show a lifting day
+    let sid = App.getSuggestedDay();
+    if (!sid || sid === "sport" || PROGRAM[sid]?.sportOnly) {
+      sid = ["dayA","dayB","dayC"].find(id => PROGRAM[id] && !PROGRAM[id].sportOnly) || "dayA";
+    }
+    const sug = PROGRAM[sid];
+
+    // Only lifting days
     const liftingDays = ["dayA","dayB","dayC"];
     const otherDays = liftingDays.filter(id => id !== sid);
 
@@ -172,8 +177,7 @@ const UI = {
     wrap.innerHTML = `
       <div class="sess-header" id="sess-header">
         <div class="sess-hdr-top">
-          <button class="sess-end" onclick="UI._confirmEnd()">End</button>
-          <span class="sess-phase phase-badge-${pid}">${wd.phase?.label||""} · ${day.label||activeDay}</span>
+          <button class="sess-end" onclick="UI._confirmEnd()">← End</button>
         </div>
         <div class="sess-hdr-name-row">
           <button class="sess-ex-name" id="sess-ex-name"
@@ -186,10 +190,6 @@ const UI = {
           </div>
         </div>
         <div class="sess-dots-row" id="sess-dots-row"></div>
-      </div>
-      <div class="sess-col-header" id="sess-col-header">
-        <span class="sess-col-reps">REPS</span>
-        <span class="sess-col-weight">WEIGHT</span>
       </div>
       <div class="sess-body" id="sess-body"></div>
       <div class="sess-bottom" id="sess-bottom">
@@ -287,6 +287,9 @@ const UI = {
       </div>
       ${ex.sets.map((_,si) => this._setRowHTML(ei,si)).join("")}
       <button class="ex-add-set-btn" onclick="UI._addSet(${ei})">+ Add set</button>`;
+    // Auto-claim the current set so it shows white immediately
+    const nextSi = ex.sets.findIndex(s=>!s.logged&&!s.excluded);
+    if (nextSi >= 0) this._claimSet(ei, nextSi);
   },
 
   _resetAllSwipes() {
@@ -429,14 +432,19 @@ const UI = {
     // Set dots — filled=done, ring=next, tiny=warmup
     const dotsEl = document.getElementById("sess-dots-row");
     if (dotsEl) {
-      dotsEl.innerHTML = ex.sets.filter(s=>!s.excluded).map((s,i) => {
-        const allSets = ex.sets.filter(x=>!x.excluded);
-        const firstUndone = allSets.findIndex(x=>!x.logged);
-        if (s.isWarmup) return `<span class="sdot sdot-warm"></span>`;
-        if (s.logged)   return `<span class="sdot sdot-done"></span>`;
-        if (i === firstUndone) return `<span class="sdot sdot-next"></span>`;
-        return `<span class="sdot sdot-up"></span>`;
-      }).join("");
+      const activeSets = ex.sets.filter(s=>!s.excluded);
+      if (activeSets.length === 0) {
+        dotsEl.style.display = "none";
+      } else {
+        dotsEl.style.display = "flex";
+        dotsEl.innerHTML = activeSets.map((s,i) => {
+          const firstUndone = activeSets.findIndex(x=>!x.logged);
+          if (s.isWarmup) return `<span class="sdot sdot-warm"></span>`;
+          if (s.logged)   return `<span class="sdot sdot-done"></span>`;
+          if (i === firstUndone) return `<span class="sdot sdot-next"></span>`;
+          return `<span class="sdot sdot-up"></span>`;
+        }).join("");
+      }
     }
 
     // Bottom button: contextual
@@ -546,6 +554,11 @@ const UI = {
     }
     // Rebuild the active block (set classes shift)
     this._rebuildActive();
+    // Auto-claim the new current set so it immediately shows white
+    const ex = App.state.session.exercises[ei];
+    const nextSi = ex.sets.findIndex(s=>!s.logged&&!s.excluded);
+    if (nextSi >= 0) this._claimSet(ei, nextSi);
+
     this._updateHeader();
     this._updateCollapsed(ei);
     if (s.logged) {
@@ -671,11 +684,10 @@ const UI = {
   },
 
   _syncBodyPadding() {
-    const body   = document.getElementById("sess-body");
-    const hdr    = document.getElementById("sess-header");
-    const colHdr = document.getElementById("sess-col-header");
+    const body = document.getElementById("sess-body");
+    const hdr  = document.getElementById("sess-header");
     if (!body || !hdr) return 0;
-    const total = (hdr.offsetHeight||0) + (colHdr?.offsetHeight||0) + 1;
+    const total = hdr.offsetHeight + 1;
     body.style.paddingTop = total + "px";
     return total;
   },
