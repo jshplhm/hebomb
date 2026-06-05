@@ -561,8 +561,14 @@ const UI = {
       const ex = App.state.session.exercises[ei];
       this._startRest(this._parseRest(ex.rest));
       const allDone = ex.sets.filter(s=>!s.excluded).every(s=>s.logged);
-      if (allDone && ei+1 < App.state.session.exercises.length)
-        setTimeout(()=>this._goTo(ei+1), 800);
+      if (allDone && ei+1 < App.state.session.exercises.length) {
+        setTimeout(() => {
+          this._activeExIdx = ei + 1;
+          this._buildBody();
+          this._updateHeader();
+          this._scrollToActive(false); // smooth
+        }, 600);
+      }
     } else {
       this._stopRest();
     }
@@ -677,23 +683,23 @@ const UI = {
     const body   = document.getElementById("sess-body");
     const hdr    = document.getElementById("sess-header");
     const colHdr = document.getElementById("sess-col-header");
-    if (!body || !hdr) return;
+    if (!body || !hdr) return 0;
     const total = (hdr.offsetHeight||0) + (colHdr?.offsetHeight||0) + 1;
     body.style.paddingTop = total + "px";
-    return total; // return value so callers can chain
+    return total;
   },
 
   _scrollToActive(instant) {
     const body = document.getElementById("sess-body");
     if (!body) return;
-    // Sync padding first so offsetTop is accurate
-    this._syncBodyPadding();
+    // Sync padding first so measurements are accurate
+    const padTop = this._syncBodyPadding();
     const ei  = this._activeExIdx;
     const exb = document.getElementById(`exb-${ei}`);
     if (!exb) return;
-    // exb.offsetTop is relative to sess-body scroll container
-    // We want the active block flush at the visible top (scrollTop = block's offsetTop)
-    const targetTop = exb.offsetTop;
+    // exb.offsetTop includes paddingTop. Subtract it so the block's
+    // top edge lands exactly at the header bottom (visible top of scroll area).
+    const targetTop = exb.offsetTop - (padTop || 0);
     if (instant || instant === undefined) {
       body.scrollTop = targetTop;
     } else {
