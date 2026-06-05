@@ -104,13 +104,7 @@ const UI = {
         }).join("")}
       </div>
 
-      <div class="picker-past">
-        <label class="picker-past-label" for="log-past-date">Log for a past date</label>
-        <input type="date" id="log-past-date" class="picker-date-input"
-          value="${UI._today()}"
-          max="${UI._today()}">
-      </div>`;
-    this.root.appendChild(wrap);
+`;
   },
 
   // Preview page — shows full exercise list, Start button at bottom
@@ -136,7 +130,7 @@ const UI = {
     wrap.innerHTML = `
       <button class="preview-back" onclick="UI.nav('picker')">← Back</button>
       <div class="preview-header">
-        <div class="preview-title">${d.title}</div>
+        <div class="preview-title${d.title.length>18?" preview-title-sm":""}">${d.title}</div>
         <span class="phase-badge phase-badge-${pid}">${d.label||""}</span>
       </div>
       <div class="preview-exercises">${exRows}</div>
@@ -171,7 +165,10 @@ const UI = {
   async startDay(dayId) {
     this.root.innerHTML = `<div class="session-loading">Loading…</div>`;
     document.getElementById("bottom-nav")?.remove();
-    this._logDate = document.getElementById("log-past-date")?.value || null;
+    // Check both picker date and preview-page date
+    this._logDate = document.getElementById("preview-date")?.value
+                 || document.getElementById("log-past-date")?.value
+                 || null;
     const today = this._today();
     if (this._logDate === today) this._logDate = null;
     App.state.activeDay = dayId;
@@ -226,7 +223,7 @@ const UI = {
           <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 1v12M1 7h12"/></svg>
           Exercise
         </button>
-        <button class="sess-save-btn" id="sess-save-btn" onclick="UI._bottomAction()">Save</button>
+        <button class="sess-save-btn" id="sess-save-btn" onclick="UI._bottomAction()">Finish</button>
       </div>`;
     this.root.appendChild(wrap);
     this._buildBody();
@@ -269,18 +266,14 @@ const UI = {
         const ei2 = i;
         return `<div class="ex-block active" id="exb-${i}">
           <div class="ex-active-head">
-            <span class="ex-active-name">${ex.name}</span>
-            <div class="ex-active-actions">
-              <span class="ex-active-rest">${ex.rest||""}</span>
-              <button class="ex-manage-btn" onclick="UI._showExMenu()" title="Reorder / swap / remove">⋮</button>
-            </div>
+            <button class="ex-manage-btn" onclick="UI._showExMenu()" title="Reorder / swap / remove">⋮</button>
           </div>
           ${ex.sets.map((_,si) => this._setRowHTML(i,si)).join("")}
           <button class="ex-add-set-btn" onclick="UI._addSet(${i})">+ Add set</button>
         </div>`;
       }
 
-      const dot = allDone ? "done" : partial ? "partial" : "untouched";
+      const dot = allDone ? "done-muted" : partial ? "partial" : "untouched";
       const isCurrent = i === ei;
       const meta = allDone
         ? `<span style="color:var(--green);font-size:11px">✓</span>`
@@ -308,11 +301,7 @@ const UI = {
     const ex = App.state.session.exercises[ei];
     exb.innerHTML = `
       <div class="ex-active-head">
-        <span class="ex-active-name">${ex.name}</span>
-        <div class="ex-active-actions">
-          <span class="ex-active-rest">${ex.rest||""}</span>
-          <button class="ex-manage-btn" onclick="UI._showExMenu()" title="Reorder / swap / remove">⋮</button>
-        </div>
+        <button class="ex-manage-btn" onclick="UI._showExMenu()" title="Reorder / swap / remove">⋮</button>
       </div>
       ${ex.sets.map((_,si) => this._setRowHTML(ei,si)).join("")}
       <button class="ex-add-set-btn" onclick="UI._addSet(${ei})">+ Add set</button>`;
@@ -482,9 +471,9 @@ const UI = {
     const btn = document.getElementById("sess-save-btn");
     if (btn) {
       btn.classList.toggle("ready", exDone || allDone);
-      if (allDone)       { btn.textContent = "Finish ✓"; }
+      if (allDone)       { btn.textContent = "Finish"; }
       else if (exDone)   { btn.textContent = "Next →"; }
-      else               { btn.textContent = "Save"; }
+      else               { btn.textContent = "Finish"; }
     }
   },
 
@@ -937,7 +926,7 @@ const UI = {
     s.className = "sheet-overlay";
     s.innerHTML = `<div class="confirm-sheet">
       <div class="confirm-sheet-title">Some sets aren't done</div>
-      <button class="confirm-action" onclick="UI._save()">Save anyway</button>
+      <button class="confirm-action" onclick="UI._save()">Finish anyway</button>
       <button class="confirm-action muted" onclick="UI._closeSheet()">Keep going</button>
     </div>`;
     s.addEventListener("click", e=>{ if(e.target===s) this._closeSheet(); });
@@ -1238,8 +1227,10 @@ const UI = {
   // ── HELPERS ───────────────────────────────────────────────────────────────
   _daysAgo(iso) {
     if (!iso) return "";
-    const d = new Date(iso+"T12:00:00");
+    const d = new Date(String(iso).slice(0,10)+"T12:00:00");
+    if (isNaN(d.getTime())) return "";
     const days = Math.round((Date.now() - d) / 86400000);
+    if (days < 0)  return "";
     if (days === 0) return "today";
     if (days === 1) return "yesterday";
     if (days < 7)  return `${days} days ago`;
