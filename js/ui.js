@@ -94,6 +94,7 @@ const UI = {
           const d = PROGRAM[id];
           const last = lastDone[id];
           const lastStr = last ? UI._daysAgo(last) : "not done yet";
+          const dayLtr = id.replace('day','Day ');
           return `<button class="picker-day-card" onclick="UI._previewDay('${id}')">
             <div class="picker-day-card-left">
               <span class="picker-day-title">${d.title}</span>
@@ -131,7 +132,7 @@ const UI = {
       <button class="preview-back" onclick="UI.nav('picker')">← Back</button>
       <div class="preview-header">
         <div class="preview-title${d.title.length>18?" preview-title-sm":""}">${d.title}</div>
-        <span class="phase-badge phase-badge-${pid}">${d.label||""}</span>
+        <span class="phase-badge phase-badge-${pid}">Wk ${cw}</span>
       </div>
       <div class="preview-exercises">${exRows}</div>
       <div class="preview-footer">
@@ -196,10 +197,6 @@ const UI = {
   renderSession() {
     const { session, activeDay } = App.state;
     if (!session || !activeDay) { this.nav("picker"); return; }
-    const day = PROGRAM[activeDay];
-    const cw  = getCurrentWeek();
-    const wd  = WEEKS[cw] || {};
-    const pid = day.phaseId || wd.phaseId || "strength";
 
     const wrap = document.createElement("div");
     wrap.id = "session-wrap";
@@ -212,23 +209,144 @@ const UI = {
             oncontextmenu="event.preventDefault();UI._showExMenu()">—</button>
           <div class="sess-counter-block">
             <span class="sess-counter" id="sess-counter"></span>
-            <span class="sess-rest-inline" id="sess-rest-inline"></span>
           </div>
         </div>
         <div class="sess-dots-row" id="sess-dots-row"></div>
       </div>
-      <div class="sess-body" id="sess-body"></div>
+
+      <div class="sess-focus" id="sess-focus">
+        <!-- Big reps x weight -->
+        <div class="sf-big-row">
+          <div class="sf-field">
+            <div class="sf-field-label">Reps</div>
+            <div class="sf-big-num" id="sf-reps">—</div>
+            <div class="sf-steppers">
+              <button class="sf-step-btn" onclick="UI._focusStep('reps',-1)">−</button>
+              <button class="sf-step-btn" onclick="UI._focusStep('reps',1)">+</button>
+            </div>
+          </div>
+          <div class="sf-x">×</div>
+          <div class="sf-field">
+            <div class="sf-field-label">Weight</div>
+            <div class="sf-big-num" id="sf-weight">—</div>
+            <div class="sf-steppers">
+              <button class="sf-step-btn" onclick="UI._focusStep('weight',-1)">−</button>
+              <button class="sf-step-btn" onclick="UI._focusStep('weight',1)">+</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Rest timer card — permanent, grows when running -->
+        <div class="sf-rest-card" id="sf-rest-card">
+          <div class="sf-rest-bar-track"><div class="sf-rest-bar" id="sf-rest-bar"></div></div>
+          <div class="sf-rest-inner">
+            <span class="sf-rest-lbl">Rest</span>
+            <span class="sf-rest-time" id="sf-rest-time"></span>
+            <div class="sf-rest-adj" id="sf-rest-adj" style="display:none">
+              <button class="sf-rest-btn" onclick="UI._adjRest(-30)">−30s</button>
+              <button class="sf-rest-btn" onclick="UI._adjRest(30)">+30s</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Exercise queue: horizontal pill strip -->
+      <div class="sess-queue" id="sess-queue"></div>
+
+      <!-- Bottom: add exercise + done button -->
       <div class="sess-bottom" id="sess-bottom">
         <button class="sess-add-ex-btn" onclick="UI._openAddEx(false)">
           <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 1v12M1 7h12"/></svg>
           Exercise
         </button>
-        <button class="sess-save-btn" id="sess-save-btn" onclick="UI._bottomAction()">Finish</button>
+        <button class="sess-done-btn" id="sess-save-btn" onclick="UI._tapCurrentSetDone()">Done</button>
       </div>`;
     this.root.appendChild(wrap);
-    this._buildBody();
+    this._updateFocusView();
     this._updateHeader();
-    this._scrollToActive(true);
+    this._updateQueue();
+  },
+
+  // Tap the Done button — marks current set done
+  _tapCurrentSetDone() {
+    const ei = this._activeExIdx;
+    const ex = App.state.session?.exercises?.[ei];
+    if (!ex) return;
+    const si = ex.sets.findIndex(s=>!s.logged&&!s.excluded);
+    if (si >= 0) {
+      this._tapDone(ei, si);
+    } else {
+      // All sets done on this exercise — bottom action
+      this._bottomAction();
+    }
+  },
+
+  // Render the focused set view (big numbers, no list)
+  _updateFocusView() {
+    const ei = this._activeExIdx;
+    const ex = App.state.session?.exercises?.[ei];
+    if (!ex) return;
+    const si = ex.sets.findIndex(s=>!s.logged&&!s.excluded);
+    if (si < 0) {
+      // All done — show completion state
+      const rEl = document.getElementById("sf-reps");
+      const wEl = document.getElementById("sf-weight");
+      if (rEl) rEl.textContent = "✓";
+      if (wEl) wEl.textContent = "";
+      return;
+    }
+    const s = ex.sets[si];
+    this._claimSet(ei, si);
+    const r = s.claimed?.reps   ?? s.reps;
+    const w = s.claimed?.weight ?? s.weight;
+    const rEl = document.getElementById("sf-reps");
+    const wEl = document.getElementById("sf-weight");
+    if (rEl) rEl.textContent = r;
+    if (wEl) wEl.textContent = w;
+    this._focusEi = ei;
+    this._focusSi = si;
+
+    // Update done button label
+    const btn = document.getElementById("sess-save-btn");
+    if (btn) {
+      const wSets = ex.sets.filter(s=>!s.isWarmup&&!s.excluded);
+      const wIdx  = s.isWarmup ? 0 : wSets.indexOf(s)+1;
+      const setLbl = s.isWarmup ? "Warmup" : `Set ${wIdx}`;
+      const allDone = App.state.session.exercises.every(ex=>ex.sets.filter(s=>!s.excluded).every(s=>s.logged));
+      if (allDone) { btn.textContent = "Finish"; btn.classList.add("ready"); }
+      else { btn.textContent = `Done — ${setLbl}`; btn.classList.remove("ready"); }
+    }
+  },
+
+  _focusStep(field, dir) {
+    const ei = this._focusEi ?? this._activeExIdx;
+    const si = this._focusSi;
+    if (si === undefined || si < 0) return;
+    this._step(ei, si, field, dir);
+    // Reflect in big numbers
+    const s = App.state.session?.exercises?.[ei]?.sets?.[si];
+    if (!s) return;
+    const id = field === "reps" ? "sf-reps" : "sf-weight";
+    const el = document.getElementById(id);
+    if (el) el.textContent = s.claimed?.[field] ?? (field==="reps"?s.reps:s.weight);
+  },
+
+  // Horizontal exercise queue pill strip
+  _updateQueue() {
+    const queue = document.getElementById("sess-queue");
+    if (!queue) return;
+    const exs = App.state.session?.exercises || [];
+    const ei  = this._activeExIdx;
+    queue.innerHTML = exs.map((ex,i) => {
+      const allDone = ex.sets.filter(s=>!s.excluded).every(s=>s.logged);
+      const partial  = !allDone && ex.sets.some(s=>s.logged);
+      const isCur    = i === ei;
+      return `<button class="sq-pill ${isCur?"sq-active":allDone?"sq-done":partial?"sq-partial":""}"
+        onclick="UI._goTo(${i})">${ex.name}</button>`;
+    }).join("");
+    // Scroll active pill into view
+    const active = queue.querySelector(".sq-active");
+    if (active) active.scrollIntoView({ inline:"center", behavior:"smooth" });
   },
 
   _bottomAction() {
@@ -292,22 +410,10 @@ const UI = {
     }).join("");
   },
 
-  // Rebuild just the active exercise block (after set actions)
+  // Rebuild after set actions — refresh focused view
   _rebuildActive() {
-    this._resetAllSwipes();
-    const ei  = this._activeExIdx;
-    const exb = document.getElementById(`exb-${ei}`);
-    if (!exb) return;
-    const ex = App.state.session.exercises[ei];
-    exb.innerHTML = `
-      <div class="ex-active-head">
-        <button class="ex-manage-btn" onclick="UI._showExMenu()" title="Reorder / swap / remove">⋮</button>
-      </div>
-      ${ex.sets.map((_,si) => this._setRowHTML(ei,si)).join("")}
-      <button class="ex-add-set-btn" onclick="UI._addSet(${ei})">+ Add set</button>`;
-    // Auto-claim the current set so it shows white immediately
-    const nextSi = ex.sets.findIndex(s=>!s.logged&&!s.excluded);
-    if (nextSi >= 0) this._claimSet(ei, nextSi);
+    this._updateFocusView();
+    this._updateQueue();
   },
 
   _resetAllSwipes() {
@@ -375,15 +481,15 @@ const UI = {
       </div>`;
   },
 
-  // Tap collapsed done row — uncheck so it expands for editing
+  // Uncheck a done set (via the done-collapsed row in the set list within focus view)
   _uncollapseDone(ei, si) {
     const s = App.state.session?.exercises?.[ei]?.sets?.[si];
     if (!s) return;
     s.logged = false;
     this._stopRest();
-    this._rebuildActive();
+    this._updateFocusView();
     this._updateHeader();
-    this._updateCollapsed(ei);
+    this._updateQueue();
   },
 
   // Three-tier classification
@@ -501,9 +607,9 @@ const UI = {
 
   _goTo(ei) {
     this._activeExIdx = ei;
-    this._buildBody();
+    this._updateFocusView();
     this._updateHeader();
-    this._scrollToActive(true);
+    this._updateQueue();
   },
 
   // ── SET ACTIONS ───────────────────────────────────────────────────────────
@@ -578,7 +684,7 @@ const UI = {
     if (nextSi >= 0) this._claimSet(ei, nextSi);
 
     this._updateHeader();
-    this._updateCollapsed(ei);
+    this._updateQueue();
     if (s.logged) {
       const ex = App.state.session.exercises[ei];
       this._startRest(this._parseRest(ex.rest));
@@ -586,13 +692,25 @@ const UI = {
       if (allDone && ei+1 < App.state.session.exercises.length) {
         setTimeout(() => {
           this._activeExIdx = ei + 1;
-          this._buildBody();
+          this._updateFocusView();
           this._updateHeader();
-          this._scrollToActive(false); // smooth
+          this._updateQueue();
         }, 600);
+      } else if (!allDone) {
+        // More sets on this exercise — refresh focus view for next set
+        setTimeout(() => {
+          this._updateFocusView();
+          this._updateQueue();
+        }, 100);
+      } else {
+        // Entire session done
+        this._updateFocusView();
+        this._updateQueue();
       }
     } else {
       this._stopRest();
+      this._updateFocusView();
+      this._updateQueue();
     }
   },
 
@@ -665,16 +783,18 @@ const UI = {
     if (!s) return;
     s.excluded = !s.excluded;
     if (s.excluded) s.logged = false;
-    this._rebuildActive();
+    this._updateFocusView();
     this._updateHeader();
+    this._updateQueue();
   },
 
   _delSet(ei, si) {
     const ex = App.state.session?.exercises?.[ei];
     if (!ex || ex.sets.length <= 1) { this._toast("Can't remove last set"); return; }
     ex.sets.splice(si, 1);
-    this._rebuildActive();
+    this._updateFocusView();
     this._updateHeader();
+    this._updateQueue();
   },
 
   _addSet(ei) {
@@ -732,19 +852,37 @@ const UI = {
     this._stopRest();
     this._restTarget = Date.now() + sec*1000;
     this._restTotal  = sec;
+    this._restStarted = true;
+    this._restOver = false;
+    // Show rest card controls
+    const adjEl = document.getElementById("sf-rest-adj");
+    if (adjEl) adjEl.style.display = "flex";
     const tick = () => {
-      const rem = Math.max(0, Math.ceil((this._restTarget - Date.now()) / 1000));
-      const el  = document.getElementById("sess-rest-inline");
-      if (!el) return;
+      const raw = Math.ceil((this._restTarget - Date.now()) / 1000);
+      const rem = raw; // can go negative
+      const timeEl = document.getElementById("sf-rest-time");
+      const barEl  = document.getElementById("sf-rest-bar");
+      const cardEl = document.getElementById("sf-rest-card");
+      if (!timeEl) return;
       if (rem > 0) {
-        el.textContent = `${rem}s`;
-        el.style.color = rem > 30 ? "var(--green)" : rem > 10 ? "var(--orange)" : "var(--red)";
+        // Counting down
+        timeEl.textContent = `${rem}s`;
+        const pct = Math.min(100, (rem / this._restTotal) * 100);
+        const col = rem > 30 ? "var(--green)" : rem > 10 ? "var(--orange)" : "var(--red)";
+        timeEl.style.color = col;
+        if (barEl) { barEl.style.width = pct+"%"; barEl.style.background = col; }
+        if (cardEl) cardEl.classList.remove("sf-rest-over");
       } else {
-        el.textContent = "go";
-        el.style.color = "var(--yellow)";
-        if (navigator.vibrate) navigator.vibrate([150,80,150]);
-        this._stopRest();
-        setTimeout(() => { if (el) { el.textContent = ""; el.style.color = ""; } }, 2000);
+        // Over — count up
+        if (!this._restOver) {
+          this._restOver = true;
+          if (navigator.vibrate) navigator.vibrate([150,80,150]);
+        }
+        const over = Math.abs(rem);
+        timeEl.textContent = `+${over}s`;
+        timeEl.style.color = "var(--orange)";
+        if (barEl) { barEl.style.width = "100%"; barEl.style.background = "var(--orange)"; }
+        if (cardEl) cardEl.classList.add("sf-rest-over");
       }
     };
     tick();
@@ -753,8 +891,16 @@ const UI = {
 
   _stopRest() {
     if (this._restTimer) { clearInterval(this._restTimer); this._restTimer = null; }
-    const el = document.getElementById("sess-rest-inline");
-    if (el) { el.textContent = ""; el.style.color = ""; }
+    this._restStarted = false;
+    this._restOver = false;
+    const timeEl = document.getElementById("sf-rest-time");
+    const barEl  = document.getElementById("sf-rest-bar");
+    const cardEl = document.getElementById("sf-rest-card");
+    const adjEl  = document.getElementById("sf-rest-adj");
+    if (timeEl) { timeEl.textContent = ""; timeEl.style.color = ""; }
+    if (barEl)  { barEl.style.width = "0%"; }
+    if (cardEl) cardEl.classList.remove("sf-rest-over");
+    if (adjEl)  adjEl.style.display = "none";
   },
 
   _adjRest(d) {
@@ -801,9 +947,9 @@ const UI = {
     if (!exs||ni<0||ni>=exs.length) return;
     [exs[ei],exs[ni]] = [exs[ni],exs[ei]];
     this._activeExIdx = ni;
-    this._buildBody();
+    this._updateFocusView();
     this._updateHeader();
-    this._scrollToActive(true);
+    this._updateQueue();
   },
 
   _removeEx(ei) {
@@ -811,8 +957,9 @@ const UI = {
     if (!exs||exs.length<=1) { this._toast("Can't remove last exercise"); return; }
     exs.splice(ei,1);
     this._activeExIdx = Math.min(ei, exs.length-1);
-    this._buildBody();
+    this._updateFocusView();
     this._updateHeader();
+    this._updateQueue();
   },
 
   _swapEx(ei) {
@@ -897,8 +1044,9 @@ const UI = {
       session.exercises.push(newEx);
       this._activeExIdx = session.exercises.length-1;
     }
-    this._buildBody();
+    this._updateFocusView();
     this._updateHeader();
+    this._updateQueue();
   },
 
   // ── CONFIRM / SAVE ────────────────────────────────────────────────────────
