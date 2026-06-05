@@ -287,34 +287,43 @@ const UI = {
     const ex = App.state.session?.exercises?.[ei];
     if (!ex) return;
     const si = ex.sets.findIndex(s=>!s.logged&&!s.excluded);
+
     if (si < 0) {
-      // All done — show completion state
+      // All sets done on this exercise
       const rEl = document.getElementById("sf-reps");
       const wEl = document.getElementById("sf-weight");
-      if (rEl) rEl.textContent = "✓";
+      if (rEl) { rEl.textContent = "✓"; rEl.style.fontSize = "60px"; }
       if (wEl) wEl.textContent = "";
+      const btn = document.getElementById("sess-save-btn");
+      if (btn) {
+        const allDone = App.state.session.exercises.every(e=>e.sets.filter(s=>!s.excluded).every(s=>s.logged));
+        const next = App.state.session.exercises.findIndex((e,i)=>i>ei&&!e.sets.filter(s=>!s.excluded).every(s=>s.logged));
+        if (allDone) { btn.textContent = "Finish Workout"; btn.classList.add("ready"); }
+        else if (next >= 0) { btn.textContent = `Next: ${App.state.session.exercises[next].name} →`; btn.classList.add("ready"); }
+        else { btn.textContent = "Finish Workout"; btn.classList.add("ready"); }
+      }
       return;
     }
+
     const s = ex.sets[si];
     this._claimSet(ei, si);
     const r = s.claimed?.reps   ?? s.reps;
     const w = s.claimed?.weight ?? s.weight;
     const rEl = document.getElementById("sf-reps");
     const wEl = document.getElementById("sf-weight");
-    if (rEl) rEl.textContent = r;
+    if (rEl) { rEl.textContent = r; rEl.style.fontSize = ""; }
     if (wEl) wEl.textContent = w;
     this._focusEi = ei;
     this._focusSi = si;
 
-    // Update done button label
+    // Warmup vs working set label
+    const wSets  = ex.sets.filter(x=>!x.isWarmup&&!x.excluded);
+    const setLbl = s.isWarmup ? "Warmup" : `Set ${wSets.indexOf(s)+1} of ${wSets.length}`;
+
     const btn = document.getElementById("sess-save-btn");
     if (btn) {
-      const wSets = ex.sets.filter(s=>!s.isWarmup&&!s.excluded);
-      const wIdx  = s.isWarmup ? 0 : wSets.indexOf(s)+1;
-      const setLbl = s.isWarmup ? "Warmup" : `Set ${wIdx}`;
-      const allDone = App.state.session.exercises.every(ex=>ex.sets.filter(s=>!s.excluded).every(s=>s.logged));
-      if (allDone) { btn.textContent = "Finish"; btn.classList.add("ready"); }
-      else { btn.textContent = `Done — ${setLbl}`; btn.classList.remove("ready"); }
+      btn.textContent = `Done — ${setLbl}`;
+      btn.classList.remove("ready");
     }
   },
 
