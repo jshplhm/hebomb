@@ -62,10 +62,13 @@ const UI = {
     const greeting = hour < 12 ? "Morning" : hour < 17 ? "Afternoon" : "Evening";
     this._renderPickerInto(wrap, cw, wd, pid, greeting);
     this.root.appendChild(wrap);
-    // Fetch history in background to get last-done dates, then re-render
+    // Fetch history in background to get last-done dates, then re-render.
+    // Guard: only re-render if the user is still on the picker — not if they've
+    // already tapped into a preview or started a session.
     if (!App.state.history) {
       App.fetchHistory().then(({sessions}) => {
         App.state.history = sessions;
+        if ((App.state.view || "picker") !== "picker") return;
         this.root.innerHTML = "";
         document.getElementById("bottom-nav")?.remove();
         const w2 = this.el("div","picker-page");
