@@ -199,8 +199,10 @@ const UI = {
     this.root.appendChild(wrap);
     this._buildBody();
     this._updateHeader();
-    setTimeout(() => this._syncBodyPadding(), 0);
-    this._scrollToActive();
+    requestAnimationFrame(() => {
+      this._syncBodyPadding();
+      requestAnimationFrame(() => this._scrollToActive(true));
+    });
   },
 
   _bottomAction() {
@@ -235,10 +237,14 @@ const UI = {
       const partial  = doneC > 0 && !allDone;
 
       if (isActive) {
+        const ei2 = i;
         return `<div class="ex-block active" id="exb-${i}">
           <div class="ex-active-head">
             <span class="ex-active-name">${ex.name}</span>
-            <span class="ex-active-rest">${ex.rest||"—"}</span>
+            <div class="ex-active-actions">
+              <span class="ex-active-rest">${ex.rest||""}</span>
+              <button class="ex-manage-btn" onclick="UI._showExMenu()" title="Reorder / swap / remove">⋮</button>
+            </div>
           </div>
           ${ex.sets.map((_,si) => this._setRowHTML(i,si)).join("")}
           <button class="ex-add-set-btn" onclick="UI._addSet(${i})">+ Add set</button>
@@ -274,7 +280,10 @@ const UI = {
     exb.innerHTML = `
       <div class="ex-active-head">
         <span class="ex-active-name">${ex.name}</span>
-        <span class="ex-active-rest">${ex.rest||"—"}</span>
+        <div class="ex-active-actions">
+          <span class="ex-active-rest">${ex.rest||""}</span>
+          <button class="ex-manage-btn" onclick="UI._showExMenu()" title="Reorder / swap / remove">⋮</button>
+        </div>
       </div>
       ${ex.sets.map((_,si) => this._setRowHTML(ei,si)).join("")}
       <button class="ex-add-set-btn" onclick="UI._addSet(${ei})">+ Add set</button>`;
@@ -389,19 +398,20 @@ const UI = {
     return { reps: s.prev?.reps ?? s.reps, weight: s.prev?.weight ?? s.weight };
   },
 
-  _scrollToActive() {
+  _scrollToActive(instant) {
     const body = document.getElementById("sess-body");
     if (!body) return;
     const ei = this._activeExIdx;
-    const sets = App.state.session.exercises[ei]?.sets || [];
-    const si = sets.findIndex(s=>!s.logged&&!s.excluded);
-    const tId = si >= 0 ? `sr-${ei}-${si}` : `exb-${ei}`;
-    const target = document.getElementById(tId);
-    if (!target) return;
-    const hh = document.getElementById("sess-header")?.offsetHeight || 100;
-    const bt = body.getBoundingClientRect().top;
-    const tt = target.getBoundingClientRect().top;
-    body.scrollBy({ top: tt - bt - hh - 20, behavior: "smooth" });
+    // Scroll so the active exercise block is flush at the top of the body viewport
+    const exb = document.getElementById(`exb-${ei}`);
+    if (!exb) return;
+    // Use scrollTop directly for instant snap, smooth for auto-advance
+    const targetScrollTop = exb.offsetTop;
+    if (instant) {
+      body.scrollTop = targetScrollTop;
+    } else {
+      body.scrollTo({ top: targetScrollTop, behavior: "smooth" });
+    }
   },
 
   _updateHeader() {
@@ -464,11 +474,14 @@ const UI = {
   },
 
   _goTo(ei) {
-    const prev = this._activeExIdx;
     this._activeExIdx = ei;
     this._buildBody();
     this._updateHeader();
-    setTimeout(() => { this._syncBodyPadding(); this._scrollToActive(); }, 20);
+    // Sync padding first (measures header), then snap scroll instantly
+    requestAnimationFrame(() => {
+      this._syncBodyPadding();
+      requestAnimationFrame(() => this._scrollToActive(true));
+    });
   },
 
   // ── SET ACTIONS ───────────────────────────────────────────────────────────
@@ -742,6 +755,10 @@ const UI = {
     this._activeExIdx = ni;
     this._buildBody();
     this._updateHeader();
+    requestAnimationFrame(() => {
+      this._syncBodyPadding();
+      requestAnimationFrame(() => this._scrollToActive(true));
+    });
   },
 
   _removeEx(ei) {
