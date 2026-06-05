@@ -78,10 +78,9 @@ input[type=number] { -moz-appearance:textfield; }
 
 /* ── SESSION HEADER (absolute, content offsets via paddingTop) ── */
 .sess-header { position:absolute; top:0; left:0; right:0; z-index:20; background:var(--surface); border-bottom:1px solid var(--border); padding:calc(var(--safe-top) + 6px) 16px 0; }
-.sess-hdr-top { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
-.sess-end { background:transparent; border:1px solid var(--border2); color:var(--sub); font-family:'Barlow Condensed',sans-serif; font-size:12px; font-weight:700; letter-spacing:2px; text-transform:uppercase; padding:5px 14px; border-radius:4px; cursor:pointer; -webkit-tap-highlight-color:transparent; }
-.sess-end:active { border-color:var(--orange); color:var(--orange); }
-.sess-phase { font-family:'Barlow Condensed',sans-serif; font-size:11px; font-weight:700; letter-spacing:2px; text-transform:uppercase; }
+.sess-hdr-top { display:flex; align-items:center; margin-bottom:8px; }
+.sess-end { background:transparent; border:none; color:var(--muted); font-family:'Barlow Condensed',sans-serif; font-size:13px; font-weight:600; padding:4px 0; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+.sess-end:active { color:var(--sub); }
 .sess-hdr-name-row { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; padding-bottom:6px; }
 .sess-ex-name { font-family:'Barlow Condensed',sans-serif; font-size:30px; font-weight:900; text-transform:uppercase; color:var(--text); line-height:1; background:transparent; border:none; padding:0; cursor:pointer; text-align:left; -webkit-tap-highlight-color:transparent; flex:1; }
 .sess-ex-name::after { content:" ···"; font-size:13px; color:var(--muted); font-weight:400; font-family:'Barlow',sans-serif; letter-spacing:0; }
@@ -91,8 +90,6 @@ input[type=number] { -moz-appearance:textfield; }
 /* Inline rest countdown — always reserved space, no layout shift */
 .sess-rest-inline { display:block; font-family:'Barlow Condensed',sans-serif; font-size:12px; font-weight:700; letter-spacing:1px; min-height:15px; text-align:right; margin-top:2px; transition:color 0.4s; }
 /* Col header — absolute below main header */
-.sess-col-header { position:absolute; left:0; right:0; z-index:19; background:var(--bg); display:grid; grid-template-columns:32px 1fr 1fr 52px; gap:6px; padding:5px 14px 5px 47px; border-bottom:1px solid var(--border); }
-.sess-col-reps, .sess-col-weight { font-family:'Barlow Condensed',sans-serif; font-size:10px; font-weight:700; letter-spacing:2.5px; text-transform:uppercase; color:var(--muted); text-align:center; }
 
 /* ── SESSION SCROLL BODY ── */
 .sess-body { flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding-bottom:8px; }
@@ -129,7 +126,7 @@ input[type=number] { -moz-appearance:textfield; }
 .sr-summary { font-size:14px; color:var(--sub); }
 .sn { font-family:'Barlow Condensed',sans-serif; font-size:14px; color:var(--sub); display:flex; flex-direction:column; align-items:center; line-height:1.1; }
 .sn-zero { color:var(--muted); font-size:12px; }
-.sr-skipped { grid-column:2/3; font-size:13px; color:var(--muted); font-style:italic; padding-left:4px; }
+.sr-skipped { grid-column:2/3; font-size:13px; color:var(--muted); padding-left:4px; }
 .sr-undo { background:transparent; border:1px solid var(--border2); color:var(--sub); font-size:11px; padding:4px 8px; border-radius:4px; cursor:pointer; -webkit-tap-highlight-color:transparent; white-space:nowrap; }
 /* Steppers */
 .sr-step { display:flex; align-items:center; background:var(--card2); border:1px solid var(--border); border-radius:7px; overflow:hidden; height:50px; transition:border-color 0.15s; }
@@ -137,9 +134,9 @@ input[type=number] { -moz-appearance:textfield; }
 .sr-s-btn { background:transparent; border:none; color:var(--sub); font-size:21px; font-weight:300; width:40px; height:100%; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; user-select:none; -webkit-tap-highlight-color:transparent; transition:background 0.1s, color 0.1s; }
 .sr-s-btn:active { background:var(--lift); color:var(--yellow); }
 .sr-val { flex:1; text-align:center; font-size:19px; font-weight:600; color:var(--text); user-select:none; pointer-events:none; line-height:1; }
-.sr-val.ghost { color:var(--muted); font-style:italic; }
+.sr-val.ghost { color:var(--muted); }
 .sr-current .sr-val { color:var(--text); }
-.sr-current .sr-val.ghost { color:var(--sub); font-style:italic; }
+.sr-current .sr-val { color:var(--text); }
 /* Circle */
 .sr-circ { width:50px; height:50px; border-radius:50%; background:transparent; border:2px solid var(--border2); cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.18s cubic-bezier(0.34,1.4,0.64,1); flex-shrink:0; min-width:50px; min-height:50px; -webkit-tap-highlight-color:transparent; padding:0; }
 .sr-circ:active { border-color:var(--yellow); background:rgba(232,255,71,.1); transform:scale(0.91); }
@@ -426,10 +423,10 @@ input[type=number] { -moz-appearance:textfield; }
 <body>
 <div id="app"></div>
 <!-- Increment ?v= on every deploy to bust cache -->
-<script src="js/config.js?v=20260604-9"></script>
-<script src="js/program.js?v=20260604-9"></script>
-<script src="js/app.js?v=20260604-9"></script>
-<script src="js/ui.js?v=20260604-9"></script>
+<script src="js/config.js?v=20260604-11"></script>
+<script src="js/program.js?v=20260604-11"></script>
+<script src="js/app.js?v=20260604-11"></script>
+<script src="js/ui.js?v=20260604-11"></script>
 <script>
   document.addEventListener("DOMContentLoaded", () => UI.init());
 </script>
