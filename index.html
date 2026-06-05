@@ -122,9 +122,12 @@ input[type=number] { -moz-appearance:textfield; }
 .ex-col-name-next { color:var(--yellow) !important; }
 .ex-all-done .ex-col-name { color:var(--muted); text-decoration:line-through; }
 .ex-col-meta { font-family:'Barlow Condensed',sans-serif; font-size:12px; color:var(--muted); white-space:nowrap; flex-shrink:0; }
-.ex-active-head { display:flex; align-items:center; justify-content:space-between; padding:10px 18px 6px; border-bottom:1px solid var(--border); }
-.ex-active-name { font-family:'Barlow Condensed',sans-serif; font-size:17px; font-weight:900; text-transform:uppercase; color:var(--text); letter-spacing:0.3px; }
+.ex-active-head { display:flex; align-items:center; justify-content:space-between; padding:10px 14px 6px 18px; border-bottom:1px solid var(--border); }
+.ex-active-name { font-family:'Barlow Condensed',sans-serif; font-size:17px; font-weight:900; text-transform:uppercase; color:var(--text); letter-spacing:0.3px; flex:1; }
+.ex-active-actions { display:flex; align-items:center; gap:8px; flex-shrink:0; }
 .ex-active-rest { font-size:11px; color:var(--muted); }
+.ex-manage-btn { background:transparent; border:1px solid var(--border2); color:var(--sub); font-size:18px; font-weight:700; width:30px; height:30px; border-radius:4px; cursor:pointer; display:flex; align-items:center; justify-content:center; -webkit-tap-highlight-color:transparent; line-height:1; padding:0 0 2px; transition:all 0.1s; }
+.ex-manage-btn:active { border-color:var(--yellow); color:var(--yellow); }
 .ex-add-set-btn { width:100%; background:transparent; border:none; color:var(--muted); font-family:'Barlow Condensed',sans-serif; font-size:12px; font-weight:700; letter-spacing:2px; text-transform:uppercase; padding:12px; cursor:pointer; border-top:1px dashed var(--border); -webkit-tap-highlight-color:transparent; transition:color 0.15s; }
 .ex-add-set-btn:active { color:var(--sub); }
 
@@ -436,10 +439,10 @@ input[type=number] { -moz-appearance:textfield; }
 <body>
 <div id="app"></div>
 <!-- Increment ?v= on every deploy to bust cache -->
-<script src="js/config.js?v=20260604-5"></script>
-<script src="js/program.js?v=20260604-5"></script>
-<script src="js/app.js?v=20260604-5"></script>
-<script src="js/ui.js?v=20260604-5"></script>
+<script src="js/config.js?v=20260604-6"></script>
+<script src="js/program.js?v=20260604-6"></script>
+<script src="js/app.js?v=20260604-6"></script>
+<script src="js/ui.js?v=20260604-6"></script>
 <script>
   document.addEventListener("DOMContentLoaded", () => UI.init());
 </script>
