@@ -198,27 +198,48 @@ const UI = {
     const { session, activeDay } = App.state;
     if (!session || !activeDay) { this.nav("picker"); return; }
 
+    const day = PROGRAM[activeDay] || {};
+
     const wrap = document.createElement("div");
     wrap.id = "session-wrap";
+
     wrap.innerHTML = `
+      <!-- ① Pinned header: PROGRAM | EXERCISE NAME | END -->
       <div class="sess-header" id="sess-header">
         <div class="sess-hdr-row">
-          <button class="sess-end" onclick="UI._confirmEnd()">← End</button>
+          <button class="sess-prog-btn" id="sess-prog-btn" onclick="UI._toggleDrawer()">
+            <svg width="12" height="10" viewBox="0 0 12 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="0" y1="1.5" x2="12" y2="1.5"/><line x1="0" y1="5" x2="8" y2="5"/><line x1="0" y1="8.5" x2="5" y2="8.5"/></svg>
+            PROGRAM
+          </button>
           <button class="sess-ex-name" id="sess-ex-name"
             ontouchstart="UI._lpStart(event)" ontouchend="UI._lpEnd()" ontouchmove="UI._lpEnd()"
             oncontextmenu="event.preventDefault();UI._showExMenu()">—</button>
-          <div class="sess-counter-block">
-            <span class="sess-counter" id="sess-counter"></span>
-          </div>
+          <button class="sess-end" onclick="UI._confirmEnd()">END</button>
         </div>
         <div class="sess-dots-row" id="sess-dots-row"></div>
       </div>
 
+      <!-- ② Focused logging zone -->
       <div class="sess-focus" id="sess-focus">
-        <!-- Big reps x weight -->
+        <!-- Set identity -->
+        <div class="sf-set-id" id="sf-set-id">
+          <span class="sf-set-label" id="sf-set-label">WORKING SET</span>
+          <div>
+            <span class="sf-set-num" id="sf-set-num">1</span>
+            <span class="sf-set-of" id="sf-set-of">of 4</span>
+          </div>
+        </div>
+        <!-- Target chip -->
+        <div class="sf-target-row" id="sf-target-row">
+          <span class="sf-target-chip" id="sf-target-chip">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="6" cy="6" r="5"/><circle cx="6" cy="6" r="2"/></svg>
+            <span id="sf-target-text">— reps × — lbs</span>
+          </span>
+        </div>
+        <!-- Big reps × weight steppers -->
         <div class="sf-big-row">
           <div class="sf-field">
-            <div class="sf-field-label">Reps</div>
+            <div class="sf-field-label">REPS</div>
             <div class="sf-big-num" id="sf-reps">—</div>
             <div class="sf-steppers">
               <button class="sf-step-btn" onclick="UI._focusStep('reps',-1)">−</button>
@@ -227,7 +248,7 @@ const UI = {
           </div>
           <div class="sf-x">×</div>
           <div class="sf-field">
-            <div class="sf-field-label">Weight</div>
+            <div class="sf-field-label">LBS</div>
             <div class="sf-big-num" id="sf-weight">—</div>
             <div class="sf-steppers">
               <button class="sf-step-btn" onclick="UI._focusStep('weight',-1)">−</button>
@@ -235,36 +256,71 @@ const UI = {
             </div>
           </div>
         </div>
+      </div>
 
-        <!-- Rest timer card — permanent, grows when running -->
-        <div class="sf-rest-card" id="sf-rest-card">
-          <div class="sf-rest-bar-track"><div class="sf-rest-bar" id="sf-rest-bar"></div></div>
-          <div class="sf-rest-inner">
-            <span class="sf-rest-lbl">Rest</span>
-            <span class="sf-rest-time" id="sf-rest-time"></span>
-            <div class="sf-rest-adj" id="sf-rest-adj" style="display:none">
-              <button class="sf-rest-btn" onclick="UI._adjRest(-30)">−30s</button>
-              <button class="sf-rest-btn" onclick="UI._adjRest(30)">+30s</button>
-            </div>
+      <!-- Exercise queue scroll strip -->
+      <div class="sess-queue" id="sess-queue"></div>
+
+      <!-- ③ Skip + LOG SET -->
+      <div class="sf-action-row" id="sf-action-row">
+        <button class="sf-skip-btn" onclick="UI._skipCurrentSet()">SKIP</button>
+        <button class="sf-log-btn" id="sess-save-btn" onclick="UI._tapCurrentSetDone()">
+          <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l5 5 7-8"/></svg>
+          LOG SET
+        </button>
+      </div>
+
+      <!-- ④ Rest screen (overlays everything) -->
+      <div id="rest-screen">
+        <div class="rest-header">
+          <span class="rest-label" id="rest-mode-label">REST</span>
+          <button class="sess-end" onclick="UI._confirmEnd()" style="opacity:0.5">END</button>
+        </div>
+        <div class="rest-ring-wrap">
+          <svg class="rest-ring-svg" viewBox="0 0 260 260">
+            <circle class="rest-ring-track" cx="130" cy="130" r="116"/>
+            <circle class="rest-ring-fill" id="rest-ring-fill" cx="130" cy="130" r="116"
+              stroke-dasharray="729" stroke-dashoffset="0"/>
+          </svg>
+          <div class="rest-ring-center">
+            <span class="rest-time-num" id="rest-time-num">1:30</span>
+            <span class="rest-target-lbl" id="rest-target-lbl">TARGET 1:30</span>
           </div>
+        </div>
+        <div class="rest-adj-row">
+          <button class="rest-adj-btn" onclick="UI._adjRest(-30)">−30s</button>
+          <button class="rest-adj-btn" onclick="UI._adjRest(30)">+30s</button>
+        </div>
+        <div class="rest-upnext">
+          <span class="rest-upnext-lbl">UP NEXT</span>
+          <span class="rest-upnext-val" id="rest-upnext"></span>
+        </div>
+        <div class="rest-cta-row">
+          <button class="rest-cta-btn" id="rest-cta-btn" onclick="UI._skipRest()">SKIP REST → START SET</button>
         </div>
       </div>
 
-      <!-- Exercise queue: horizontal pill strip -->
-      <div class="sess-queue" id="sess-queue"></div>
+      <!-- ⑤ Program drawer (slides down from top) -->
+      <div id="prog-drawer">
+        <div class="drawer-header">
+          <div>
+            <div class="drawer-title">TODAY</div>
+            <div class="drawer-day-name" id="drawer-day-name">${day.title || ''}</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button class="drawer-end-btn" onclick="UI._confirmEnd();UI._closeDrawer()">END WORKOUT</button>
+            <button class="drawer-close-btn" onclick="UI._closeDrawer()">✕</button>
+          </div>
+        </div>
+        <div class="drawer-ex-list" id="drawer-ex-list"></div>
+      </div>
+    `;
 
-      <!-- Bottom: add exercise + done button -->
-      <div class="sess-bottom" id="sess-bottom">
-        <button class="sess-add-ex-btn" onclick="UI._openAddEx(false)">
-          <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 1v12M1 7h12"/></svg>
-          Exercise
-        </button>
-        <button class="sess-done-btn" id="sess-save-btn" onclick="UI._tapCurrentSetDone()">Done</button>
-      </div>`;
     this.root.appendChild(wrap);
     this._updateFocusView();
     this._updateHeader();
     this._updateQueue();
+    this._updateDrawer();
   },
 
   // Tap the Done button — marks current set done
@@ -288,20 +344,40 @@ const UI = {
     if (!ex) return;
     const si = ex.sets.findIndex(s=>!s.logged&&!s.excluded);
 
+    const wSets  = ex.sets.filter(x=>!x.isWarmup&&!x.excluded);
+    const setBtn = document.getElementById("sess-save-btn");
+
     if (si < 0) {
       // All sets done on this exercise
       const rEl = document.getElementById("sf-reps");
       const wEl = document.getElementById("sf-weight");
       if (rEl) { rEl.textContent = "✓"; rEl.style.fontSize = "60px"; }
       if (wEl) wEl.textContent = "";
-      const btn = document.getElementById("sess-save-btn");
-      if (btn) {
-        const allDone = App.state.session.exercises.every(e=>e.sets.filter(s=>!s.excluded).every(s=>s.logged));
-        const next = App.state.session.exercises.findIndex((e,i)=>i>ei&&!e.sets.filter(s=>!s.excluded).every(s=>s.logged));
-        if (allDone) { btn.textContent = "Finish Workout"; btn.classList.add("ready"); }
-        else if (next >= 0) { btn.textContent = `Next: ${App.state.session.exercises[next].name} →`; btn.classList.add("ready"); }
-        else { btn.textContent = "Finish Workout"; btn.classList.add("ready"); }
+      const numEl = document.getElementById("sf-set-num");
+      const ofEl  = document.getElementById("sf-set-of");
+      const lblEl = document.getElementById("sf-set-label");
+      if (numEl) numEl.textContent = "✓";
+      if (ofEl)  ofEl.textContent = "";
+      if (lblEl) lblEl.textContent = "ALL SETS DONE";
+
+      const allDone = App.state.session.exercises.every(e=>e.sets.filter(s=>!s.excluded).every(s=>s.logged));
+      const next = App.state.session.exercises.findIndex((e,i)=>i>ei&&!e.sets.filter(s=>!s.excluded).every(s=>s.logged));
+      if (setBtn) {
+        setBtn.classList.add("ready");
+        if (allDone) {
+          setBtn.innerHTML = 'FINISH WORKOUT';
+          setBtn.onclick = () => UI._confirmFinish();
+        } else if (next >= 0) {
+          setBtn.innerHTML = `NEXT: ${App.state.session.exercises[next].name} →`;
+          setBtn.onclick = () => UI._tapCurrentSetDone();
+        } else {
+          setBtn.innerHTML = 'FINISH WORKOUT';
+          setBtn.onclick = () => UI._confirmFinish();
+        }
       }
+      // Update target chip to blank
+      const chipEl = document.getElementById("sf-target-text");
+      if (chipEl) chipEl.textContent = "";
       return;
     }
 
@@ -309,6 +385,8 @@ const UI = {
     this._claimSet(ei, si);
     const r = s.claimed?.reps   ?? s.reps;
     const w = s.claimed?.weight ?? s.weight;
+
+    // Big numbers
     const rEl = document.getElementById("sf-reps");
     const wEl = document.getElementById("sf-weight");
     if (rEl) { rEl.textContent = r; rEl.style.fontSize = ""; }
@@ -316,14 +394,35 @@ const UI = {
     this._focusEi = ei;
     this._focusSi = si;
 
-    // Warmup vs working set label
-    const wSets  = ex.sets.filter(x=>!x.isWarmup&&!x.excluded);
-    const setLbl = s.isWarmup ? "Warmup" : `Set ${wSets.indexOf(s)+1} of ${wSets.length}`;
+    // Set identity: "WORKING SET / Set 2 of 4"
+    const isWarm = s.isWarmup;
+    const workingDone = wSets.filter(x=>x.logged).length;
+    const workingIdx  = isWarm ? 0 : wSets.indexOf(s);
+    const setNum  = isWarm ? "W" : String(workingIdx + 1);
+    const setOf   = isWarm ? "" : `of ${wSets.length}`;
+    const setLblTxt = isWarm ? "WARM-UP" : "WORKING SET";
 
-    const btn = document.getElementById("sess-save-btn");
-    if (btn) {
-      btn.textContent = `Done — ${setLbl}`;
-      btn.classList.remove("ready");
+    const numEl = document.getElementById("sf-set-num");
+    const ofEl  = document.getElementById("sf-set-of");
+    const lblEl = document.getElementById("sf-set-label");
+    if (numEl) numEl.textContent = setNum;
+    if (ofEl)  ofEl.textContent  = setOf;
+    if (lblEl) lblEl.textContent = setLblTxt;
+
+    // Target chip — show previous session target
+    const chipEl = document.getElementById("sf-target-text");
+    if (chipEl) {
+      const prevR = s.prev?.reps   ?? s.reps;
+      const prevW = s.prev?.weight ?? s.weight;
+      chipEl.textContent = `TARGET  ${prevR} reps × ${prevW} lbs`;
+    }
+
+    // LOG SET button
+    if (setBtn) {
+      setBtn.classList.remove("ready");
+      const lbl = isWarm ? "LOG WARM-UP" : `LOG SET`;
+      setBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l5 5 7-8"/></svg>${lbl}`;
+      setBtn.onclick = () => UI._tapCurrentSetDone();
     }
   },
 
@@ -423,6 +522,7 @@ const UI = {
   _rebuildActive() {
     this._updateFocusView();
     this._updateQueue();
+    this._updateDrawer();
   },
 
   _resetAllSwipes() {
@@ -558,9 +658,7 @@ const UI = {
     const wTot  = ex.sets.filter(s=>!s.isWarmup&&!s.excluded).length;
 
     const nameEl = document.getElementById("sess-ex-name");
-    const ctrEl  = document.getElementById("sess-counter");
     if (nameEl) nameEl.textContent = ex.name;
-    if (ctrEl)  ctrEl.textContent  = `${wDone} / ${wTot}`;
 
     // Set dots — filled=done, ring=next, tiny=warmup
     const dotsEl = document.getElementById("sess-dots-row");
@@ -570,25 +668,14 @@ const UI = {
         dotsEl.style.display = "none";
       } else {
         dotsEl.style.display = "flex";
+        const firstUndone = activeSets.findIndex(x=>!x.logged);
         dotsEl.innerHTML = activeSets.map((s,i) => {
-          const firstUndone = activeSets.findIndex(x=>!x.logged);
           if (s.isWarmup) return `<span class="sdot sdot-warm"></span>`;
           if (s.logged)   return `<span class="sdot sdot-done"></span>`;
           if (i === firstUndone) return `<span class="sdot sdot-next"></span>`;
           return `<span class="sdot sdot-up"></span>`;
-        }).join("");
+        }).join("") + `<span class="sess-set-label">${wDone}/${wTot}</span>`;
       }
-    }
-
-    // Bottom button: contextual
-    const exDone = ex.sets.filter(s=>!s.excluded).every(s=>s.logged);
-    const allDone = App.state.session.exercises.every(ex=>ex.sets.filter(s=>!s.excluded).every(s=>s.logged));
-    const btn = document.getElementById("sess-save-btn");
-    if (btn) {
-      btn.classList.toggle("ready", exDone || allDone);
-      if (allDone)       { btn.textContent = "Finish"; }
-      else if (exDone)   { btn.textContent = "Next →"; }
-      else               { btn.textContent = "Finish"; }
     }
   },
 
@@ -619,6 +706,7 @@ const UI = {
     this._updateFocusView();
     this._updateHeader();
     this._updateQueue();
+    this._updateDrawer();
   },
 
   // ── SET ACTIONS ───────────────────────────────────────────────────────────
@@ -822,7 +910,7 @@ const UI = {
     this._updateHeader();
   },
 
-  // ── REST TIMER ────────────────────────────────────────────────────────────
+  // ── REST TIMER (full-screen ring) ─────────────────────────────────────────
   _parseRest(s) {
     if (!s) return 90;
     const m=s.match(/(\d+)\s*min/i); if(m) return parseInt(m[1])*60;
@@ -830,86 +918,72 @@ const UI = {
     const n=parseInt(s); return isNaN(n)?90:n;
   },
 
-  _syncBodyPadding() {
-    const body = document.getElementById("sess-body");
-    const hdr  = document.getElementById("sess-header");
-    if (!body || !hdr) return 0;
-    const total = hdr.offsetHeight + 1;
-    body.style.paddingTop = total + "px";
-    return total;
-  },
-
-  _scrollToActive(instant) {
-    const body = document.getElementById("sess-body");
-    if (!body) return;
-    // Sync padding first so measurements are accurate
-    const padTop = this._syncBodyPadding();
-    const ei  = this._activeExIdx;
-    const exb = document.getElementById(`exb-${ei}`);
-    if (!exb) return;
-    // exb.offsetTop includes paddingTop. Subtract it so the block's
-    // top edge is exactly flush with the header bottom.
-    const targetTop = exb.offsetTop - (padTop || 0);
-    if (instant === false) {
-      body.scrollTo({ top: targetTop, behavior: "smooth" });
-    } else {
-      body.scrollTop = targetTop;
-    }
+  _fmtTime(sec) {
+    const abs = Math.abs(sec);
+    const m = Math.floor(abs/60);
+    const s = abs % 60;
+    return m > 0 ? `${m}:${String(s).padStart(2,"0")}` : `${abs}s`;
   },
 
   _startRest(sec) {
     this._stopRest();
-    this._restTarget = Date.now() + sec*1000;
-    this._restTotal  = sec;
+    this._restTarget  = Date.now() + sec*1000;
+    this._restTotal   = sec;
     this._restStarted = true;
-    this._restOver = false;
-    // Show rest card controls
-    const adjEl = document.getElementById("sf-rest-adj");
-    if (adjEl) adjEl.style.display = "flex";
+    this._restOver    = false;
+
+    // Show rest screen
+    const rs = document.getElementById("rest-screen");
+    if (rs) rs.classList.add("active");
+
+    // Populate "up next"
+    this._updateRestUpNext();
+
+    const CIRC = 2 * Math.PI * 116; // 729
+
+    const targetLbl = document.getElementById("rest-target-lbl");
+    if (targetLbl) targetLbl.textContent = `TARGET ${this._fmtTime(sec)}`;
+
     const tick = () => {
-      const raw = Math.ceil((this._restTarget - Date.now()) / 1000);
-      const rem = raw; // can go negative
-      const timeEl = document.getElementById("sf-rest-time");
-      const barEl  = document.getElementById("sf-rest-bar");
-      const cardEl = document.getElementById("sf-rest-card");
+      const raw  = (this._restTarget - Date.now()) / 1000;
+      const rem  = Math.ceil(raw);
+      const timeEl  = document.getElementById("rest-time-num");
+      const ringEl  = document.getElementById("rest-ring-fill");
+      const modeEl  = document.getElementById("rest-mode-label");
+      const ctaEl   = document.getElementById("rest-cta-btn");
       if (!timeEl) return;
+
       if (rem > 0) {
-        // Counting down
-        timeEl.textContent = `${rem}s`;
-        const pct = Math.min(100, (rem / this._restTotal) * 100);
-        const col = rem > 30 ? "var(--green)" : rem > 10 ? "var(--orange)" : "var(--red)";
-        timeEl.style.color = col;
-        if (barEl) { barEl.style.width = pct+"%"; barEl.style.background = col; }
-        if (cardEl) cardEl.classList.remove("sf-rest-over");
+        const pct = Math.min(1, raw / this._restTotal);
+        const offset = CIRC * (1 - pct);
+        timeEl.textContent = this._fmtTime(rem);
+        timeEl.className = "rest-time-num";
+        if (ringEl) { ringEl.style.strokeDashoffset = offset; ringEl.className = "rest-ring-fill"; }
+        if (modeEl) { modeEl.textContent = "REST"; modeEl.className = "rest-label"; }
+        if (ctaEl)  { ctaEl.textContent = "SKIP REST → START SET"; ctaEl.className = "rest-cta-btn"; }
       } else {
-        // Over — count up
         if (!this._restOver) {
           this._restOver = true;
           if (navigator.vibrate) navigator.vibrate([150,80,150]);
         }
-        const over = Math.abs(rem);
-        timeEl.textContent = `+${over}s`;
-        timeEl.style.color = "var(--orange)";
-        if (barEl) { barEl.style.width = "100%"; barEl.style.background = "var(--orange)"; }
-        if (cardEl) cardEl.classList.add("sf-rest-over");
+        const over = Math.abs(Math.floor(raw));
+        timeEl.textContent = `+${this._fmtTime(over)}`;
+        timeEl.className = "rest-time-num overtime";
+        if (ringEl) { ringEl.style.strokeDashoffset = 0; ringEl.className = "rest-ring-fill overtime"; }
+        if (modeEl) { modeEl.textContent = "OVERTIME"; modeEl.className = "rest-label overtime"; }
+        if (ctaEl)  { ctaEl.textContent = "I'M READY → START SET"; ctaEl.className = "rest-cta-btn overtime"; }
       }
     };
     tick();
-    this._restTimer = setInterval(tick, 500);
+    this._restTimer = setInterval(tick, 200);
   },
 
   _stopRest() {
     if (this._restTimer) { clearInterval(this._restTimer); this._restTimer = null; }
     this._restStarted = false;
-    this._restOver = false;
-    const timeEl = document.getElementById("sf-rest-time");
-    const barEl  = document.getElementById("sf-rest-bar");
-    const cardEl = document.getElementById("sf-rest-card");
-    const adjEl  = document.getElementById("sf-rest-adj");
-    if (timeEl) { timeEl.textContent = ""; timeEl.style.color = ""; }
-    if (barEl)  { barEl.style.width = "0%"; }
-    if (cardEl) cardEl.classList.remove("sf-rest-over");
-    if (adjEl)  adjEl.style.display = "none";
+    this._restOver    = false;
+    const rs = document.getElementById("rest-screen");
+    if (rs) rs.classList.remove("active");
   },
 
   _adjRest(d) {
@@ -918,7 +992,86 @@ const UI = {
     this._restTotal = Math.max(1, this._restTotal + d);
   },
 
-  // ── EXERCISE MANAGEMENT (long-press on exercise name) ─────────────────────
+  _skipRest() {
+    this._stopRest();
+    this._updateFocusView();
+  },
+
+  _updateRestUpNext() {
+    const el = document.getElementById("rest-upnext");
+    if (!el) return;
+    const ei = this._activeExIdx;
+    const ex = App.state.session?.exercises?.[ei];
+    if (!ex) { el.textContent = ""; return; }
+
+    // Check if there's another set on this exercise
+    const nextSi = ex.sets.findIndex(s=>!s.logged&&!s.excluded);
+    const wSets  = ex.sets.filter(x=>!x.isWarmup&&!x.excluded);
+
+    if (nextSi >= 0) {
+      const s = ex.sets[nextSi];
+      const wIdx = s.isWarmup ? null : wSets.indexOf(s);
+      const setStr = s.isWarmup ? "Warm-up" : `Set ${wIdx+1} of ${wSets.length}`;
+      const r = s.claimed?.reps   ?? s.prev?.reps   ?? s.reps;
+      const w = s.claimed?.weight ?? s.prev?.weight ?? s.weight;
+      el.textContent = `${setStr} · ${r} reps × ${w} lbs`;
+    } else {
+      // Next exercise
+      const nextEx = App.state.session?.exercises?.[ei+1];
+      if (nextEx) {
+        const nSets = nextEx.sets.filter(x=>!x.isWarmup&&!x.excluded).length;
+        el.textContent = `${nextEx.name} — ${nSets} sets`;
+      } else {
+        el.textContent = "Last set — finishing up!";
+      }
+    }
+  },
+
+  _skipCurrentSet() {
+    const ei = this._activeExIdx;
+    const ex = App.state.session?.exercises?.[ei];
+    if (!ex) return;
+    const si = ex.sets.findIndex(s=>!s.logged&&!s.excluded);
+    if (si >= 0) this._toggleExclude(ei, si);
+  },
+
+  // ── PROGRAM DRAWER ────────────────────────────────────────────────────────
+  _toggleDrawer() {
+    const d = document.getElementById("prog-drawer");
+    if (d) d.classList.toggle("open");
+  },
+
+  _closeDrawer() {
+    const d = document.getElementById("prog-drawer");
+    if (d) d.classList.remove("open");
+  },
+
+  _updateDrawer() {
+    const el = document.getElementById("drawer-ex-list");
+    if (!el) return;
+    const exs = App.state.session?.exercises || [];
+    const ei  = this._activeExIdx;
+    el.innerHTML = exs.map((ex, i) => {
+      const wDone = ex.sets.filter(s=>!s.isWarmup&&s.logged).length;
+      const wTot  = ex.sets.filter(s=>!s.isWarmup&&!s.excluded).length;
+      const isCur = i === ei;
+      const allDone = wDone === wTot && wTot > 0;
+      const progCls = allDone ? "drawer-ex-progress done" : "drawer-ex-progress";
+      const progTxt = allDone ? `${wTot}/${wTot} ✓` : `${wDone}/${wTot}`;
+      return `<div class="drawer-ex-row${isCur?" current":""}" onclick="UI._goTo(${i});UI._closeDrawer()">
+        <span class="drawer-ex-num${isCur?" current":""}">${i+1}</span>
+        <div class="drawer-ex-info">
+          <div class="drawer-ex-name${isCur?" current":""}">${ex.name}</div>
+          ${isCur?`<span class="drawer-ex-here">← YOU'RE HERE</span>`:""}
+        </div>
+        <span class="${progCls}">${progTxt}</span>
+      </div>`;
+    }).join("");
+    // Update day name
+    const dn = document.getElementById("drawer-day-name");
+    const day = PROGRAM[App.state.activeDay] || {};
+    if (dn) dn.textContent = day.title || "";
+  },
   _lpStart() {
     this._lpTimer = setTimeout(() => {
       if(navigator.vibrate) navigator.vibrate(40);
