@@ -160,16 +160,36 @@ const UI = {
         detail = warmups > 0 ? `${working} sets + warmup` : `${setCount} sets`;
       }
       const finisherCls = ex.isFinisher ? " preview-ex-finisher" : "";
-      const editControls = editing ? `
-        <div class="preview-ex-controls">
-          ${i>0?`<button class="preview-ctrl" onclick="UI._draftMove(${i},-1)" aria-label="Move up">↑</button>`:`<span class="preview-ctrl-spacer"></span>`}
-          ${i<exs.length-1?`<button class="preview-ctrl" onclick="UI._draftMove(${i},1)" aria-label="Move down">↓</button>`:`<span class="preview-ctrl-spacer"></span>`}
-          <button class="preview-ctrl danger" onclick="UI._draftRemove(${i})" aria-label="Remove">✕</button>
-        </div>` : "";
-      return `<div class="preview-ex-row${finisherCls}">
-        <span class="preview-ex-name">${ex.name}</span>
-        <span class="preview-ex-sets">${detail}</span>
-        ${editControls}
+
+      // Non-edit mode: simple row
+      if (!editing) {
+        return `<div class="preview-ex-row${finisherCls}">
+          <span class="preview-ex-name">${ex.name}</span>
+          <span class="preview-ex-sets">${detail}</span>
+        </div>`;
+      }
+
+      // Edit mode: row + sets stepper below
+      const setStepper = ex.isFinisher ? "" : `
+        <div class="preview-set-stepper">
+          <span class="preview-set-lbl">Working sets</span>
+          <div class="preview-set-ctrl">
+            <button class="preview-ctrl" onclick="UI._draftAdjustSets(${i},-1)" ${working<=1?"disabled":""}>−</button>
+            <span class="preview-set-count">${working}</span>
+            <button class="preview-ctrl" onclick="UI._draftAdjustSets(${i},1)" ${working>=8?"disabled":""}>+</button>
+          </div>
+        </div>`;
+
+      return `<div class="preview-ex-row preview-ex-row-edit${finisherCls}">
+        <div class="preview-ex-row-top">
+          <span class="preview-ex-name">${ex.name}</span>
+          <div class="preview-ex-controls">
+            ${i>0?`<button class="preview-ctrl" onclick="UI._draftMove(${i},-1)" aria-label="Move up">↑</button>`:`<span class="preview-ctrl-spacer"></span>`}
+            ${i<exs.length-1?`<button class="preview-ctrl" onclick="UI._draftMove(${i},1)" aria-label="Move down">↓</button>`:`<span class="preview-ctrl-spacer"></span>`}
+            <button class="preview-ctrl danger" onclick="UI._draftRemove(${i})" aria-label="Remove">✕</button>
+          </div>
+        </div>
+        ${setStepper}
       </div>`;
     }).join("") || `<div style="color:var(--sub);font-size:14px;padding:16px 0">${d.title}</div>`;
 
@@ -236,6 +256,33 @@ const UI = {
     this._renderPreview(this._draft.dayId, d, cw, pid);
   },
 
+  _draftAdjustSets(i, delta) {
+    const ex = this._draft.exercises[i];
+    if (!ex || ex.isFinisher) return;
+    const working = (ex.sets||[]).filter(s => !(s.note==="warm-up"||s.isWarmup));
+    if (delta > 0 && working.length < 8) {
+      // Clone the last working set
+      const tmpl = working[working.length-1] || ex.sets[ex.sets.length-1] || {reps:8,weight:0};
+      ex.sets.push({
+        reps: tmpl.reps,
+        weight: tmpl.weight,
+        note: tmpl.note && tmpl.note !== "warm-up" ? tmpl.note : undefined
+      });
+    } else if (delta < 0 && working.length > 1) {
+      // Remove the LAST working set (preserve warmups, which are typically first)
+      for (let k = ex.sets.length - 1; k >= 0; k--) {
+        if (!(ex.sets[k].note === "warm-up" || ex.sets[k].isWarmup)) {
+          ex.sets.splice(k, 1);
+          break;
+        }
+      }
+    }
+    const d = PROGRAM[this._draft.dayId];
+    const cw = getCurrentWeek();
+    const pid = d.phaseId || WEEKS[cw]?.phaseId || "strength";
+    this._renderPreview(this._draft.dayId, d, cw, pid);
+  },
+
   _draftAdd() {
     // Open the add-exercise sheet against the draft (not a live session)
     this._draftAddOpen = true;
@@ -270,13 +317,42 @@ const UI = {
     App.state.lastSession = last;
     App.state.session = App.applyLastSession(session, last);
 
-    // If the user edited the draft on the preview page, use it. Otherwise
-    // append the cardio finisher to every strength day by default.
+    // If the user edited the draft on the preview page, merge it with the
+    // applyLastSession output so prev-session weights are preserved for
+    // exercises the user kept. New exercises (added in the draft) are taken
+    // straight from the draft. Order follows the draft.
     if (this._draft && this._draft.dayId === dayId) {
-      App.state.session.exercises = this._draft.exercises.map(ex => ({
-        ...ex,
-        sets: (ex.sets||[]).map(s => ({...s}))
-      }));
+      const enrichedById = {};
+      App.state.session.exercises.forEach(ex => { enrichedById[ex.id] = ex; });
+      const merged = this._draft.exercises.map(dEx => {
+        const enriched = enrichedById[dEx.id];
+        // If the exercise was already in the program AND the user didn't
+        // change its set count, keep the enriched (last-session-merged) version
+        if (enriched && !dEx.isFinisher) {
+          const draftWorking = (dEx.sets||[]).filter(s=>!(s.note==="warm-up"||s.isWarmup)).length;
+          const enrichedWorking = (enriched.sets||[]).filter(s=>!s.isWarmup).length;
+          if (draftWorking === enrichedWorking) {
+            return enriched;
+          }
+          // User changed set count — start from enriched but resize the
+          // working-set list to match the draft count
+          const out = {...enriched, sets: [...enriched.sets]};
+          const warmups = out.sets.filter(s=>s.isWarmup);
+          const working = out.sets.filter(s=>!s.isWarmup);
+          while (working.length < draftWorking) {
+            const last = working[working.length-1] || {reps:8, weight:0};
+            working.push({...last, logged:false, excluded:false, claimed:{}});
+          }
+          while (working.length > draftWorking) {
+            working.pop();
+          }
+          out.sets = [...warmups, ...working];
+          return out;
+        }
+        // New exercise or finisher — use the draft entry as-is
+        return {...dEx, sets: (dEx.sets||[]).map(s=>({...s}))};
+      });
+      App.state.session.exercises = merged;
       this._draft = null;
       this._draftEditing = false;
     } else if (!PROGRAM[dayId]?.sportOnly) {
@@ -1189,16 +1265,29 @@ const UI = {
       const finisherIcon = ex.isFinisher ? "🚶 " : "";
 
       if (editing) {
-        return `<div class="drawer-ex-row${isCur?" current":""}${ex.isFinisher?" finisher":""}">
-          <span class="drawer-ex-num">${i+1}</span>
-          <div class="drawer-ex-info">
-            <div class="drawer-ex-name${isCur?" current":""}">${finisherIcon}${ex.name}</div>
+        const undoneWorking = ex.sets.filter(s=>!s.isWarmup&&!s.excluded&&!s.logged).length;
+        const setStepper = ex.isFinisher ? "" : `
+          <div class="drawer-set-stepper">
+            <span class="preview-set-lbl">Working sets</span>
+            <div class="preview-set-ctrl">
+              <button class="preview-ctrl" onclick="UI._sessionAdjustSets(${i},-1)" ${undoneWorking<=0?"disabled":""}>−</button>
+              <span class="preview-set-count">${wDone}/${wTot}</span>
+              <button class="preview-ctrl" onclick="UI._sessionAdjustSets(${i},1)" ${wTot>=8?"disabled":""}>+</button>
+            </div>
+          </div>`;
+        return `<div class="drawer-ex-row drawer-ex-row-edit${isCur?" current":""}${ex.isFinisher?" finisher":""}">
+          <div class="drawer-ex-row-top">
+            <span class="drawer-ex-num">${i+1}</span>
+            <div class="drawer-ex-info">
+              <div class="drawer-ex-name${isCur?" current":""}">${finisherIcon}${ex.name}</div>
+            </div>
+            <div class="drawer-row-controls">
+              ${i>0?`<button class="preview-ctrl" onclick="UI._sessionMove(${i},-1)">↑</button>`:`<span class="preview-ctrl-spacer"></span>`}
+              ${i<exs.length-1?`<button class="preview-ctrl" onclick="UI._sessionMove(${i},1)">↓</button>`:`<span class="preview-ctrl-spacer"></span>`}
+              <button class="preview-ctrl danger" onclick="UI._removeEx(${i})">✕</button>
+            </div>
           </div>
-          <div class="drawer-row-controls">
-            ${i>0?`<button class="preview-ctrl" onclick="UI._sessionMove(${i},-1)">↑</button>`:`<span class="preview-ctrl-spacer"></span>`}
-            ${i<exs.length-1?`<button class="preview-ctrl" onclick="UI._sessionMove(${i},1)">↓</button>`:`<span class="preview-ctrl-spacer"></span>`}
-            <button class="preview-ctrl danger" onclick="UI._removeEx(${i})">✕</button>
-          </div>
+          ${setStepper}
         </div>`;
       }
 
@@ -1239,6 +1328,46 @@ const UI = {
     this._updateQueue();
     this._updateDrawer();
   },
+
+  // Adjust the number of working sets on an exercise mid-workout
+  _sessionAdjustSets(i, delta) {
+    const ex = App.state.session?.exercises?.[i];
+    if (!ex || ex.isFinisher) return;
+    const working = ex.sets.filter(s => !s.isWarmup && !s.excluded);
+    if (delta > 0 && working.length < 8) {
+      // Clone the last working set as a fresh undone set
+      const tmpl = working[working.length-1] || ex.sets[ex.sets.length-1] || {reps:8,weight:0};
+      ex.sets.push({
+        isWarmup: false,
+        reps: tmpl.reps,
+        weight: tmpl.weight,
+        prev: tmpl.prev ? {...tmpl.prev} : {reps:tmpl.reps,weight:tmpl.weight},
+        claimed: {},
+        logged: false,
+        excluded: false
+      });
+    } else if (delta < 0 && working.length > 0) {
+      // Remove the last unlogged working set; if all logged, exclude the last one
+      for (let k = ex.sets.length - 1; k >= 0; k--) {
+        const s = ex.sets[k];
+        if (s.isWarmup || s.excluded) continue;
+        if (!s.logged) { ex.sets.splice(k, 1); break; }
+      }
+      // If we didn't remove anything (all logged), drop the last logged one
+      const stillWorking = ex.sets.filter(s => !s.isWarmup && !s.excluded);
+      if (stillWorking.length === working.length) {
+        for (let k = ex.sets.length - 1; k >= 0; k--) {
+          if (!ex.sets[k].isWarmup && !ex.sets[k].excluded) {
+            ex.sets.splice(k, 1); break;
+          }
+        }
+      }
+    }
+    this._updateFocusView();
+    this._updateHeader();
+    this._updateQueue();
+    this._updateDrawer();
+  },
   _lpStart() {
     this._lpTimer = setTimeout(() => {
       if(navigator.vibrate) navigator.vibrate(40);
@@ -1268,7 +1397,14 @@ const UI = {
     document.body.appendChild(sheet);
   },
 
-  _closeSheet() { document.getElementById("sess-sheet")?.remove(); this._draftAddOpen = false; },
+  _closeSheet() { document.getElementById("sess-sheet")?.remove(); },
+
+  // Closing the exercise picker specifically (clears draft-add flag)
+  _closePicker() {
+    this._draftAddOpen = false;
+    this._swappingEi = undefined;
+    this._closeSheet();
+  },
 
   _moveEx(ei, dir) {
     const exs = App.state.session?.exercises;
@@ -1332,7 +1468,7 @@ const UI = {
     overlay.className = "ex-picker-fullscreen";
     overlay.innerHTML = `
       <div class="ex-picker-head">
-        <button class="ex-picker-back" onclick="UI._closeSheet()">✕</button>
+        <button class="ex-picker-back" onclick="UI._closePicker()">✕</button>
         <span class="ex-picker-title">${isSwap?"Swap Exercise":"Add Exercise"}</span>
       </div>
       <div class="ex-picker-search">
@@ -1355,6 +1491,9 @@ const UI = {
   },
 
   _pickEx(id, name, baseline) {
+    // Capture draft-add context BEFORE _closeSheet runs (it can clear state)
+    const isDraftAdd = this._draftAddOpen && this._draft;
+    this._draftAddOpen = false;
     this._closeSheet();
     const ww = Math.round(((baseline||45)*0.85)/5)*5;
     const newEx = {
@@ -1366,8 +1505,7 @@ const UI = {
     };
 
     // Adding from preview-draft context (no live session yet)
-    if (this._draftAddOpen && this._draft) {
-      this._draftAddOpen = false;
+    if (isDraftAdd) {
       // Insert before the finisher if it exists
       const exs = this._draft.exercises;
       const fIdx = exs.findIndex(e=>e.isFinisher);
@@ -1659,11 +1797,13 @@ const UI = {
         <div class="compact-date-row"><span class="compact-date">Progress</span></div>
         <h1 class="page-title-compact">Stats</h1>
       </header>
-      <div class="stats-tabs">
-        <button class="stats-tab ${this._statsTab==="body"?"active":""}"   onclick="UI._setTab('body')">Body</button>
-        <button class="stats-tab ${this._statsTab==="lifts"?"active":""}"  onclick="UI._setTab('lifts')">Lifts</button>
-        <button class="stats-tab ${this._statsTab==="recomp"?"active":""}" onclick="UI._setTab('recomp')">Recomp</button>
-        <button class="stats-tab ${this._statsTab==="coach"?"active":""}"  onclick="UI._setTab('coach')">Coach</button>
+      <div class="stats-tabs-wrap">
+        <div class="stats-tabs">
+          <button class="stats-tab ${this._statsTab==="body"?"active":""}"   onclick="UI._setTab('body')">Body</button>
+          <button class="stats-tab ${this._statsTab==="lifts"?"active":""}"  onclick="UI._setTab('lifts')">Lifts</button>
+          <button class="stats-tab ${this._statsTab==="recomp"?"active":""}" onclick="UI._setTab('recomp')">Recomp</button>
+          <button class="stats-tab ${this._statsTab==="coach"?"active":""}"  onclick="UI._setTab('coach')">Coach</button>
+        </div>
       </div>
       <div id="stats-content"><div class="loading-text">Loading…</div></div>`;
     this.root.appendChild(wrap);
@@ -1944,18 +2084,28 @@ const UI = {
 
   _date(iso) {
     if(!iso)return"—";
-    const s=String(iso).slice(0,10);
-    // Guard: must look like YYYY-MM-DD
-    if(!/^\d{4}-\d{2}-\d{2}$/.test(s))return"—";
-    const today=this._today();
-    const yest=(()=>{const d=new Date();d.setDate(d.getDate()-1);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;})();
-    if(s===today)return"Today";
-    if(s===yest)return"Yesterday";
-    const d=new Date(s+"T12:00:00");
-    if(isNaN(d.getTime()))return"—";
-    const ago=Math.round((Date.now()-d)/86400000);
-    if(ago>=0&&ago<7)return`${ago} days ago`;
-    return d.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"});
+    // Try YYYY-MM-DD shape first (from local picker, or sliced ISO timestamp)
+    const sliced = String(iso).slice(0,10);
+    let target = null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(sliced)) {
+      target = new Date(sliced+"T12:00:00");
+    } else {
+      // Fallback: try parsing the raw string in case the API returns something like
+      // "Thu Jun 05 2026" or a full ISO timestamp. JS handles both.
+      const parsed = new Date(String(iso));
+      if (!isNaN(parsed.getTime())) target = parsed;
+    }
+    if (!target || isNaN(target.getTime())) return "—";
+    // Compare YYYY-MM-DD in local time
+    const ymd = `${target.getFullYear()}-${String(target.getMonth()+1).padStart(2,"0")}-${String(target.getDate()).padStart(2,"0")}`;
+    const today = this._today();
+    if (ymd === today) return "Today";
+    const y = new Date(); y.setDate(y.getDate()-1);
+    const yest = `${y.getFullYear()}-${String(y.getMonth()+1).padStart(2,"0")}-${String(y.getDate()).padStart(2,"0")}`;
+    if (ymd === yest) return "Yesterday";
+    const ago = Math.round((Date.now() - target.getTime()) / 86400000);
+    if (ago >= 0 && ago < 7) return `${ago} days ago`;
+    return target.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"});
   },
 
   el(tag,cls){const e=document.createElement(tag);if(cls)e.className=cls;return e;},
