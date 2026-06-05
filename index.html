@@ -60,12 +60,12 @@ input[type=number] { -moz-appearance:textfield; }
 .picker-subline { font-size:14px; color:var(--sub); margin-bottom:24px; }
 /* Day list — no suggestion, equal weight */
 .picker-day-list { display:flex; flex-direction:column; gap:8px; margin-bottom:24px; }
-.picker-day-card { display:flex; align-items:center; justify-content:space-between; background:var(--card); border:1px solid var(--border); border-radius:10px; padding:18px 16px; cursor:pointer; text-align:left; -webkit-tap-highlight-color:transparent; transition:border-color 0.12s, background 0.12s; width:100%; }
+.picker-day-card { display:flex; align-items:center; justify-content:space-between; background:var(--card); border:1px solid var(--border); border-radius:10px; padding:20px 18px; cursor:pointer; text-align:left; -webkit-tap-highlight-color:transparent; transition:border-color 0.12s, background 0.12s; width:100%; }
 .picker-day-card:active { border-color:var(--yellow); background:var(--card2); }
-.picker-day-card-left { display:flex; flex-direction:column; gap:4px; }
-.picker-day-label { font-family:'Barlow Condensed',sans-serif; font-size:11px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:var(--muted); }
-.picker-day-title { font-family:'Barlow Condensed',sans-serif; font-size:22px; font-weight:900; text-transform:uppercase; color:var(--text); letter-spacing:-0.2px; line-height:1; }
-.picker-day-arrow { font-size:18px; color:var(--muted); flex-shrink:0; }
+.picker-day-card-left { display:flex; flex-direction:column; gap:5px; }
+.picker-day-title { font-family:'Barlow Condensed',sans-serif; font-size:26px; font-weight:900; text-transform:uppercase; color:var(--text); letter-spacing:-0.3px; line-height:1; }
+.picker-day-last { font-size:12px; color:var(--muted); }
+.picker-day-arrow { font-size:20px; color:var(--border2); flex-shrink:0; }
 .btn-start { width:100%; background:var(--yellow); color:#0a0a0a; border:none; border-radius:6px; font-family:'Barlow Condensed',sans-serif; font-size:17px; font-weight:700; letter-spacing:3px; text-transform:uppercase; padding:16px; cursor:pointer; -webkit-tap-highlight-color:transparent; transition:opacity 0.1s; }
 .btn-start:active { opacity:0.75; }
 
@@ -98,17 +98,15 @@ input[type=number] { -moz-appearance:textfield; }
 .ex-collapsed { display:flex; align-items:center; justify-content:space-between; padding:12px 18px; cursor:pointer; gap:10px; -webkit-tap-highlight-color:transparent; }
 .ex-col-left { display:flex; align-items:center; gap:10px; flex:1; min-width:0; }
 .ex-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; border:1.5px solid var(--border2); background:transparent; transition:all 0.2s; }
-.ex-dot.done { background:var(--yellow); border-color:var(--yellow); }
+.ex-dot.done-muted { background:var(--muted); border-color:var(--muted); }
 .ex-dot.partial { border-color:var(--yellow); box-shadow:0 0 0 2px rgba(232,255,71,.15); }
 .ex-dot.next { border-color:var(--yellow); background:rgba(232,255,71,.2); box-shadow:0 0 0 2px rgba(232,255,71,.15); }
 .ex-col-name { font-family:'Barlow Condensed',sans-serif; font-size:16px; font-weight:700; text-transform:uppercase; color:var(--sub); letter-spacing:0.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; transition:color 0.2s; }
 .ex-col-name-next { color:var(--yellow) !important; }
+.ex-all-done .ex-collapsed { opacity:0.4; }
 .ex-all-done .ex-col-name { color:var(--muted); text-decoration:line-through; }
 .ex-col-meta { font-family:'Barlow Condensed',sans-serif; font-size:12px; color:var(--muted); white-space:nowrap; flex-shrink:0; }
-.ex-active-head { display:flex; align-items:center; justify-content:space-between; padding:10px 14px 6px 18px; border-bottom:1px solid var(--border); }
-.ex-active-name { font-family:'Barlow Condensed',sans-serif; font-size:17px; font-weight:900; text-transform:uppercase; color:var(--text); letter-spacing:0.3px; flex:1; }
-.ex-active-actions { display:flex; align-items:center; gap:8px; flex-shrink:0; }
-.ex-active-rest { font-size:11px; color:var(--muted); }
+.ex-active-head { display:flex; align-items:center; justify-content:flex-end; padding:6px 12px 4px; border-bottom:none; }
 .ex-manage-btn { background:transparent; border:1px solid var(--border2); color:var(--sub); font-size:18px; font-weight:700; width:30px; height:30px; border-radius:4px; cursor:pointer; display:flex; align-items:center; justify-content:center; -webkit-tap-highlight-color:transparent; line-height:1; padding:0 0 2px; transition:all 0.1s; }
 .ex-manage-btn:active { border-color:var(--yellow); color:var(--yellow); }
 .ex-add-set-btn { width:100%; background:transparent; border:none; color:var(--muted); font-family:'Barlow Condensed',sans-serif; font-size:12px; font-weight:700; letter-spacing:2px; text-transform:uppercase; padding:12px; cursor:pointer; border-top:1px dashed var(--border); -webkit-tap-highlight-color:transparent; transition:color 0.15s; }
@@ -225,7 +223,8 @@ input[type=number] { -moz-appearance:textfield; }
 .preview-back { background:transparent; border:none; color:var(--sub); font-size:14px; cursor:pointer; padding:4px 0; margin-bottom:16px; display:inline-flex; align-items:center; gap:6px; -webkit-tap-highlight-color:transparent; }
 .preview-back:active { color:var(--text); }
 .preview-header { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:20px; }
-.preview-title { font-family:'Barlow Condensed',sans-serif; font-size:36px; font-weight:900; text-transform:uppercase; letter-spacing:-0.5px; color:var(--text); line-height:1; }
+.preview-title { font-family:'Barlow Condensed',sans-serif; font-size:34px; font-weight:900; text-transform:uppercase; letter-spacing:-0.5px; color:var(--text); line-height:1.05; }
+.preview-title-sm { font-size:26px; }
 .preview-exercises { background:var(--card); border:1px solid var(--border); border-radius:8px; overflow:hidden; margin-bottom:0; }
 .preview-ex-row { display:flex; align-items:center; justify-content:space-between; padding:12px 14px; border-bottom:1px solid var(--border); font-size:14px; }
 .preview-ex-row:last-child { border-bottom:none; }
@@ -383,10 +382,10 @@ input[type=number] { -moz-appearance:textfield; }
 <body>
 <div id="app"></div>
 <!-- Increment ?v= on every deploy to bust cache -->
-<script src="js/config.js?v=20260604-13"></script>
-<script src="js/program.js?v=20260604-13"></script>
-<script src="js/app.js?v=20260604-13"></script>
-<script src="js/ui.js?v=20260604-13"></script>
+<script src="js/config.js?v=20260604-14"></script>
+<script src="js/program.js?v=20260604-14"></script>
+<script src="js/app.js?v=20260604-14"></script>
+<script src="js/ui.js?v=20260604-14"></script>
 <script>
   document.addEventListener("DOMContentLoaded", () => UI.init());
 </script>
