@@ -552,6 +552,9 @@ const UI = {
     rowEl.style.zIndex = "10";
     rowEl.style.boxShadow = "0 8px 24px rgba(0,0,0,.5)";
     rowEl.style.opacity = "0.95";
+    rowEl.style.willChange = "transform";
+    rowEl.style.webkitBackfaceVisibility = "hidden";
+    rowEl.style.transform = "translateZ(0)"; // force GPU layer before first move
     if (navigator.vibrate) navigator.vibrate(15);
 
     const onMove = (ev) => {
@@ -573,6 +576,8 @@ const UI = {
       el.style.zIndex = "";
       el.style.boxShadow = "";
       el.style.opacity = "";
+      el.style.willChange = "";
+      el.style.webkitBackfaceVisibility = "";
       this._drag = null;
       if (from !== to) {
         const exs = this._draft.exercises;
@@ -779,28 +784,9 @@ const UI = {
         <div class="sess-dots-row" id="sess-dots-row"></div>
       </div>
 
-      <!-- ② Focused logging zone — just the big numbers, nothing else -->
+      <!-- ② Focused logging zone — set context list for current exercise -->
       <div class="sess-focus" id="sess-focus">
-        <!-- Big reps × weight steppers fill all available space -->
-        <div class="sf-big-row">
-          <div class="sf-field">
-            <div class="sf-field-label">REPS</div>
-            <div class="sf-big-num" id="sf-reps">—</div>
-            <div class="sf-steppers">
-              <button class="sf-step-btn" onclick="UI._focusStep('reps',-1)">−</button>
-              <button class="sf-step-btn" onclick="UI._focusStep('reps',1)">+</button>
-            </div>
-          </div>
-          <div class="sf-x">×</div>
-          <div class="sf-field">
-            <div class="sf-field-label">LBS</div>
-            <div class="sf-big-num" id="sf-weight">—</div>
-            <div class="sf-steppers">
-              <button class="sf-step-btn" onclick="UI._focusStep('weight',-1)">−</button>
-              <button class="sf-step-btn" onclick="UI._focusStep('weight',1)">+</button>
-            </div>
-          </div>
-        </div>
+        <div class="sf-set-list" id="sf-set-list"></div>
       </div>
 
       <!-- Exercise queue scroll strip -->
@@ -815,15 +801,16 @@ const UI = {
         </button>
       </div>
 
-      <!-- ④ Rest screen (overlays everything) -->
+      <!-- ④ Rest screen (overlays everything, tap ring area to minimize) -->
       <div id="rest-screen">
         <div class="rest-header">
           <span class="rest-label" id="rest-mode-label">REST</span>
-          <button class="sess-icon-btn sess-icon-end" onclick="UI._confirmEnd()" aria-label="End workout" style="opacity:0.6">
-            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="12" height="12" rx="1.5"/></svg>
+          <button class="rest-minimize-btn" onclick="UI._minimizeRest()" aria-label="Minimize" title="Keep timer running, go back to sets">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 9h10"/></svg>
           </button>
         </div>
-        <div class="rest-ring-wrap">
+        <!-- Tap ring area to minimize -->
+        <div class="rest-ring-wrap" onclick="UI._minimizeRest()">
           <svg class="rest-ring-svg" viewBox="0 0 260 260">
             <circle class="rest-ring-track" cx="130" cy="130" r="116"/>
             <circle class="rest-ring-fill" id="rest-ring-fill" cx="130" cy="130" r="116"
@@ -832,6 +819,7 @@ const UI = {
           <div class="rest-ring-center">
             <span class="rest-time-num" id="rest-time-num">1:30</span>
             <span class="rest-target-lbl" id="rest-target-lbl">TARGET 1:30</span>
+            <span class="rest-tap-hint">tap to minimize</span>
           </div>
         </div>
         <div class="rest-adj-row">
@@ -845,6 +833,12 @@ const UI = {
         <div class="rest-cta-row">
           <button class="rest-cta-btn" id="rest-cta-btn" onclick="UI._skipRest()">SKIP REST → START SET</button>
         </div>
+      </div>
+
+      <!-- Floating rest pill — visible when rest is minimized -->
+      <div id="rest-pill" onclick="UI._restoreRest()">
+        <span id="rest-pill-time">1:30</span>
+        <span class="rest-pill-label">REST</span>
       </div>
 
       <!-- ⑤ Program drawer (slides down from top) -->
@@ -884,92 +878,107 @@ const UI = {
     }
   },
 
-  // Render the focused set view (big numbers, no list)
+  // Render the full set context for the current exercise
   _updateFocusView() {
     const ei = this._activeExIdx;
     const ex = App.state.session?.exercises?.[ei];
     if (!ex) return;
+
     const si = ex.sets.findIndex(s=>!s.logged&&!s.excluded);
-
-    const wSets  = ex.sets.filter(x=>!x.isWarmup&&!x.excluded);
+    const wSets = ex.sets.filter(x=>!x.isWarmup&&!x.excluded);
     const setBtn = document.getElementById("sess-save-btn");
+    const listEl = document.getElementById("sf-set-list");
+    if (!listEl) return;
 
+    // ── All sets done ─────────────────────────────────────────────────────
     if (si < 0) {
-      // All sets done on this exercise
-      const rEl = document.getElementById("sf-reps");
-      const wEl = document.getElementById("sf-weight");
-      if (rEl) { rEl.textContent = "✓"; rEl.style.fontSize = "60px"; }
-      if (wEl) wEl.textContent = "";
-      const numEl = document.getElementById("sf-set-num");
-      const ofEl  = document.getElementById("sf-set-of");
-      const lblEl = document.getElementById("sf-set-label");
-      if (numEl) numEl.textContent = "✓";
-      if (ofEl)  ofEl.textContent = "";
-      if (lblEl) lblEl.textContent = "ALL SETS DONE";
-
-      const allDone = App.state.session.exercises.every(e=>e.sets.filter(s=>!s.excluded).every(s=>s.logged));
-      const next = App.state.session.exercises.findIndex((e,i)=>i>ei&&!e.sets.filter(s=>!s.excluded).every(s=>s.logged));
+      listEl.innerHTML = `<div class="sf-all-done">
+        <div class="sf-done-check">✓</div>
+        <div class="sf-done-label">All sets done</div>
+      </div>`;
       if (setBtn) {
+        const allDone = App.state.session.exercises.every(e=>e.sets.filter(s=>!s.excluded).every(s=>s.logged));
+        const next = App.state.session.exercises.findIndex((e,i)=>i>ei&&!e.sets.filter(s=>!s.excluded).every(s=>s.logged));
         setBtn.classList.add("ready");
-        if (allDone) {
-          setBtn.innerHTML = 'FINISH WORKOUT';
-          setBtn.onclick = () => UI._confirmFinish();
-        } else if (next >= 0) {
-          setBtn.innerHTML = `NEXT: ${App.state.session.exercises[next].name} →`;
-          setBtn.onclick = () => UI._tapCurrentSetDone();
-        } else {
-          setBtn.innerHTML = 'FINISH WORKOUT';
-          setBtn.onclick = () => UI._confirmFinish();
-        }
+        if (allDone) { setBtn.innerHTML = 'FINISH WORKOUT'; setBtn.onclick = ()=>UI._confirmFinish(); }
+        else if (next>=0) { setBtn.innerHTML = `NEXT: ${App.state.session.exercises[next].name} →`; setBtn.onclick = ()=>UI._tapCurrentSetDone(); }
+        else { setBtn.innerHTML = 'FINISH WORKOUT'; setBtn.onclick = ()=>UI._confirmFinish(); }
       }
-      // Update target chip to blank
-      const chipEl = document.getElementById("sf-target-text");
-      if (chipEl) chipEl.textContent = "";
       return;
     }
 
+    // ── Active set ────────────────────────────────────────────────────────
     const s = ex.sets[si];
     this._claimSet(ei, si);
-    const r = s.claimed?.reps   ?? s.reps;
-    const w = s.claimed?.weight ?? s.weight;
-
-    // Big numbers
-    const rEl = document.getElementById("sf-reps");
-    const wEl = document.getElementById("sf-weight");
-    if (rEl) { rEl.textContent = r; rEl.style.fontSize = ""; }
-    if (wEl) wEl.textContent = w;
     this._focusEi = ei;
     this._focusSi = si;
 
-    // Set identity: "WORKING SET / Set 2 of 4"
+    const r = s.claimed?.reps   ?? s.reps;
+    const w = s.claimed?.weight ?? s.weight;
     const isWarm = s.isWarmup;
-    const workingDone = wSets.filter(x=>x.logged).length;
-    const workingIdx  = isWarm ? 0 : wSets.indexOf(s);
-    const setNum  = isWarm ? "W" : String(workingIdx + 1);
-    const setOf   = isWarm ? "" : `of ${wSets.length}`;
-    const setLblTxt = isWarm ? "WARM-UP" : "WORKING SET";
 
-    const numEl = document.getElementById("sf-set-num");
-    const ofEl  = document.getElementById("sf-set-of");
-    const lblEl = document.getElementById("sf-set-label");
-    if (numEl) numEl.textContent = setNum;
-    if (ofEl)  ofEl.textContent  = setOf;
-    if (lblEl) lblEl.textContent = setLblTxt;
+    // Build rows for each set in this exercise (excluding excluded ones)
+    const activeSets = ex.sets.filter(x=>!x.excluded);
+    const rows = activeSets.map((set, aidx) => {
+      const isWarmSet = set.isWarmup;
+      const wIdx = isWarmSet ? null : wSets.indexOf(set);
+      const numLabel = isWarmSet ? "W" : String(wIdx+1);
 
-    // Target chip — show previous session target
-    const chipEl = document.getElementById("sf-target-text");
-    if (chipEl) {
-      const prevR = s.prev?.reps   ?? s.reps;
-      const prevW = s.prev?.weight ?? s.weight;
-      chipEl.textContent = `TARGET  ${prevR} reps × ${prevW} lbs`;
-    }
+      if (set.logged) {
+        // ── DONE row ──
+        return `<div class="sf-row sf-row-done">
+          <span class="sf-row-num">${numLabel}</span>
+          <span class="sf-row-data">${set.claimed?.reps??set.reps}<span class="sf-row-x">×</span>${set.claimed?.weight??set.weight}<span class="sf-row-unit">lbs</span></span>
+          <span class="sf-row-check">✓</span>
+        </div>`;
+      }
 
-    // LOG SET button
+      if (set === s) {
+        // ── CURRENT — big input ──
+        const rVal = s.claimed?.reps   ?? s.reps;
+        const wVal = s.claimed?.weight ?? s.weight;
+        return `<div class="sf-row sf-row-current">
+          <span class="sf-row-num sf-row-num-cur">${numLabel}</span>
+          <div class="sf-current-block">
+            <div class="sf-big-row">
+              <div class="sf-field">
+                <div class="sf-field-label">REPS</div>
+                <div class="sf-big-num" id="sf-reps">${rVal}</div>
+                <div class="sf-steppers">
+                  <button class="sf-step-btn" onclick="UI._focusStep('reps',-1)">−</button>
+                  <button class="sf-step-btn" onclick="UI._focusStep('reps',1)">+</button>
+                </div>
+              </div>
+              <div class="sf-x">×</div>
+              <div class="sf-field">
+                <div class="sf-field-label">LBS</div>
+                <div class="sf-big-num" id="sf-weight">${wVal}</div>
+                <div class="sf-steppers">
+                  <button class="sf-step-btn" onclick="UI._focusStep('weight',-1)">−</button>
+                  <button class="sf-step-btn" onclick="UI._focusStep('weight',1)">+</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>`;
+      }
+
+      // ── UPCOMING row ──
+      const upR = set.prev?.reps   ?? set.reps;
+      const upW = set.prev?.weight ?? set.weight;
+      return `<div class="sf-row sf-row-up">
+        <span class="sf-row-num">${numLabel}</span>
+        <span class="sf-row-data sf-row-data-up">${upR}<span class="sf-row-x">×</span>${upW}<span class="sf-row-unit">lbs</span></span>
+      </div>`;
+    }).join("");
+
+    listEl.innerHTML = rows;
+
+    // Log button
     if (setBtn) {
       setBtn.classList.remove("ready");
-      const lbl = isWarm ? "LOG WARM-UP" : `LOG SET`;
-      setBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l5 5 7-8"/></svg>${lbl}`;
-      setBtn.onclick = () => UI._tapCurrentSetDone();
+      setBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l5 5 7-8"/></svg>${isWarm ? "LOG WARM-UP" : "LOG SET"}`;
+      setBtn.onclick = ()=>UI._tapCurrentSetDone();
     }
   },
 
@@ -1493,16 +1502,17 @@ const UI = {
     this._restTotal   = sec;
     this._restStarted = true;
     this._restOver    = false;
+    this._restMinimized = false;
 
     // Show rest screen
     const rs = document.getElementById("rest-screen");
-    if (rs) rs.classList.add("active");
+    if (rs) { rs.classList.add("active"); rs.classList.remove("minimized"); }
+    const pill = document.getElementById("rest-pill");
+    if (pill) pill.classList.remove("visible");
 
-    // Populate "up next"
     this._updateRestUpNext();
 
     const CIRC = 2 * Math.PI * 116; // 729
-
     const targetLbl = document.getElementById("rest-target-lbl");
     if (targetLbl) targetLbl.textContent = `TARGET ${this._fmtTime(sec)}`;
 
@@ -1513,6 +1523,16 @@ const UI = {
       const ringEl  = document.getElementById("rest-ring-fill");
       const modeEl  = document.getElementById("rest-mode-label");
       const ctaEl   = document.getElementById("rest-cta-btn");
+      const pillEl  = document.getElementById("rest-pill-time");
+
+      // Pill always gets the current time (visible when minimized)
+      if (pillEl) {
+        const pillTxt = rem > 0 ? this._fmtTime(rem) : `+${this._fmtTime(Math.abs(Math.floor(raw)))}`;
+        pillEl.textContent = pillTxt;
+        const pillWrap = document.getElementById("rest-pill");
+        if (pillWrap) pillWrap.classList.toggle("overtime", rem <= 0);
+      }
+
       if (!timeEl) return;
 
       if (rem > 0) {
@@ -1527,6 +1547,8 @@ const UI = {
         if (!this._restOver) {
           this._restOver = true;
           if (navigator.vibrate) navigator.vibrate([150,80,150]);
+          // Auto-restore pill to full screen on overtime
+          if (this._restMinimized) this._restoreRest();
         }
         const over = Math.abs(Math.floor(raw));
         timeEl.textContent = `+${this._fmtTime(over)}`;
@@ -1544,8 +1566,30 @@ const UI = {
     if (this._restTimer) { clearInterval(this._restTimer); this._restTimer = null; }
     this._restStarted = false;
     this._restOver    = false;
+    this._restMinimized = false;
+    const rs = document.getElementById("rest-screen");
+    if (rs) { rs.classList.remove("active"); rs.classList.remove("minimized"); }
+    const pill = document.getElementById("rest-pill");
+    if (pill) pill.classList.remove("visible");
+  },
+
+  // Minimize rest overlay — timer keeps running, pill appears
+  _minimizeRest() {
+    if (!this._restStarted) return;
+    this._restMinimized = true;
     const rs = document.getElementById("rest-screen");
     if (rs) rs.classList.remove("active");
+    const pill = document.getElementById("rest-pill");
+    if (pill) pill.classList.add("visible");
+  },
+
+  // Restore full rest screen from pill
+  _restoreRest() {
+    this._restMinimized = false;
+    const rs = document.getElementById("rest-screen");
+    if (rs) rs.classList.add("active");
+    const pill = document.getElementById("rest-pill");
+    if (pill) pill.classList.remove("visible");
   },
 
   _adjRest(d) {
