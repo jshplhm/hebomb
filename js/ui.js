@@ -396,7 +396,7 @@ const UI = {
         </div>`;
       }
 
-      // EDIT mode — grip handle, set chip with ±, swipe-to-delete wrapper
+      // EDIT mode — grip handle, set chip with ±, always-visible inline delete
       const setChip = ex.isFinisher
         ? `<div class="ex-row-finbadge">FINISHER</div>`
         : `<div class="set-chip" role="group" aria-label="Set count">
@@ -405,11 +405,7 @@ const UI = {
             <button class="set-chip-btn" onclick="event.stopPropagation();UI._draftAdjustSets(${i},1)" ${working>=8?"disabled":""} aria-label="More sets">+</button>
           </div>`;
 
-      return `<div class="ex-swipe-wrap" data-idx="${i}">
-        <div class="ex-row-v2 editing${finisherCls}" data-idx="${i}"
-          ontouchstart="UI._exSwipeStart(event,${i})"
-          ontouchmove="UI._exSwipeMove(event,${i})"
-          ontouchend="UI._exSwipeEnd(event,${i})">
+      return `<div class="ex-row-v2 editing${finisherCls}" data-idx="${i}">
           <div class="ex-grip" ontouchstart="UI._exDragStart(event,${i})">
             <span></span><span></span><span></span>
           </div>
@@ -418,16 +414,17 @@ const UI = {
             <div class="ex-row-meta">${metaHTML}</div>
           </div>
           ${setChip}
-        </div>
-        <button class="ex-swipe-reveal" onclick="UI._draftRemove(${i})">Delete</button>
-      </div>`;
+          <button class="ex-row-trash" onclick="UI._draftRemove(${i})" aria-label="Delete">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M2 3.5h10M5 3.5V2.2c0-.7.5-1.2 1.2-1.2h1.6c.7 0 1.2.5 1.2 1.2V3.5M3.5 3.5L4 12c0 .8.7 1.5 1.5 1.5h3c.8 0 1.5-.7 1.5-1.5l.5-8.5M6 6.5v4M8 6.5v4"/></svg>
+          </button>
+        </div>`;
     }).join("") || `<div style="color:var(--sub);font-size:14px;padding:16px 0">${d.title}</div>`;
 
     // Show hint banner first time only (or first visit per session)
     const hintHTML = (editing && !this._editHintDismissed) ? `
       <div class="ex-edit-hint">
         <span class="ex-edit-hint-icon">👆</span>
-        <span class="ex-edit-hint-text"><strong>Drag</strong> the handle to reorder. <strong>Swipe left</strong> to delete.</span>
+        <span class="ex-edit-hint-text"><strong>Drag</strong> the handle to reorder. Tap <strong>✕</strong> to remove.</span>
         <button class="ex-edit-hint-x" onclick="UI._dismissEditHint()" aria-label="Dismiss">✕</button>
       </div>` : "";
 
@@ -1619,7 +1616,7 @@ const UI = {
     const hintHTML = (editing && !this._drawerHintDismissed) ? `
       <div class="ex-edit-hint" style="margin:6px 14px 0">
         <span class="ex-edit-hint-icon">👆</span>
-        <span class="ex-edit-hint-text"><strong>Drag</strong> to reorder. <strong>Swipe</strong> to delete.</span>
+        <span class="ex-edit-hint-text"><strong>Drag</strong> to reorder. Tap <strong>✕</strong> to remove.</span>
         <button class="ex-edit-hint-x" onclick="UI._dismissDrawerHint()" aria-label="Dismiss">✕</button>
       </div>` : "";
 
@@ -1673,11 +1670,7 @@ const UI = {
             <button class="set-chip-btn" onclick="event.stopPropagation();UI._sessionAdjustSets(${i},1)" ${wTot>=8?"disabled":""} aria-label="More sets">+</button>
           </div>`;
 
-      return `<div class="ex-swipe-wrap drawer-swipe-wrap" data-didx="${i}">
-        <div class="ex-row-v2 editing drawer-row${curCls}${finisherCls}" data-didx="${i}"
-          ontouchstart="UI._drwSwipeStart(event,${i})"
-          ontouchmove="UI._drwSwipeMove(event,${i})"
-          ontouchend="UI._drwSwipeEnd(event,${i})">
+      return `<div class="ex-row-v2 editing drawer-row${curCls}${finisherCls}" data-didx="${i}">
           <div class="ex-grip" ontouchstart="UI._drwDragStart(event,${i})">
             <span></span><span></span><span></span>
           </div>
@@ -1686,9 +1679,10 @@ const UI = {
             <div class="ex-row-meta">${metaHTML}</div>
           </div>
           ${setChip}
-        </div>
-        <button class="ex-swipe-reveal" onclick="UI._removeEx(${i})">Delete</button>
-      </div>`;
+          <button class="ex-row-trash" onclick="UI._removeEx(${i})" aria-label="Delete">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M2 3.5h10M5 3.5V2.2c0-.7.5-1.2 1.2-1.2h1.6c.7 0 1.2.5 1.2 1.2V3.5M3.5 3.5L4 12c0 .8.7 1.5 1.5 1.5h3c.8 0 1.5-.7 1.5-1.5l.5-8.5M6 6.5v4M8 6.5v4"/></svg>
+          </button>
+        </div>`;
     }).join("");
 
     el.innerHTML = editBar + hintHTML + rows;
@@ -2452,13 +2446,15 @@ const UI = {
 
   // ── STATS ─────────────────────────────────────────────────────────────────
   async renderStats() {
-    const wrap = this.el("div","page");
+    const wrap = this.el("div","page stats-page");
     wrap.innerHTML = `
-      <header class="page-header-compact">
-        <div class="compact-date-row"><span class="compact-date">Progress</span></div>
-        <h1 class="page-title-compact">Stats</h1>
-      </header>
-      <div class="stats-tabs-wrap">
+      <div class="statsv2-top">
+        <div class="statsv2-title-row">
+          <div>
+            <div class="statsv2-eyebrow">Progress</div>
+            <div class="statsv2-title">Stats</div>
+          </div>
+        </div>
         <div class="stats-tabs">
           <button class="stats-tab ${this._statsTab==="body"?"active":""}"   onclick="UI._setTab('body')">Body</button>
           <button class="stats-tab ${this._statsTab==="lifts"?"active":""}"  onclick="UI._setTab('lifts')">Lifts</button>
@@ -2490,44 +2486,150 @@ const UI = {
   },
 
   async _bodyTab() {
-    let entries = App.state.bwLog;
-    if (!entries) { entries = await App.getBodyweightLog(); App.state.bwLog = entries; }
-    const latest = entries.length ? entries[entries.length-1] : null;
+    let raw = App.state.bwLog;
+    if (!raw) { raw = await App.getBodyweightLog(); App.state.bwLog = raw; }
+
+    // Normalise and sort entries by date ascending (oldest first) regardless of API order.
+    // e.date should always be YYYY-MM-DD from the input picker.
+    const entries = (raw || [])
+      .map(e => ({ ...e, _ymd: String(e.date).slice(0,10) }))
+      .filter(e => /^\d{4}-\d{2}-\d{2}$/.test(e._ymd))
+      .sort((a,b) => a._ymd < b._ymd ? -1 : a._ymd > b._ymd ? 1 : 0);
+
     const gl=CONFIG.GOAL_LB_LOW, gh=CONFIG.GOAL_LB_HIGH;
-    const inGoal = latest && latest.w>=gl && latest.w<=gh;
-    const today  = this._today();
-    const todayE = entries.find(e=>e.date===today);
+    const today = this._today();
+    const todayE = entries.find(e=>e._ymd===today);
+
+    // Latest = last entry after sort
+    const latest = entries.length ? entries[entries.length-1] : null;
+    const inGoal = latest && latest.w >= gl && latest.w <= gh;
+
+    // 30-day change
+    const cutoff30 = (() => {
+      const d = new Date(); d.setDate(d.getDate()-30);
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+    })();
+    const oldest30 = entries.find(e => e._ymd >= cutoff30);
+    let change30 = null;
+    if (oldest30 && latest && oldest30._ymd !== latest._ymd) {
+      change30 = (latest.w - oldest30.w).toFixed(1);
+    }
+
+    // Streak (consecutive days with an entry)
+    let streak = 0;
+    {
+      let cursor = new Date(); cursor.setHours(12,0,0,0);
+      const byYmd = new Set(entries.map(e=>e._ymd));
+      while (true) {
+        const ymd = `${cursor.getFullYear()}-${String(cursor.getMonth()+1).padStart(2,"0")}-${String(cursor.getDate()).padStart(2,"0")}`;
+        if (byYmd.has(ymd)) { streak++; cursor.setDate(cursor.getDate()-1); }
+        else break;
+      }
+    }
+
+    const change30Str = change30 !== null
+      ? `<span class="${parseFloat(change30)<0?"green":"orange"}">${parseFloat(change30)<0?"":"+"}${change30} lbs</span>`
+      : `<span class="flat">—</span>`;
+
     const r = this._bwRange;
     const rl = {30:"30 days",90:"90 days",365:"1 year",0:"All time"};
+
+    // History rows (newest-first, sorted correctly)
+    const histRows = entries.slice().reverse().slice(0,30).map((e, idx, arr) => {
+      const prev = arr[idx+1];
+      const delta = prev ? parseFloat((e.w - prev.w).toFixed(1)) : null;
+      let deltaHTML = "";
+      if (delta !== null) {
+        if (Math.abs(delta) < 0.05) {
+          deltaHTML = `<span class="bwv2-delta flat">=</span>`;
+        } else if (delta < 0) {
+          deltaHTML = `<span class="bwv2-delta down">${delta}</span>`;
+        } else {
+          deltaHTML = `<span class="bwv2-delta up">+${delta}</span>`;
+        }
+      }
+      return `<div class="bwv2-hist-row">
+        <span class="bwv2-hist-date">${this._dateExact(e._ymd)}</span>
+        <span class="bwv2-hist-val">${e.w}<span class="bwv2-hist-unit">lbs</span></span>
+        ${deltaHTML}
+        <button class="bwv2-hist-del" onclick="App.deleteBodyweight('${e.date}').then(()=>{App.state.bwLog=null;UI._setTab('body')})" aria-label="Delete">✕</button>
+      </div>`;
+    }).join("") || `<div class="loading-text muted" style="padding:12px 14px">No entries yet</div>`;
+
     return `
-      <div class="bw-log-entry">
-        <div class="bw-log-left">
-          <div class="bw-current">${latest?latest.w+" lbs":"— lbs"}</div>
-          <div class="bw-goal ${inGoal?"in-goal":""}">Goal: ${gl}–${gh} ${inGoal?"✓":""}</div>
+      <!-- HERO -->
+      <div class="bwv2-hero">
+        <div class="bwv2-hero-lbl">Current weight</div>
+        <div class="bwv2-hero-val">${latest ? latest.w : "—"}<span class="bwv2-hero-unit">lbs</span></div>
+        <div class="bwv2-hero-meta">
+          <div class="bwv2-meta-pair">
+            <span class="lbl">Goal</span>
+            <span class="val ${inGoal?"green":""}">${gl}–${gh}${inGoal?" ✓":""}</span>
+          </div>
+          <div class="bwv2-meta-pair">
+            <span class="lbl">30d change</span>
+            <span class="val">${change30Str}</span>
+          </div>
+          ${streak>1?`<div class="bwv2-meta-pair"><span class="lbl">Streak</span><span class="val">${streak} days</span></div>`:""}
         </div>
       </div>
-      <div class="bw-quick-entry"><div class="bw-quick-row">
-        <input type="number" inputmode="decimal" id="bw-in" class="bw-quick-num"
+
+      <!-- Quick log -->
+      <div class="bwv2-log-strip">
+        <input type="number" inputmode="decimal" id="bw-in" class="bwv2-log-input"
           placeholder="${todayE?todayE.w:"170.0"}" step="0.1" value="${todayE?todayE.w:""}">
-        <span class="bw-quick-unit">lbs</span>
-        <input type="date" id="bw-date" class="bw-quick-date-input" value="${today}" max="${today}">
-        <button class="bw-quick-save" onclick="UI._saveBW()">${todayE?"Update":"Save"}</button>
-      </div></div>
+        <span class="bwv2-log-unit">lbs</span>
+        <input type="date" id="bw-date" class="bwv2-log-date" value="${today}" max="${today}">
+        <button class="bwv2-log-save" onclick="UI._saveBW()">${todayE?"Update":"Save"}</button>
+      </div>
+
       ${entries.length>=2?`
-        <div class="bw-range-toggle">
-          ${[30,90,365,0].map(rv=>`<button class="bw-range-btn ${r===rv?"active":""}" onclick="UI._setBWRange(${rv})">${rl[rv]}</button>`).join("")}
+        <!-- Range selector -->
+        <div class="bwv2-range">
+          ${[30,90,365,0].map(rv=>`<button class="bwv2-range-btn ${r===rv?"active":""}" onclick="UI._setBWRange(${rv})">${rl[rv]}</button>`).join("")}
         </div>
-        <div id="bw-chart">${this._bwChart(entries,r)}</div>
+        <!-- Chart -->
+        <div class="bwv2-chart-card">
+          <div class="bwv2-chart-head">
+            <span class="bwv2-chart-lbl">${entries.length} entries</span>
+            ${change30!==null?`<span class="bwv2-chart-trend ${parseFloat(change30)<0?"down":"up"}">${parseFloat(change30)<0?"↓ Trending down":"↑ Trending up"} · ${change30 > 0 ? "+":""}${change30} lbs</span>`:""}
+          </div>
+          <div id="bw-chart">${this._bwChart(entries,r)}</div>
+        </div>
       `:""}
-      <div class="section-head-plain" style="margin-top:16px">History</div>
-      <div class="bw-history">
-        ${entries.slice().reverse().slice(0,30).map(e=>`
-          <div class="bw-hist-row">
-            <span class="bw-hist-date">${this._date(e.date)}</span>
-            <span class="bw-hist-val">${e.w} lbs</span>
-            <button class="bw-hist-del" onclick="App.deleteBodyweight('${e.date}').then(()=>{App.state.bwLog=null;UI._setTab('body')})">✕</button>
-          </div>`).join("")||`<div class="loading-text muted">No entries</div>`}
-      </div>`;
+
+      <!-- History -->
+      <div class="bwv2-hist-head">
+        <span>Entries</span>
+        <span class="count">${entries.length}</span>
+      </div>
+      <div class="bwv2-hist">${histRows}</div>
+    `;
+  },
+
+  // _dateExact: always returns absolute date string, no "N days ago" ambiguity.
+  // Used for body weight history where precision matters.
+  // Returns "Today", "Yesterday", or "Thu · Jun 4" — always has day-of-week AND calendar date.
+  _dateExact(ymd) {
+    if (!ymd || !/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return ymd || "—";
+    // Parse at local noon to avoid UTC midnight off-by-one issues
+    const d = new Date(`${ymd}T12:00:00`);
+    if (isNaN(d.getTime())) return ymd;
+
+    const today = this._today();
+    const yest = (() => {
+      const y = new Date(); y.setDate(y.getDate()-1);
+      return `${y.getFullYear()}-${String(y.getMonth()+1).padStart(2,"0")}-${String(y.getDate()).padStart(2,"0")}`;
+    })();
+
+    if (ymd === today) return "Today";
+    if (ymd === yest) return "Yesterday";
+
+    // Always show day-of-week AND date — never "N days ago"
+    const dow  = d.toLocaleDateString("en-US", { weekday:"short" });
+    const mon  = d.toLocaleDateString("en-US", { month:"short" });
+    const day  = d.getDate();
+    return `${dow} · ${mon} ${day}`;
   },
 
   _saveBW() {
@@ -2542,7 +2644,13 @@ const UI = {
   _setBWRange(r) {
     this._bwRange=r;
     const el=document.getElementById("bw-chart");
-    if(el&&App.state.bwLog)el.innerHTML=this._bwChart(App.state.bwLog,r);
+    if(el&&App.state.bwLog) {
+      const sorted = (App.state.bwLog||[])
+        .map(e=>({...e, _ymd:String(e.date).slice(0,10)}))
+        .filter(e=>/^\d{4}-\d{2}-\d{2}$/.test(e._ymd))
+        .sort((a,b)=>a._ymd<b._ymd?-1:a._ymd>b._ymd?1:0);
+      el.innerHTML = this._bwChart(sorted,r);
+    }
     const rl={30:"30 days",90:"90 days",365:"1 year",0:"All time"};
     document.querySelectorAll(".bw-range-btn").forEach(b=>b.classList.toggle("active",b.textContent.trim()===rl[r]));
   },
@@ -2654,77 +2762,176 @@ const UI = {
 
   // ── HISTORY ───────────────────────────────────────────────────────────────
   async renderHistory() {
-    const wrap=this.el("div","page");
-    wrap.innerHTML=`
-      <header class="page-header-compact">
-        <div class="compact-date-row"><span class="compact-date">Training log</span></div>
-        <h1 class="page-title-compact">History</h1>
-      </header>
-      <div id="hist-content"><div class="loading-text">Loading…</div></div>`;
+    const wrap = this.el("div","page hist-page");
+    wrap.innerHTML = `
+      <div class="histv2-top">
+        <div class="histv2-eyebrow">Training log</div>
+        <div class="histv2-title">History</div>
+        <div class="histv2-summary-strip" id="hist-summary-strip">
+          <div class="histv2-sum-loading">Loading…</div>
+        </div>
+      </div>
+      <div id="hist-content" class="histv2-body"><div class="loading-text">Loading…</div></div>`;
     this.root.appendChild(wrap);
-    if(!App.state.history){const{sessions}=await App.fetchHistory();App.state.history=sessions;}
-    const el=document.getElementById("hist-content");
-    if(!el)return;
-    const sessions=App.state.history;
-    if(!sessions?.length){el.innerHTML=`<div class="loading-text muted">No sessions logged yet.</div>`;return;}
+    if (!App.state.history) {
+      const { sessions } = await App.fetchHistory();
+      App.state.history = sessions;
+    }
+    const el = document.getElementById("hist-content");
+    if (!el) return;
+    const sessions = App.state.history || [];
 
-    // Group by week, show gaps
-    const rows = [];
-    let prevDate = null;
-    sessions.forEach((s, idx) => {
-      // Gap indicator — if more than 5 days since last session
-      if (prevDate) {
-        const gapDays = Math.round((new Date(s.date+"T12:00:00") - new Date(prevDate+"T12:00:00")) / 86400000);
-        if (gapDays < 0 && Math.abs(gapDays) > 5) {
-          rows.push(`<div class="hist-gap">${Math.abs(gapDays)}-day gap</div>`);
-        }
+    if (!sessions.length) {
+      el.innerHTML = `<div class="loading-text muted" style="padding:24px 16px">No sessions logged yet.</div>`;
+      return;
+    }
+
+    // Sort sessions newest-first by date
+    const sorted = sessions.slice().sort((a,b) => {
+      const da = String(a.date).slice(0,10);
+      const db = String(b.date).slice(0,10);
+      return da < db ? 1 : da > db ? -1 : 0;
+    });
+
+    // Summary strip — calculate stats
+    const now = Date.now();
+    const weekAgo = now - 7*86400000;
+    const month30 = now - 30*86400000;
+    let weekCount = 0, month30Sets = 0, month30Vol = 0, month30PRs = 0;
+    sorted.forEach(s => {
+      const d = new Date(String(s.date).slice(0,10)+"T12:00:00");
+      if (d >= weekAgo) weekCount++;
+      if (d >= month30) {
+        (s.exercises||[]).forEach(ex => {
+          (ex.sets||[]).forEach(st => {
+            if (st.isWarmup || !st.logged) return;
+            month30Sets++;
+            month30Vol += (parseInt(st.reps)||0) * (parseFloat(st.weight)||0);
+            const prevW = parseFloat(st.prev?.weight||0);
+            if (parseFloat(st.weight||0) > prevW && prevW > 0) month30PRs++;
+          });
+        });
       }
-      // Session row — top 3 lifts as preview
-      const topSets = s.exercises.slice(0,3).map(ex => {
-        const best = ex.sets?.reduce((b,st)=>parseFloat(st.weight)>parseFloat(b?.weight||0)?st:b,null);
-        return best?.weight ? `${ex.name} ${best.weight}×${best.reps}` : ex.name;
-      });
+    });
+    const volStr = month30Vol >= 1000
+      ? `${(month30Vol/1000).toFixed(1)}k`
+      : String(Math.round(month30Vol));
+    const summaryEl = document.getElementById("hist-summary-strip");
+    if (summaryEl) {
+      summaryEl.innerHTML = `
+        <div class="histv2-sum"><div class="histv2-sum-lbl">This wk</div><div class="histv2-sum-val">${weekCount}</div></div>
+        <div class="histv2-sum"><div class="histv2-sum-lbl">30d sets</div><div class="histv2-sum-val">${month30Sets}</div></div>
+        <div class="histv2-sum"><div class="histv2-sum-lbl">30d vol</div><div class="histv2-sum-val yellow">${volStr}</div></div>
+        <div class="histv2-sum"><div class="histv2-sum-lbl">PRs</div><div class="histv2-sum-val green">${month30PRs}</div></div>
+      `;
+    }
 
-      // Full detail — all exercises and all their sets
-      const fullDetail = (s.exercises||[]).map(ex => {
-        const setLines = (ex.sets||[]).map((st, i) => {
-          const isWarm = st.note === "warm-up" || st.isWarmup;
-          const wt = st.weight ? `${st.weight} lbs` : "";
-          const reps = st.reps || "";
-          const noteTag = isWarm ? `<span class="hist-set-tag">WARM</span>` : "";
-          return `<div class="hist-set-row">
-            <span class="hist-set-num">${i+1}</span>
-            <span class="hist-set-detail">${reps}${wt?` × ${wt}`:""}</span>
-            ${noteTag}
+    // Group sessions into time buckets
+    const todayYmd = this._today();
+    const groups = [];
+    let curGroup = null;
+    sorted.forEach((s, idx) => {
+      const ymd = String(s.date).slice(0,10);
+      const d = new Date(ymd+"T12:00:00");
+      const daysAgo = Math.round((now - d.getTime()) / 86400000);
+      let groupKey;
+      if (daysAgo <= 1) groupKey = "Today";
+      else if (daysAgo <= 7) groupKey = "This week";
+      else if (daysAgo <= 14) groupKey = "Last week";
+      else {
+        // Month name
+        groupKey = d.toLocaleDateString("en-US",{month:"long",year:"numeric"});
+      }
+      if (!curGroup || curGroup.key !== groupKey) {
+        curGroup = { key: groupKey, sessions: [] };
+        groups.push(curGroup);
+      }
+      curGroup.sessions.push({ s, idx });
+    });
+
+    // Build HTML
+    const html = groups.map(g => {
+      const sessionCards = g.sessions.map(({ s, idx }) => {
+        // Volume + set count
+        let vol = 0, sets = 0;
+        (s.exercises||[]).forEach(ex => {
+          (ex.sets||[]).forEach(st => {
+            if (!st.isWarmup && st.logged !== false) {
+              sets++;
+              vol += (parseInt(st.reps)||0) * (parseFloat(st.weight)||0);
+            }
+          });
+        });
+        const volDisp = vol >= 1000 ? `${(vol/1000).toFixed(1)}k` : vol > 0 ? String(Math.round(vol)) : "—";
+
+        // Date label
+        const ymd = String(s.date).slice(0,10);
+        const dateLabel = this._dateExact(ymd);
+
+        // Duration — not tracked in old sessions, skip gracefully
+        const durStr = s.duration ? ` · ${Math.round(s.duration/60)}m` : "";
+
+        // Lift pills — top 4 working exercises, mark PRs
+        const pillsHTML = (s.exercises||[]).filter(ex=>!ex.isFinisher).slice(0,4).map(ex => {
+          const working = (ex.sets||[]).filter(st=>!st.isWarmup);
+          const best = working.reduce((b,st)=>parseFloat(st.weight||0)>parseFloat(b?.weight||0)?st:b,null);
+          const isPR = best && parseFloat(best.weight||0) > parseFloat(best.prev?.weight||0) && parseFloat(best.prev?.weight||0) > 0;
+          const label = best?.weight ? `${best.reps}×${best.weight}` : "";
+          return `<span class="histv2-lift-pill ${isPR?"pr":""}">${ex.name}${label?` <strong>${label}</strong>`:""}</span>`;
+        }).join("");
+
+        // Expanded per-exercise set detail
+        const exDetailHTML = (s.exercises||[]).filter(ex=>!ex.isFinisher).map(ex => {
+          const best = (ex.sets||[]).filter(st=>!st.isWarmup).reduce((b,st)=>parseFloat(st.weight||0)>parseFloat(b?.weight||0)?st:b,null);
+          const isPREx = best && parseFloat(best.weight||0) > parseFloat(best.prev?.weight||0) && parseFloat(best.prev?.weight||0) > 0;
+          const setHtml = (ex.sets||[]).map((st, si) => {
+            const warm = st.note==="warm-up"||st.isWarmup;
+            const isBest = !warm && best && st.reps===best.reps && st.weight===best.weight;
+            const cls = warm ? "warm" : isBest ? "best" : "";
+            const wt = st.weight ? `×${st.weight}` : "";
+            return `<span class="histv2-set-pill ${cls}"><span class="n">${warm?"W":si+1}</span>${st.reps}${wt}</span>`;
+          }).join("");
+          return `<div class="histv2-ex-block">
+            <div class="histv2-ex-name">${ex.name}${isPREx?` <span class="histv2-ex-pr">★ PR</span>`:" "}<span class="histv2-ex-best">${best?.weight?`${best.weight} lbs`:""}</span></div>
+            <div class="histv2-ex-sets">${setHtml}</div>
           </div>`;
         }).join("");
-        return `<div class="hist-ex-block">
-          <div class="hist-ex-name">${ex.name}</div>
-          <div class="hist-ex-sets">${setLines}</div>
+
+        return `<div class="histv2-card" data-idx="${idx}">
+          <div class="histv2-card-head" onclick="UI._toggleHistRow(${idx})">
+            <div class="histv2-card-l">
+              <div class="histv2-day-top">
+                <span class="histv2-day-date">${dateLabel}</span>
+                <span class="histv2-day-dot">·</span>
+                <span class="histv2-day-time">${s.time||""}${durStr}</span>
+              </div>
+              <div class="histv2-day-name">${s.dayTitle||"Workout"}</div>
+            </div>
+            <div class="histv2-card-stats">
+              ${vol>0?`<div class="histv2-stat-mini"><div class="v">${volDisp}</div><div class="l">vol</div></div>`:""}
+              <div class="histv2-stat-mini"><div class="v">${sets}</div><div class="l">sets</div></div>
+              <span class="histv2-chev" id="hist-chev-${idx}">▾</span>
+            </div>
+          </div>
+          <div class="histv2-card-preview" id="hist-prev-${idx}">${pillsHTML}</div>
+          <div class="histv2-card-expand" id="hist-exp-${idx}">${exDetailHTML}</div>
         </div>`;
       }).join("");
 
-      rows.push(`<div class="hist-row-wrap" data-idx="${idx}">
-        <div class="hist-row" onclick="UI._toggleHistRow(${idx})">
-          <div class="hist-row-left">
-            <span class="hist-row-date">${this._date(s.date)}</span>
-            <span class="hist-row-day">${s.dayTitle}</span>
-          </div>
-          <div class="hist-row-detail">${topSets.join(" · ")}</div>
-          <span class="hist-row-chev" id="hist-chev-${idx}">▾</span>
-        </div>
-        <div class="hist-expanded" id="hist-exp-${idx}">${fullDetail}</div>
-      </div>`);
-      prevDate = s.date;
-    });
-    el.innerHTML = rows.join("");
+      return `<div class="histv2-group-head"><span>${g.key}</span><span class="ct">${g.sessions.length}</span></div>
+        ${sessionCards}`;
+    }).join("");
+
+    el.innerHTML = html;
   },
 
   _toggleHistRow(idx) {
-    const exp = document.getElementById(`hist-exp-${idx}`);
+    const exp  = document.getElementById(`hist-exp-${idx}`);
+    const prev = document.getElementById(`hist-prev-${idx}`);
     const chev = document.getElementById(`hist-chev-${idx}`);
     if (!exp) return;
     const open = exp.classList.toggle("open");
+    if (prev) prev.style.display = open ? "none" : "";
     if (chev) chev.textContent = open ? "▴" : "▾";
   },
 
