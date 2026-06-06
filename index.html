@@ -189,38 +189,41 @@ input[type=number] { -moz-appearance:textfield; }
 
 /* ── LOGGING STATE — set context list ── */
 .sess-focus { flex:1; display:flex; flex-direction:column; overflow-y:auto; -webkit-overflow-scrolling:touch; min-height:0; }
-.sf-set-list { display:flex; flex-direction:column; padding:8px 14px; gap:6px; flex:1; justify-content:center; }
+.sf-set-list { display:flex; flex-direction:column; padding:10px 14px 6px; gap:5px; flex:1; min-height:0; }
 
-/* Done row */
-.sf-row { display:flex; align-items:center; gap:12px; padding:10px 14px; border-radius:10px; }
-.sf-row-done { background:var(--card); opacity:0.6; }
-.sf-row-up { background:transparent; }
+/* Done/upcoming compact rows */
+.sf-row { display:flex; align-items:center; gap:12px; padding:8px 14px; border-radius:8px; flex-shrink:0; }
+.sf-row-done { background:var(--card); opacity:0.55; }
+.sf-row-up { background:transparent; border:1px dashed var(--border); }
 
-.sf-row-num { font-family:'Barlow Condensed',sans-serif; font-size:13px; font-weight:700; color:var(--muted); width:18px; text-align:center; flex-shrink:0; letter-spacing:1px; }
-.sf-row-num-cur { color:var(--yellow); font-size:15px; }
-.sf-row-data { font-family:'Barlow Condensed',sans-serif; font-size:20px; font-weight:700; color:var(--sub); flex:1; letter-spacing:-0.3px; }
-.sf-row-data-up { color:var(--muted); font-size:18px; }
-.sf-row-x { color:var(--muted); font-weight:300; margin:0 3px; font-size:14px; }
-.sf-row-unit { font-size:12px; color:var(--muted); font-weight:700; letter-spacing:1px; margin-left:3px; text-transform:uppercase; }
-.sf-row-check { color:var(--green); font-size:16px; flex-shrink:0; }
+.sf-row-num { font-family:'Barlow Condensed',sans-serif; font-size:11px; font-weight:700; color:var(--muted); width:16px; text-align:center; flex-shrink:0; letter-spacing:1px; }
+.sf-row-num-cur { color:var(--yellow); font-size:13px; }
+.sf-row-data { font-family:'Barlow Condensed',sans-serif; font-size:17px; font-weight:700; color:var(--sub); flex:1; letter-spacing:-0.3px; }
+.sf-row-data-up { color:var(--muted); font-size:15px; }
+.sf-row-x { color:var(--muted); font-weight:300; margin:0 3px; font-size:13px; }
+.sf-row-unit { font-size:10px; color:var(--muted); font-weight:700; letter-spacing:1px; margin-left:3px; text-transform:uppercase; }
+.sf-row-check { color:var(--green); font-size:14px; flex-shrink:0; }
 
-/* Current set — full-width card with big numbers */
-.sf-row-current { background:transparent; padding:0; align-items:stretch; gap:0; flex-direction:column; flex:1; min-height:0; }
-.sf-current-block { flex:1; display:flex; flex-direction:column; min-height:0; }
-.sf-current-block .sf-big-row { flex:1; align-items:center; }
+/* Current set — grows to fill remaining space, centered numbers */
+.sf-row-current { background:transparent; padding:0; align-items:stretch; gap:0; flex-direction:column; flex:1; min-height:0; justify-content:center; }
+.sf-current-block { flex:1; display:flex; flex-direction:column; min-height:0; justify-content:center; }
+.sf-current-block .sf-big-row { flex:0 1 auto; align-items:flex-end; }
+.sf-current-header { display:flex; align-items:center; justify-content:center; gap:6px; padding:2px 0 8px; }
+.sf-current-header .sf-row-num-cur { font-size:11px; color:var(--yellow); letter-spacing:1.5px; }
+.sf-current-header .sf-current-target { font-family:'Barlow Condensed',sans-serif; font-size:10px; font-weight:700; letter-spacing:1.5px; color:var(--muted); text-transform:uppercase; }
 
 /* Set identity — hidden; info now lives in the header dots row */
 .sf-set-id { display:none; }
 .sf-target-row { display:none; }
 
 /* Big reps × weight — full height */
-.sf-big-row { display:flex; align-items:center; justify-content:center; gap:6px; padding:8px 14px 0; }
-.sf-x { font-family:'Barlow Condensed',sans-serif; font-size:24px; font-weight:300; color:var(--border2); flex-shrink:0; align-self:center; padding-bottom:52px; }
+.sf-big-row { display:flex; align-items:center; justify-content:center; gap:6px; padding:4px 14px 0; }
+.sf-x { font-family:'Barlow Condensed',sans-serif; font-size:22px; font-weight:300; color:var(--border2); flex-shrink:0; align-self:center; padding-bottom:42px; }
 .sf-field { display:flex; flex-direction:column; align-items:center; gap:0; flex:1; }
-.sf-field-label { font-family:'Barlow Condensed',sans-serif; font-size:10px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:var(--muted); margin-bottom:2px; }
-.sf-big-num { font-family:'Barlow Condensed',sans-serif; font-size:min(30vw, 40vh); font-weight:900; color:var(--text); line-height:1; letter-spacing:-3px; text-align:center; min-width:60px; transition:color 0.15s; }
-.sf-steppers { display:flex; gap:8px; width:100%; margin-top:10px; }
-.sf-step-btn { flex:1; height:clamp(64px, 13vh, 90px); background:var(--card); border:1.5px solid var(--border2); border-radius:10px; color:var(--sub); font-size:36px; font-weight:300; cursor:pointer; display:flex; align-items:center; justify-content:center; -webkit-tap-highlight-color:transparent; transition:background 0.08s, color 0.08s, transform 0.08s; user-select:none; }
+.sf-field-label { font-family:'Barlow Condensed',sans-serif; font-size:9px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:var(--muted); margin-bottom:0; }
+.sf-big-num { font-family:'Barlow Condensed',sans-serif; font-size:min(26vw, 32vh); font-weight:900; color:var(--text); line-height:0.95; letter-spacing:-3px; text-align:center; min-width:60px; transition:color 0.15s; }
+.sf-steppers { display:flex; gap:8px; width:100%; margin-top:8px; }
+.sf-step-btn { flex:1; height:clamp(56px, 10vh, 80px); background:var(--card); border:1.5px solid var(--border2); border-radius:10px; color:var(--sub); font-size:32px; font-weight:300; cursor:pointer; display:flex; align-items:center; justify-content:center; -webkit-tap-highlight-color:transparent; transition:background 0.08s, color 0.08s, transform 0.08s; user-select:none; }
 .sf-step-btn:active { background:var(--lift); color:var(--yellow); transform:scale(0.95); }
 
 /* All done state */
@@ -248,12 +251,12 @@ input[type=number] { -moz-appearance:textfield; }
 /* Tap hint inside ring */
 .rest-tap-hint { font-family:'Barlow Condensed',sans-serif; font-size:10px; font-weight:700; letter-spacing:2px; text-transform:uppercase; color:var(--muted); display:block; margin-top:8px; opacity:0.6; }
 /* Floating pill when minimized */
-#rest-pill { position:absolute; bottom:calc(var(--safe-bot) + 86px); left:50%; transform:translateX(-50%) translateY(20px); z-index:40; background:var(--card2); border:1.5px solid var(--green); border-radius:99px; padding:8px 20px; display:flex; align-items:center; gap:8px; cursor:pointer; opacity:0; pointer-events:none; transition:opacity 0.2s, transform 0.2s; -webkit-tap-highlight-color:transparent; white-space:nowrap; }
-#rest-pill.visible { opacity:1; pointer-events:all; transform:translateX(-50%) translateY(0); }
+#rest-pill { position:absolute; bottom:calc(var(--safe-bot) + 160px); right:14px; z-index:40; background:var(--card2); border:1.5px solid var(--green); border-radius:99px; padding:8px 14px 8px 16px; display:flex; align-items:center; gap:8px; cursor:pointer; opacity:0; pointer-events:none; transform:translateY(8px); transition:opacity 0.2s, transform 0.2s; -webkit-tap-highlight-color:transparent; white-space:nowrap; box-shadow:0 4px 14px rgba(0,0,0,.4); }
+#rest-pill.visible { opacity:1; pointer-events:all; transform:translateY(0); }
 #rest-pill.overtime { border-color:var(--orange); }
-#rest-pill-time { font-family:'Barlow Condensed',sans-serif; font-size:22px; font-weight:900; color:var(--green); letter-spacing:-0.5px; }
+#rest-pill-time { font-family:'Barlow Condensed',sans-serif; font-size:20px; font-weight:900; color:var(--green); letter-spacing:-0.5px; line-height:1; }
 #rest-pill.overtime #rest-pill-time { color:var(--orange); }
-.rest-pill-label { font-family:'Barlow Condensed',sans-serif; font-size:10px; font-weight:700; letter-spacing:2px; text-transform:uppercase; color:var(--muted); }
+.rest-pill-label { font-family:'Barlow Condensed',sans-serif; font-size:9px; font-weight:700; letter-spacing:2px; text-transform:uppercase; color:var(--muted); }
 /* SVG ring */
 .rest-ring-wrap { flex:1; display:flex; align-items:center; justify-content:center; position:relative; width:100%; }
 .rest-ring-svg { width:260px; height:260px; transform:rotate(-90deg); }
@@ -976,10 +979,10 @@ input[type=number] { -moz-appearance:textfield; }
 <body>
 <div id="app"></div>
 <!-- Increment ?v= on every deploy to bust cache -->
-<script src="js/config.js?v=20260606-02"></script>
-<script src="js/program.js?v=20260606-02"></script>
-<script src="js/app.js?v=20260606-02"></script>
-<script src="js/ui.js?v=20260606-02"></script>
+<script src="js/config.js?v=20260606-03"></script>
+<script src="js/program.js?v=20260606-03"></script>
+<script src="js/app.js?v=20260606-03"></script>
+<script src="js/ui.js?v=20260606-03"></script>
 <script>
   document.addEventListener("DOMContentLoaded", () => UI.init());
 </script>
