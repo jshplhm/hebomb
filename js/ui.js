@@ -420,13 +420,7 @@ const UI = {
         </div>`;
     }).join("") || `<div style="color:var(--sub);font-size:14px;padding:16px 0">${d.title}</div>`;
 
-    // Show hint banner first time only (or first visit per session)
-    const hintHTML = (editing && !this._editHintDismissed) ? `
-      <div class="ex-edit-hint">
-        <span class="ex-edit-hint-icon">👆</span>
-        <span class="ex-edit-hint-text"><strong>Drag</strong> the handle to reorder. Tap <strong>✕</strong> to remove.</span>
-        <button class="ex-edit-hint-x" onclick="UI._dismissEditHint()" aria-label="Dismiss">✕</button>
-      </div>` : "";
+    // No hint banner — controls are self-evident
 
     wrap.innerHTML = `
       <div class="prev-header">
@@ -446,8 +440,6 @@ const UI = {
           </button>` : ""}
         </div>
       </div>
-
-      ${hintHTML}
 
       <div class="prev-list">${exRows}</div>
 
@@ -530,24 +522,27 @@ const UI = {
     e.stopPropagation?.();
     const t = e.touches?.[0]; if (!t) return;
     e.preventDefault?.();
-    const wrapEl = document.querySelector(`.ex-swipe-wrap[data-idx="${idx}"]`);
-    if (!wrapEl) return;
-    const rect = wrapEl.getBoundingClientRect();
+    // Row is now .ex-row-v2[data-idx] — no more swipe-wrap wrapper
+    const rowEl = document.querySelector(`.ex-row-v2[data-idx="${idx}"]`);
+    if (!rowEl) return;
+    const rect = rowEl.getBoundingClientRect();
     const rowH = rect.height + 6; // gap
     this._drag = {
       idx, startY: t.clientY, currentIdx: idx,
-      rowH, wrapEl, originalY: rect.top
+      rowH, rowEl
     };
-    wrapEl.classList.add("dragging");
+    rowEl.style.zIndex = "10";
+    rowEl.style.boxShadow = "0 8px 24px rgba(0,0,0,.5)";
+    rowEl.style.opacity = "0.95";
     if (navigator.vibrate) navigator.vibrate(15);
 
     const onMove = (ev) => {
       const tt = ev.touches?.[0]; if (!tt) return;
       ev.preventDefault();
+      if (!this._drag) return;
       const dy = tt.clientY - this._drag.startY;
-      this._drag.wrapEl.style.transform = `translateY(${dy}px)`;
-      // Find where we would land
-      const newIdx = Math.max(0, Math.min(this._draft.exercises.length-1,
+      this._drag.rowEl.style.transform = `translateY(${dy}px)`;
+      const newIdx = Math.max(0, Math.min((this._draft?.exercises?.length || 1)-1,
         this._drag.idx + Math.round(dy / this._drag.rowH)));
       this._drag.currentIdx = newIdx;
     };
@@ -555,9 +550,11 @@ const UI = {
       document.removeEventListener("touchmove", onMove);
       document.removeEventListener("touchend", onEnd);
       if (!this._drag) return;
-      const { idx: from, currentIdx: to } = this._drag;
-      this._drag.wrapEl.classList.remove("dragging");
-      this._drag.wrapEl.style.transform = "";
+      const { idx: from, currentIdx: to, rowEl: el } = this._drag;
+      el.style.transform = "";
+      el.style.zIndex = "";
+      el.style.boxShadow = "";
+      el.style.opacity = "";
       this._drag = null;
       if (from !== to) {
         const exs = this._draft.exercises;
@@ -1207,7 +1204,14 @@ const UI = {
     const nameEl = document.getElementById("sess-ex-name");
     if (nameEl) nameEl.textContent = ex.name;
 
-    // Set dots — filled=done, ring=next, tiny=warmup
+    // Find current (next unlogged) set to show type badge + target
+    const si = ex.sets.findIndex(s=>!s.logged&&!s.excluded);
+    const curSet = si >= 0 ? ex.sets[si] : null;
+    const isWarmup = curSet?.isWarmup;
+    const prevR = curSet?.prev?.reps   ?? curSet?.reps;
+    const prevW = curSet?.prev?.weight ?? curSet?.weight;
+
+    // Dots + set label + inline target
     const dotsEl = document.getElementById("sess-dots-row");
     if (dotsEl) {
       const activeSets = ex.sets.filter(s=>!s.excluded);
@@ -1216,12 +1220,20 @@ const UI = {
       } else {
         dotsEl.style.display = "flex";
         const firstUndone = activeSets.findIndex(x=>!x.logged);
-        dotsEl.innerHTML = activeSets.map((s,i) => {
+        const dotsHtml = activeSets.map((s,i) => {
           if (s.isWarmup) return `<span class="sdot sdot-warm"></span>`;
           if (s.logged)   return `<span class="sdot sdot-done"></span>`;
           if (i === firstUndone) return `<span class="sdot sdot-next"></span>`;
           return `<span class="sdot sdot-up"></span>`;
-        }).join("") + `<span class="sess-set-label">${wDone}/${wTot}</span>`;
+        }).join("");
+        const countHtml = `<span class="sess-set-label">${wDone}/${wTot}</span>`;
+        const typeHtml = isWarmup
+          ? `<span class="sess-set-type-badge">WARM-UP</span>`
+          : (si >= 0 ? `<span class="sess-set-type-badge">SET ${wDone+1}</span>` : "");
+        const targetHtml = (curSet && (prevR || prevW))
+          ? `<span class="sess-target-inline">${prevR ?? "—"}×${prevW ?? "—"}</span>`
+          : "";
+        dotsEl.innerHTML = dotsHtml + countHtml + typeHtml + targetHtml;
       }
     }
   },
@@ -1612,14 +1624,6 @@ const UI = {
         </button>` : ""}
       </div>`;
 
-    // Hint banner first time
-    const hintHTML = (editing && !this._drawerHintDismissed) ? `
-      <div class="ex-edit-hint" style="margin:6px 14px 0">
-        <span class="ex-edit-hint-icon">👆</span>
-        <span class="ex-edit-hint-text"><strong>Drag</strong> to reorder. Tap <strong>✕</strong> to remove.</span>
-        <button class="ex-edit-hint-x" onclick="UI._dismissDrawerHint()" aria-label="Dismiss">✕</button>
-      </div>` : "";
-
     const rows = exs.map((ex, i) => {
       const wDone = ex.sets.filter(s=>!s.isWarmup&&s.logged).length;
       const wTot  = ex.sets.filter(s=>!s.isWarmup&&!s.excluded).length;
@@ -1685,7 +1689,7 @@ const UI = {
         </div>`;
     }).join("");
 
-    el.innerHTML = editBar + hintHTML + rows;
+    el.innerHTML = editBar + rows;
 
     // Update day name
     const dn = document.getElementById("drawer-day-name");
@@ -2913,7 +2917,6 @@ const UI = {
               <span class="histv2-chev" id="hist-chev-${idx}">▾</span>
             </div>
           </div>
-          <div class="histv2-card-preview" id="hist-prev-${idx}">${pillsHTML}</div>
           <div class="histv2-card-expand" id="hist-exp-${idx}">${exDetailHTML}</div>
         </div>`;
       }).join("");
@@ -2927,11 +2930,9 @@ const UI = {
 
   _toggleHistRow(idx) {
     const exp  = document.getElementById(`hist-exp-${idx}`);
-    const prev = document.getElementById(`hist-prev-${idx}`);
     const chev = document.getElementById(`hist-chev-${idx}`);
     if (!exp) return;
     const open = exp.classList.toggle("open");
-    if (prev) prev.style.display = open ? "none" : "";
     if (chev) chev.textContent = open ? "▴" : "▾";
   },
 
