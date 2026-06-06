@@ -199,9 +199,9 @@ input[type=number] { -moz-appearance:textfield; }
 .sf-x { font-family:'Barlow Condensed',sans-serif; font-size:24px; font-weight:300; color:var(--border2); flex-shrink:0; align-self:center; padding-bottom:52px; }
 .sf-field { display:flex; flex-direction:column; align-items:center; gap:0; flex:1; }
 .sf-field-label { font-family:'Barlow Condensed',sans-serif; font-size:10px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:var(--muted); margin-bottom:2px; }
-.sf-big-num { font-family:'Barlow Condensed',sans-serif; font-size:clamp(72px, 18vw, 100px); font-weight:900; color:var(--text); line-height:1; letter-spacing:-3px; text-align:center; min-width:72px; transition:color 0.15s; }
+.sf-big-num { font-family:"Barlow Condensed",sans-serif; font-size:min(30vw, 40vh); font-weight:900; color:var(--text); line-height:1; letter-spacing:-3px; text-align:center; min-width:60px; transition:color 0.15s; }
 .sf-steppers { display:flex; gap:8px; width:100%; margin-top:10px; }
-.sf-step-btn { flex:1; height:72px; background:var(--card); border:1.5px solid var(--border2); border-radius:10px; color:var(--sub); font-size:36px; font-weight:300; cursor:pointer; display:flex; align-items:center; justify-content:center; -webkit-tap-highlight-color:transparent; transition:background 0.08s, color 0.08s, transform 0.08s; user-select:none; }
+.sf-step-btn { flex:1; height:clamp(64px, 13vh, 90px); background:var(--card); border:1.5px solid var(--border2); border-radius:10px; color:var(--sub); font-size:36px; font-weight:300; cursor:pointer; display:flex; align-items:center; justify-content:center; -webkit-tap-highlight-color:transparent; transition:background 0.08s, color 0.08s, transform 0.08s; user-select:none; }
 .sf-step-btn:active { background:var(--lift); color:var(--yellow); transform:scale(0.95); }
 
 /* Skip + Log row */
@@ -941,10 +941,10 @@ input[type=number] { -moz-appearance:textfield; }
 <body>
 <div id="app"></div>
 <!-- Increment ?v= on every deploy to bust cache -->
-<script src="js/config.js?v=20260604-16"></script>
-<script src="js/program.js?v=20260604-16"></script>
-<script src="js/app.js?v=20260604-16"></script>
-<script src="js/ui.js?v=20260604-16"></script>
+<script src="js/config.js?v=20260606-01"></script>
+<script src="js/program.js?v=20260606-01"></script>
+<script src="js/app.js?v=20260606-01"></script>
+<script src="js/ui.js?v=20260606-01"></script>
 <script>
   document.addEventListener("DOMContentLoaded", () => UI.init());
 </script>
