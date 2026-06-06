@@ -360,7 +360,8 @@ const UI = {
       const warmups  = ex.sets?.filter(s=>s.note==="warm-up"||s.isWarmup).length || 0;
       const working  = setCount - warmups;
 
-      // Meta line: best from last session, or program targets if no history
+      // Meta line: best from last session, or program targets if no history.
+      // Format is always `reps×weight LBS` for consistency (no "90 sec rest" tag).
       let metaParts = [];
       if (ex.isFinisher) {
         metaParts = [ex.sets[0]?.reps || "Finisher", ex.sets[0]?.note || ""];
@@ -371,10 +372,9 @@ const UI = {
           metaParts.push(`${best.reps}×${best.weight} lbs`);
         } else if (ex.sets?.[0]) {
           const s0 = ex.sets.find(x => !(x.note==="warm-up"||x.isWarmup)) || ex.sets[0];
-          if (s0.weight) metaParts.push(`${s0.reps} reps · ${s0.weight} lbs`);
+          if (s0.weight) metaParts.push(`${s0.reps}×${s0.weight} lbs`);
           else metaParts.push(`${s0.reps} reps`);
         }
-        if (ex.rest) metaParts.push(`${ex.rest} rest`);
       }
       const metaHTML = metaParts.filter(Boolean).map((p,idx)=>
         idx>0 ? `<span class="dot-sep">·</span>${p}` : p
@@ -540,22 +540,40 @@ const UI = {
     e.stopPropagation?.();
     const t = e.touches?.[0]; if (!t) return;
     e.preventDefault?.();
-    // Row is now .ex-row-v2[data-idx] — no more swipe-wrap wrapper
     const rowEl = document.querySelector(`.ex-row-v2[data-idx="${idx}"]`);
     if (!rowEl) return;
     const rect = rowEl.getBoundingClientRect();
     const rowH = rect.height + 6; // gap
-    this._drag = {
-      idx, startY: t.clientY, currentIdx: idx,
-      rowH, rowEl
-    };
+    // Collect all sibling rows (other draggable rows in the same list)
+    const siblings = Array.from(document.querySelectorAll(".prev-list .ex-row-v2[data-idx]"))
+      .filter(el => el !== rowEl);
+    this._drag = { idx, startY: t.clientY, currentIdx: idx, rowH, rowEl, siblings };
+
     rowEl.style.zIndex = "10";
     rowEl.style.boxShadow = "0 8px 24px rgba(0,0,0,.5)";
     rowEl.style.opacity = "0.95";
     rowEl.style.willChange = "transform";
     rowEl.style.webkitBackfaceVisibility = "hidden";
-    rowEl.style.transform = "translateZ(0)"; // force GPU layer before first move
+    rowEl.style.transform = "translateZ(0)";
+    // Add a smooth transition for siblings (not the dragged row)
+    siblings.forEach(sib => { sib.style.transition = "transform 0.18s ease"; sib.style.willChange = "transform"; });
     if (navigator.vibrate) navigator.vibrate(15);
+
+    const applySiblingShift = (toIdx) => {
+      const fromIdx = this._drag.idx;
+      this._drag.siblings.forEach(sib => {
+        const sIdx = parseInt(sib.getAttribute("data-idx"), 10);
+        let shift = 0;
+        if (fromIdx < toIdx) {
+          // Dragging down: rows between (fromIdx, toIdx] shift UP
+          if (sIdx > fromIdx && sIdx <= toIdx) shift = -rowH;
+        } else if (fromIdx > toIdx) {
+          // Dragging up: rows between [toIdx, fromIdx) shift DOWN
+          if (sIdx >= toIdx && sIdx < fromIdx) shift = rowH;
+        }
+        sib.style.transform = shift ? `translateY(${shift}px)` : "";
+      });
+    };
 
     const onMove = (ev) => {
       const tt = ev.touches?.[0]; if (!tt) return;
@@ -565,19 +583,21 @@ const UI = {
       this._drag.rowEl.style.transform = `translateY(${dy}px)`;
       const newIdx = Math.max(0, Math.min((this._draft?.exercises?.length || 1)-1,
         this._drag.idx + Math.round(dy / this._drag.rowH)));
-      this._drag.currentIdx = newIdx;
+      if (newIdx !== this._drag.currentIdx) {
+        this._drag.currentIdx = newIdx;
+        applySiblingShift(newIdx);
+        if (navigator.vibrate) navigator.vibrate(8);
+      }
     };
     const onEnd = () => {
       document.removeEventListener("touchmove", onMove);
       document.removeEventListener("touchend", onEnd);
       if (!this._drag) return;
-      const { idx: from, currentIdx: to, rowEl: el } = this._drag;
-      el.style.transform = "";
-      el.style.zIndex = "";
-      el.style.boxShadow = "";
-      el.style.opacity = "";
-      el.style.willChange = "";
-      el.style.webkitBackfaceVisibility = "";
+      const { idx: from, currentIdx: to, rowEl: el, siblings: sibs } = this._drag;
+      // Reset transient inline styles before re-render
+      el.style.transform = ""; el.style.zIndex = ""; el.style.boxShadow = "";
+      el.style.opacity = ""; el.style.willChange = ""; el.style.webkitBackfaceVisibility = "";
+      sibs.forEach(s => { s.style.transition = ""; s.style.transform = ""; s.style.willChange = ""; });
       this._drag = null;
       if (from !== to) {
         const exs = this._draft.exercises;
@@ -1610,7 +1630,7 @@ const UI = {
     const ex = App.state.session?.exercises?.[ei];
     if (!ex) { el.textContent = ""; return; }
 
-    // Check if there's another set on this exercise
+    // Within current exercise — show set and target
     const nextSi = ex.sets.findIndex(s=>!s.logged&&!s.excluded);
     const wSets  = ex.sets.filter(x=>!x.isWarmup&&!x.excluded);
 
@@ -1622,11 +1642,16 @@ const UI = {
       const w = s.claimed?.weight ?? s.prev?.weight ?? s.weight;
       el.textContent = `${setStr} · ${r} reps × ${w} lbs`;
     } else {
-      // Next exercise
+      // Moving to next exercise — show name + first set target so plates can be prepped
       const nextEx = App.state.session?.exercises?.[ei+1];
       if (nextEx) {
         const nSets = nextEx.sets.filter(x=>!x.isWarmup&&!x.excluded).length;
-        el.textContent = `${nextEx.name} — ${nSets} sets`;
+        // First working set's target (skip warmups for the prep number)
+        const firstWork = nextEx.sets.find(s=>!s.isWarmup&&!s.excluded);
+        const r = firstWork?.prev?.reps   ?? firstWork?.reps;
+        const w = firstWork?.prev?.weight ?? firstWork?.weight;
+        const target = (r && w) ? ` · ${r} reps × ${w} lbs` : (r ? ` · ${r} reps` : "");
+        el.textContent = `${nextEx.name} — ${nSets} ${nSets===1?"set":"sets"}${target}`;
       } else {
         el.textContent = "Last set — finishing up!";
       }
