@@ -86,29 +86,234 @@ const UI = {
       if (!lastDone[s.dayId] || s.date > lastDone[s.dayId]) lastDone[s.dayId] = s.date;
     });
 
+    // Today's "default" day = the day done least recently among the 3 program days.
+    // If nothing has been done, default to dayA.
+    const dayIds = ["dayA","dayB","dayC"];
+    const today = this._today();
+    let heroId = dayIds[0];
+    let oldest = Infinity;
+    dayIds.forEach(id => {
+      const last = lastDone[id];
+      const days = last ? Math.round((Date.now() - new Date(String(last).slice(0,10)+"T12:00:00")) / 86400000) : 9999;
+      if (days > oldest) { oldest = days; heroId = id; }
+      else if (days === oldest && id !== heroId) { /* keep first */ }
+      if (days > oldest || oldest === Infinity) { oldest = days; heroId = id; }
+    });
+    // Simpler: pick the day whose lastDone date is the smallest (oldest), or hasn't been done.
+    heroId = dayIds.reduce((best, id) => {
+      const a = lastDone[id] || "0000-00-00";
+      const b = lastDone[best] || "0000-00-00";
+      return a < b ? id : best;
+    }, dayIds[0]);
+
+    const heroDay = PROGRAM[heroId];
+    const heroExercises = heroDay.exercises || [];
+    const heroSetCount = heroExercises.reduce((n, ex) => n + (ex.sets?.length || 0), 0);
+    const heroLastStr = lastDone[heroId] ? UI._daysAgo(lastDone[heroId]) : "not done yet";
+
+    // Top progression — find the biggest weight bump on the hero day's last vs prior session
+    const heroLast = history.filter(s => s.dayId === heroId).slice(0, 2);
+    let topProg = null;
+    if (heroLast.length >= 2) {
+      const cur = heroLast[0], prev = heroLast[1];
+      cur.exercises?.forEach(ex => {
+        const pEx = prev.exercises?.find(e => e.id === ex.id);
+        if (!pEx) return;
+        const cBest = ex.sets?.reduce((b,s)=>parseFloat(s.weight)>parseFloat(b?.weight||0)?s:b,null);
+        const pBest = pEx.sets?.reduce((b,s)=>parseFloat(s.weight)>parseFloat(b?.weight||0)?s:b,null);
+        if (cBest && pBest) {
+          const diff = parseFloat(cBest.weight) - parseFloat(pBest.weight);
+          if (diff > 0 && (!topProg || diff > topProg.diff)) {
+            topProg = { name: ex.name, diff };
+          }
+        }
+      });
+    }
+
+    // Week rhythm — last 7 days
+    const weekCells = this._buildWeekRhythm(history, lastDone);
+
+    // Streak — consecutive weeks with at least 1 session
+    const streak = this._calcStreak(history);
+
+    // Other days (everything except hero)
+    const otherDays = dayIds.filter(id => id !== heroId);
+
+    const phaseLabel = wd.phase?.label || "Strength";
+
     wrap.innerHTML = `
-      <div class="picker-greeting">
-        <span class="picker-hi">${greeting}, Josh.</span>
-        <span class="phase-badge phase-badge-${pid}">Wk ${cw} · ${wd.phase?.label||""}</span>
-      </div>
+      <div class="picker-v2">
+        <!-- top identity strip -->
+        <div class="land-id">
+          <div class="land-id-left">
+            <div class="land-greet">${greeting} · Josh</div>
+            <div class="land-name">Week ${cw}</div>
+          </div>
+          <div class="land-phase-chip">
+            <span class="wk">Phase</span>
+            <span class="ph phase-${pid}">${phaseLabel}</span>
+          </div>
+        </div>
 
-      <div class="picker-day-list">
-        ${["dayA","dayB","dayC"].map(id => {
-          const d = PROGRAM[id];
-          const last = lastDone[id];
-          const lastStr = last ? UI._daysAgo(last) : "not done yet";
-          const dayLtr = id.replace('day','Day ');
-          return `<button class="picker-day-card" onclick="UI._previewDay('${id}')">
-            <div class="picker-day-card-left">
-              <span class="picker-day-title">${d.title}</span>
-              <span class="picker-day-last">${lastStr}</span>
+        <!-- week rhythm -->
+        <div class="land-week">
+          ${weekCells.map(c => `
+            <div class="land-week-cell ${c.cls}">
+              <div class="dow">${c.dow}</div>
+              <div class="dot">${c.dotChar}</div>
+              <div class="lbl">${c.label}</div>
+            </div>`).join("")}
+        </div>
+
+        <!-- hero card -->
+        <button class="land-today-hero" onclick="UI._previewDay('${heroId}')">
+          <div class="land-today-eyebrow"><span class="pulse"></span>Next up</div>
+          <div class="land-today-title">${heroDay.title}</div>
+          <div class="land-today-meta">
+            <div class="land-meta-pair">
+              <span class="lbl">Lifts</span>
+              <span class="val">${heroExercises.length}</span>
             </div>
-            <span class="picker-day-arrow">→</span>
-          </button>`;
-        }).join("")}
-      </div>
+            <div class="land-meta-pair">
+              <span class="lbl">Sets</span>
+              <span class="val">${heroSetCount}</span>
+            </div>
+            <div class="land-meta-pair">
+              <span class="lbl">Last done</span>
+              <span class="val">${heroLastStr}</span>
+            </div>
+            ${topProg ? `
+              <div class="land-meta-pair">
+                <span class="lbl">Top lift</span>
+                <span class="val green">+${topProg.diff} lbs</span>
+              </div>` : ""}
+          </div>
+          <div class="land-today-cta">
+            <span>Start workout</span>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M3 8h10M9 4l4 4-4 4"/></svg>
+          </div>
+        </button>
 
-`;
+        ${streak >= 2 ? `
+          <div class="land-streak">
+            <span class="land-streak-icon">🔥</span>
+            <span class="land-streak-text"><strong>${streak} weeks</strong> on plan — don't break it.</span>
+          </div>` : ""}
+
+        <div class="land-others-label">Or pick another day</div>
+        <div class="land-others">
+          ${otherDays.map(id => {
+            const d = PROGRAM[id];
+            const lastStr = lastDone[id] ? UI._daysAgo(lastDone[id]) : "not done yet";
+            return `<button class="land-other-row" onclick="UI._previewDay('${id}')">
+              <div class="land-other-left">
+                <span class="land-other-title">${d.title}</span>
+                <span class="land-other-last">${lastStr}</span>
+              </div>
+              <span class="land-other-arrow">→</span>
+            </button>`;
+          }).join("")}
+        </div>
+      </div>
+    `;
+  },
+
+  // Build last-7-days week rhythm cells based on history
+  _buildWeekRhythm(history, lastDone) {
+    const cells = [];
+    const today = new Date();
+    today.setHours(12,0,0,0);
+    const todayYmd = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-${String(today.getDate()).padStart(2,"0")}`;
+    const dowLabels = ["S","M","T","W","T","F","S"];
+    // Build a map of date -> session
+    const byDate = {};
+    (history||[]).forEach(s => {
+      const d = String(s.date).slice(0,10);
+      if (!byDate[d]) byDate[d] = s;
+    });
+    // Start from monday of this week if possible. Actually simpler: last 6 days + today.
+    for (let i = -6; i <= 0; i++) {
+      const dt = new Date(today);
+      dt.setDate(dt.getDate() + i);
+      const ymd = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,"0")}-${String(dt.getDate()).padStart(2,"0")}`;
+      const dow = dowLabels[dt.getDay()];
+      const s = byDate[ymd];
+      const isToday = ymd === todayYmd;
+      let cls, label, dotChar = "·";
+      if (s) {
+        cls = "done";
+        dotChar = "✓";
+        const day = PROGRAM[s.dayId];
+        label = day ? this._shortDayLabel(day.title) : (s.dayTitle ? this._shortDayLabel(s.dayTitle) : "Done");
+      } else if (isToday) {
+        cls = "today";
+        label = "Today";
+      } else {
+        cls = "rest";
+        label = "—";
+      }
+      cells.push({ dow, cls, dotChar, label });
+    }
+    return cells;
+  },
+
+  _shortDayLabel(title) {
+    if (!title) return "";
+    // "Upper — Push + Pull" -> "Upper"
+    // "Lower + Core" -> "Lower"
+    // "Olympic + Power" -> "Oly"
+    const t = title.toLowerCase();
+    if (t.startsWith("upper")) return "Upper";
+    if (t.startsWith("lower")) return "Lower";
+    if (t.startsWith("olympic") || t.startsWith("oly")) return "Oly";
+    if (t.startsWith("push")) return "Push";
+    if (t.startsWith("pull")) return "Pull";
+    if (t.startsWith("legs")) return "Legs";
+    // Fallback: first word, capped at 5
+    const first = title.split(/\s/)[0] || "";
+    return first.slice(0, 5);
+  },
+
+  // Calculate consecutive weeks with at least one session
+  _calcStreak(history) {
+    if (!history || !history.length) return 0;
+    // Get unique ISO weeks (year-week) where a session happened
+    const weeks = new Set();
+    history.forEach(s => {
+      const d = new Date(String(s.date).slice(0,10) + "T12:00:00");
+      if (isNaN(d.getTime())) return;
+      const week = this._isoWeek(d);
+      weeks.add(week);
+    });
+    // Walk back from current week
+    let streak = 0;
+    const now = new Date();
+    let cursor = new Date(now);
+    while (true) {
+      const wk = this._isoWeek(cursor);
+      if (weeks.has(wk)) {
+        streak++;
+        cursor.setDate(cursor.getDate() - 7);
+      } else {
+        // Allow current week to be empty if it's early in the week (Mon/Tue)
+        if (streak === 0 && now.getDay() <= 2 && cursor === now) {
+          cursor.setDate(cursor.getDate() - 7);
+          continue;
+        }
+        break;
+      }
+    }
+    return streak;
+  },
+
+  // ISO-ish week key "YYYY-Www"
+  _isoWeek(d) {
+    const tgt = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    const dn = tgt.getUTCDay() || 7;
+    tgt.setUTCDate(tgt.getUTCDate() + 4 - dn);
+    const yearStart = new Date(Date.UTC(tgt.getUTCFullYear(), 0, 1));
+    const wkNum = Math.ceil((((tgt - yearStart) / 86400000) + 1) / 7);
+    return `${tgt.getUTCFullYear()}-W${String(wkNum).padStart(2,"0")}`;
   },
 
   // Preview page — shows full exercise list, editable before starting
@@ -145,80 +350,230 @@ const UI = {
   },
 
   _renderPreview(dayId, d, cw, pid) {
-    const wrap = this.el("div","picker-page");
+    const wrap = this.el("div","preview-v2");
     const editing = this._draftEditing;
     const exs = this._draft.exercises;
+    const lastSession = (App.state.history||[]).find(s => s.dayId === dayId);
 
     const exRows = exs.map((ex, i) => {
       const setCount = ex.sets?.length || 0;
       const warmups  = ex.sets?.filter(s=>s.note==="warm-up"||s.isWarmup).length || 0;
       const working  = setCount - warmups;
-      let detail;
+
+      // Meta line: best from last session, or program targets if no history
+      let metaParts = [];
       if (ex.isFinisher) {
-        detail = ex.sets[0]?.reps || "finisher";
+        metaParts = [ex.sets[0]?.reps || "Finisher", ex.sets[0]?.note || ""];
       } else {
-        detail = warmups > 0 ? `${working} sets + warmup` : `${setCount} sets`;
+        const prevEx = lastSession?.exercises?.find(e => e.id === ex.id);
+        const best = prevEx?.sets?.reduce((b,s)=>parseFloat(s.weight)>parseFloat(b?.weight||0)?s:b,null);
+        if (best && best.weight) {
+          metaParts.push(`${best.reps}×${best.weight} lbs`);
+        } else if (ex.sets?.[0]) {
+          const s0 = ex.sets.find(x => !(x.note==="warm-up"||x.isWarmup)) || ex.sets[0];
+          if (s0.weight) metaParts.push(`${s0.reps} reps · ${s0.weight} lbs`);
+          else metaParts.push(`${s0.reps} reps`);
+        }
+        if (ex.rest) metaParts.push(`${ex.rest} rest`);
       }
-      const finisherCls = ex.isFinisher ? " preview-ex-finisher" : "";
+      const metaHTML = metaParts.filter(Boolean).map((p,idx)=>
+        idx>0 ? `<span class="dot-sep">·</span>${p}` : p
+      ).join(" ");
 
-      // Non-edit mode: simple row
+      const finisherCls = ex.isFinisher ? " ex-row-finisher" : "";
+
+      // VIEW mode — clean single row, no controls
       if (!editing) {
-        return `<div class="preview-ex-row${finisherCls}">
-          <span class="preview-ex-name">${ex.name}</span>
-          <span class="preview-ex-sets">${detail}</span>
+        const setBadge = ex.isFinisher
+          ? `<div class="ex-row-finbadge">FINISHER</div>`
+          : `<div class="ex-row-sets-static"><span class="val">${working}</span><span class="lbl">${working===1?"set":"sets"}</span></div>`;
+        return `<div class="ex-row-v2${finisherCls}">
+          <div class="ex-row-main">
+            <div class="ex-row-name">${ex.name}</div>
+            <div class="ex-row-meta">${metaHTML}</div>
+          </div>
+          ${setBadge}
         </div>`;
       }
 
-      // Edit mode: row + sets stepper below
-      const setStepper = ex.isFinisher ? "" : `
-        <div class="preview-set-stepper">
-          <span class="preview-set-lbl">Working sets</span>
-          <div class="preview-set-ctrl">
-            <button class="preview-ctrl" onclick="UI._draftAdjustSets(${i},-1)" ${working<=1?"disabled":""}>−</button>
-            <span class="preview-set-count">${working}</span>
-            <button class="preview-ctrl" onclick="UI._draftAdjustSets(${i},1)" ${working>=8?"disabled":""}>+</button>
-          </div>
-        </div>`;
+      // EDIT mode — grip handle, set chip with ±, swipe-to-delete wrapper
+      const setChip = ex.isFinisher
+        ? `<div class="ex-row-finbadge">FINISHER</div>`
+        : `<div class="set-chip" role="group" aria-label="Set count">
+            <button class="set-chip-btn" onclick="event.stopPropagation();UI._draftAdjustSets(${i},-1)" ${working<=1?"disabled":""} aria-label="Fewer sets">−</button>
+            <span class="set-chip-val">${working}<small>${working===1?"set":"sets"}</small></span>
+            <button class="set-chip-btn" onclick="event.stopPropagation();UI._draftAdjustSets(${i},1)" ${working>=8?"disabled":""} aria-label="More sets">+</button>
+          </div>`;
 
-      return `<div class="preview-ex-row preview-ex-row-edit${finisherCls}">
-        <div class="preview-ex-row-top">
-          <span class="preview-ex-name">${ex.name}</span>
-          <div class="preview-ex-controls">
-            ${i>0?`<button class="preview-ctrl" onclick="UI._draftMove(${i},-1)" aria-label="Move up">↑</button>`:`<span class="preview-ctrl-spacer"></span>`}
-            ${i<exs.length-1?`<button class="preview-ctrl" onclick="UI._draftMove(${i},1)" aria-label="Move down">↓</button>`:`<span class="preview-ctrl-spacer"></span>`}
-            <button class="preview-ctrl danger" onclick="UI._draftRemove(${i})" aria-label="Remove">✕</button>
+      return `<div class="ex-swipe-wrap" data-idx="${i}">
+        <div class="ex-row-v2 editing${finisherCls}" data-idx="${i}"
+          ontouchstart="UI._exSwipeStart(event,${i})"
+          ontouchmove="UI._exSwipeMove(event,${i})"
+          ontouchend="UI._exSwipeEnd(event,${i})">
+          <div class="ex-grip" ontouchstart="UI._exDragStart(event,${i})">
+            <span></span><span></span><span></span>
           </div>
+          <div class="ex-row-main">
+            <div class="ex-row-name">${ex.name}</div>
+            <div class="ex-row-meta">${metaHTML}</div>
+          </div>
+          ${setChip}
         </div>
-        ${setStepper}
+        <button class="ex-swipe-reveal" onclick="UI._draftRemove(${i})">Delete</button>
       </div>`;
     }).join("") || `<div style="color:var(--sub);font-size:14px;padding:16px 0">${d.title}</div>`;
 
+    // Show hint banner first time only (or first visit per session)
+    const hintHTML = (editing && !this._editHintDismissed) ? `
+      <div class="ex-edit-hint">
+        <span class="ex-edit-hint-icon">👆</span>
+        <span class="ex-edit-hint-text"><strong>Drag</strong> the handle to reorder. <strong>Swipe left</strong> to delete.</span>
+        <button class="ex-edit-hint-x" onclick="UI._dismissEditHint()" aria-label="Dismiss">✕</button>
+      </div>` : "";
+
     wrap.innerHTML = `
-      <button class="preview-back" onclick="UI._exitPreview()">← Back</button>
-      <div class="preview-header">
-        <div class="preview-title${d.title.length>18?" preview-title-sm":""}">${d.title}</div>
-        <span class="phase-badge phase-badge-${pid}">Wk ${cw}</span>
+      <div class="prev-header">
+        <button class="prev-back" onclick="UI._exitPreview()">← Back</button>
+        <div class="prev-title-row">
+          <div class="prev-title">${d.title}</div>
+          <span class="prev-wk-chip">WK ${cw}</span>
+        </div>
+        <div class="prev-toolbar">
+          <div class="prev-tool-segment">
+            <button class="prev-tool-btn${!editing?" active":""}" onclick="UI._setDraftEdit(false)">View</button>
+            <button class="prev-tool-btn${editing?" active":""}" onclick="UI._setDraftEdit(true)">Edit</button>
+          </div>
+          ${editing ? `<button class="prev-tool-add" onclick="UI._draftAdd()">
+            <svg width="11" height="11" viewBox="0 0 11 11" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"><path d="M5.5 1v9M1 5.5h9"/></svg>
+            Add
+          </button>` : ""}
+        </div>
       </div>
-      <div class="preview-edit-bar">
-        <button class="preview-edit-toggle${editing?" active":""}" onclick="UI._toggleDraftEdit()">
-          ${editing?"DONE":"EDIT"}
-        </button>
-        ${editing?`<button class="preview-edit-add" onclick="UI._draftAdd()">+ ADD EXERCISE</button>`:""}
-      </div>
-      <div class="preview-exercises">${exRows}</div>
-      <div class="preview-footer">
-        <div class="picker-past" style="margin-bottom:12px">
-          <label class="picker-past-label" for="preview-date">Log for a past date</label>
-          <input type="date" id="preview-date" class="picker-date-input"
+
+      ${hintHTML}
+
+      <div class="prev-list">${exRows}</div>
+
+      <div class="prev-bottom">
+        <div class="prev-past-row">
+          <label class="prev-past-label" for="preview-date">Log for past date</label>
+          <input type="date" id="preview-date" class="prev-date-input"
             value="${UI._today()}" max="${UI._today()}">
         </div>
-        <button class="btn-start" onclick="UI._startFromPreview('${dayId}')">Start ${d.title}</button>
+        <button class="prev-start-btn" onclick="UI._startFromPreview('${dayId}')">
+          Start Workout
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M3 8h10M9 4l4 4-4 4"/></svg>
+        </button>
       </div>
     `;
     this.root.innerHTML = "";
     document.getElementById("bottom-nav")?.remove();
     this.root.appendChild(wrap);
     this._nav();
+  },
+
+  _setDraftEdit(state) {
+    this._draftEditing = state;
+    const d = PROGRAM[this._draft.dayId];
+    const cw = getCurrentWeek();
+    const pid = d.phaseId || WEEKS[cw]?.phaseId || "strength";
+    this._renderPreview(this._draft.dayId, d, cw, pid);
+  },
+
+  _dismissEditHint() {
+    this._editHintDismissed = true;
+    document.querySelector(".ex-edit-hint")?.remove();
+  },
+
+  // ── Swipe-to-delete on edit rows ─────────────────────────────────────────
+  _exSwipeStart(e, idx) {
+    const t = e.touches?.[0]; if (!t) return;
+    this._swipe = { idx, startX: t.clientX, startY: t.clientY, dx: 0, locked: null };
+  },
+  _exSwipeMove(e, idx) {
+    if (!this._swipe || this._swipe.idx !== idx) return;
+    const t = e.touches?.[0]; if (!t) return;
+    const dx = t.clientX - this._swipe.startX;
+    const dy = t.clientY - this._swipe.startY;
+    // Lock direction after a few px so vertical scroll still works
+    if (this._swipe.locked === null) {
+      if (Math.abs(dx) > 8 || Math.abs(dy) > 8) {
+        this._swipe.locked = Math.abs(dx) > Math.abs(dy) ? "h" : "v";
+      }
+    }
+    if (this._swipe.locked !== "h") return;
+    e.preventDefault?.();
+    this._swipe.dx = Math.min(0, Math.max(dx, -80)); // only allow leftward, cap at -80
+    const row = document.querySelector(`.ex-row-v2[data-idx="${idx}"]`);
+    if (row) row.style.transform = `translateX(${this._swipe.dx}px)`;
+  },
+  _exSwipeEnd(e, idx) {
+    if (!this._swipe || this._swipe.idx !== idx) return;
+    const row = document.querySelector(`.ex-row-v2[data-idx="${idx}"]`);
+    if (!row) { this._swipe = null; return; }
+    const dx = this._swipe.dx;
+    // Clear any previously-swiped sibling
+    document.querySelectorAll(".ex-row-v2.swiped").forEach(r => {
+      if (r !== row) { r.classList.remove("swiped"); r.style.transform = ""; }
+    });
+    row.style.transition = "transform .2s ease";
+    if (dx < -40) {
+      row.classList.add("swiped");
+      row.style.transform = "translateX(-72px)";
+    } else {
+      row.classList.remove("swiped");
+      row.style.transform = "";
+    }
+    setTimeout(() => { if (row) row.style.transition = ""; }, 220);
+    this._swipe = null;
+  },
+
+  // ── Drag-to-reorder via the grip handle ──────────────────────────────────
+  _exDragStart(e, idx) {
+    e.stopPropagation?.();
+    const t = e.touches?.[0]; if (!t) return;
+    e.preventDefault?.();
+    const wrapEl = document.querySelector(`.ex-swipe-wrap[data-idx="${idx}"]`);
+    if (!wrapEl) return;
+    const rect = wrapEl.getBoundingClientRect();
+    const rowH = rect.height + 6; // gap
+    this._drag = {
+      idx, startY: t.clientY, currentIdx: idx,
+      rowH, wrapEl, originalY: rect.top
+    };
+    wrapEl.classList.add("dragging");
+    if (navigator.vibrate) navigator.vibrate(15);
+
+    const onMove = (ev) => {
+      const tt = ev.touches?.[0]; if (!tt) return;
+      ev.preventDefault();
+      const dy = tt.clientY - this._drag.startY;
+      this._drag.wrapEl.style.transform = `translateY(${dy}px)`;
+      // Find where we would land
+      const newIdx = Math.max(0, Math.min(this._draft.exercises.length-1,
+        this._drag.idx + Math.round(dy / this._drag.rowH)));
+      this._drag.currentIdx = newIdx;
+    };
+    const onEnd = () => {
+      document.removeEventListener("touchmove", onMove);
+      document.removeEventListener("touchend", onEnd);
+      if (!this._drag) return;
+      const { idx: from, currentIdx: to } = this._drag;
+      this._drag.wrapEl.classList.remove("dragging");
+      this._drag.wrapEl.style.transform = "";
+      this._drag = null;
+      if (from !== to) {
+        const exs = this._draft.exercises;
+        const [moved] = exs.splice(from, 1);
+        exs.splice(to, 0, moved);
+        const d = PROGRAM[this._draft.dayId];
+        const cw = getCurrentWeek();
+        const pid = d.phaseId || WEEKS[cw]?.phaseId || "strength";
+        this._renderPreview(this._draft.dayId, d, cw, pid);
+      }
+    };
+    document.addEventListener("touchmove", onMove, { passive: false });
+    document.addEventListener("touchend", onEnd);
   },
 
   _exitPreview() {
@@ -312,6 +667,7 @@ const UI = {
     const today = this._today();
     if (this._logDate === today) this._logDate = null;
     App.state.activeDay = dayId;
+    this._sessionStartTime = Date.now();
     const session = App.newSession(dayId);
     const last = await App.fetchLastSession(dayId);
     App.state.lastSession = last;
@@ -1247,66 +1603,184 @@ const UI = {
     const ei  = this._activeExIdx;
     const editing = this._drawerEditing;
 
-    // Inject edit-bar at top of list
-    const editBar = `<div class="drawer-edit-bar">
-        <button class="preview-edit-toggle${editing?" active":""}" onclick="UI._toggleDrawerEdit()">
-          ${editing?"DONE":"EDIT"}
-        </button>
-        ${editing?`<button class="preview-edit-add" onclick="UI._openAddEx(false);UI._closeDrawer()">+ ADD EXERCISE</button>`:""}
+    // V2 toolbar
+    const editBar = `<div class="drawer-toolbar">
+        <div class="prev-tool-segment">
+          <button class="prev-tool-btn${!editing?" active":""}" onclick="UI._setDrawerEdit(false)">View</button>
+          <button class="prev-tool-btn${editing?" active":""}" onclick="UI._setDrawerEdit(true)">Edit</button>
+        </div>
+        ${editing ? `<button class="prev-tool-add" onclick="UI._openAddEx(false);UI._closeDrawer()">
+          <svg width="11" height="11" viewBox="0 0 11 11" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"><path d="M5.5 1v9M1 5.5h9"/></svg>
+          Add
+        </button>` : ""}
       </div>`;
+
+    // Hint banner first time
+    const hintHTML = (editing && !this._drawerHintDismissed) ? `
+      <div class="ex-edit-hint" style="margin:6px 14px 0">
+        <span class="ex-edit-hint-icon">👆</span>
+        <span class="ex-edit-hint-text"><strong>Drag</strong> to reorder. <strong>Swipe</strong> to delete.</span>
+        <button class="ex-edit-hint-x" onclick="UI._dismissDrawerHint()" aria-label="Dismiss">✕</button>
+      </div>` : "";
 
     const rows = exs.map((ex, i) => {
       const wDone = ex.sets.filter(s=>!s.isWarmup&&s.logged).length;
       const wTot  = ex.sets.filter(s=>!s.isWarmup&&!s.excluded).length;
       const isCur = i === ei;
       const allDone = wDone === wTot && wTot > 0;
-      const progCls = allDone ? "drawer-ex-progress done" : "drawer-ex-progress";
-      const progTxt = ex.isFinisher ? (ex.sets[0]?.reps||"") : (allDone ? `${wTot}/${wTot} ✓` : `${wDone}/${wTot}`);
-      const finisherIcon = ex.isFinisher ? "🚶 " : "";
+      const curCls = isCur ? " current" : "";
+      const finisherCls = ex.isFinisher ? " ex-row-finisher" : "";
+      const hereLabel = isCur ? `<span class="ex-row-here">← YOU'RE HERE</span>` : "";
 
-      if (editing) {
-        const undoneWorking = ex.sets.filter(s=>!s.isWarmup&&!s.excluded&&!s.logged).length;
-        const setStepper = ex.isFinisher ? "" : `
-          <div class="drawer-set-stepper">
-            <span class="preview-set-lbl">Working sets</span>
-            <div class="preview-set-ctrl">
-              <button class="preview-ctrl" onclick="UI._sessionAdjustSets(${i},-1)" ${undoneWorking<=0?"disabled":""}>−</button>
-              <span class="preview-set-count">${wDone}/${wTot}</span>
-              <button class="preview-ctrl" onclick="UI._sessionAdjustSets(${i},1)" ${wTot>=8?"disabled":""}>+</button>
-            </div>
-          </div>`;
-        return `<div class="drawer-ex-row drawer-ex-row-edit${isCur?" current":""}${ex.isFinisher?" finisher":""}">
-          <div class="drawer-ex-row-top">
-            <span class="drawer-ex-num">${i+1}</span>
-            <div class="drawer-ex-info">
-              <div class="drawer-ex-name${isCur?" current":""}">${finisherIcon}${ex.name}</div>
-            </div>
-            <div class="drawer-row-controls">
-              ${i>0?`<button class="preview-ctrl" onclick="UI._sessionMove(${i},-1)">↑</button>`:`<span class="preview-ctrl-spacer"></span>`}
-              ${i<exs.length-1?`<button class="preview-ctrl" onclick="UI._sessionMove(${i},1)">↓</button>`:`<span class="preview-ctrl-spacer"></span>`}
-              <button class="preview-ctrl danger" onclick="UI._removeEx(${i})">✕</button>
-            </div>
+      // Build meta: progress + maybe a target
+      let metaParts = [];
+      if (ex.isFinisher) {
+        metaParts.push(ex.sets[0]?.reps || "Finisher");
+      } else {
+        if (allDone) metaParts.push(`<span class="meta-done">All done ✓</span>`);
+        else metaParts.push(`${wDone}/${wTot} done`);
+        // Show next-set target if exercise in progress
+        const next = ex.sets.find(s=>!s.logged&&!s.excluded&&!s.isWarmup);
+        if (next && next.weight) metaParts.push(`Next: ${next.reps}×${next.weight}`);
+      }
+      const metaHTML = metaParts.filter(Boolean).map((p,idx)=>
+        idx>0 ? `<span class="dot-sep">·</span>${p}` : p
+      ).join(" ");
+
+      // VIEW mode — tap to jump
+      if (!editing) {
+        const progBadge = ex.isFinisher
+          ? `<div class="ex-row-finbadge">FINISHER</div>`
+          : allDone
+            ? `<div class="ex-row-sets-static" style="border-color:rgba(61,255,160,.3);background:rgba(61,255,160,.05);"><span class="val" style="color:var(--green)">✓</span><span class="lbl" style="color:var(--green)">done</span></div>`
+            : `<div class="ex-row-sets-static"><span class="val">${wDone}<span style="color:var(--muted);font-size:12px">/${wTot}</span></span><span class="lbl">${wTot===1?"set":"sets"}</span></div>`;
+        return `<div class="ex-row-v2 drawer-row${curCls}${finisherCls}" onclick="UI._goTo(${i});UI._closeDrawer()">
+          <div class="ex-row-main">
+            <div class="ex-row-name">${ex.name}${hereLabel}</div>
+            <div class="ex-row-meta">${metaHTML}</div>
           </div>
-          ${setStepper}
+          ${progBadge}
         </div>`;
       }
 
-      return `<div class="drawer-ex-row${isCur?" current":""}${ex.isFinisher?" finisher":""}" onclick="UI._goTo(${i});UI._closeDrawer()">
-        <span class="drawer-ex-num${isCur?" current":""}">${i+1}</span>
-        <div class="drawer-ex-info">
-          <div class="drawer-ex-name${isCur?" current":""}">${finisherIcon}${ex.name}</div>
-          ${isCur?`<span class="drawer-ex-here">← YOU'RE HERE</span>`:""}
+      // EDIT mode — grip + set chip + swipe-to-delete
+      const undoneWorking = ex.sets.filter(s=>!s.isWarmup&&!s.excluded&&!s.logged).length;
+      const setChip = ex.isFinisher
+        ? `<div class="ex-row-finbadge">FINISHER</div>`
+        : `<div class="set-chip" role="group" aria-label="Set count">
+            <button class="set-chip-btn" onclick="event.stopPropagation();UI._sessionAdjustSets(${i},-1)" ${undoneWorking<=0?"disabled":""} aria-label="Fewer sets">−</button>
+            <span class="set-chip-val">${wTot}<small>${wTot===1?"set":"sets"}</small></span>
+            <button class="set-chip-btn" onclick="event.stopPropagation();UI._sessionAdjustSets(${i},1)" ${wTot>=8?"disabled":""} aria-label="More sets">+</button>
+          </div>`;
+
+      return `<div class="ex-swipe-wrap drawer-swipe-wrap" data-didx="${i}">
+        <div class="ex-row-v2 editing drawer-row${curCls}${finisherCls}" data-didx="${i}"
+          ontouchstart="UI._drwSwipeStart(event,${i})"
+          ontouchmove="UI._drwSwipeMove(event,${i})"
+          ontouchend="UI._drwSwipeEnd(event,${i})">
+          <div class="ex-grip" ontouchstart="UI._drwDragStart(event,${i})">
+            <span></span><span></span><span></span>
+          </div>
+          <div class="ex-row-main">
+            <div class="ex-row-name">${ex.name}</div>
+            <div class="ex-row-meta">${metaHTML}</div>
+          </div>
+          ${setChip}
         </div>
-        <span class="${progCls}">${progTxt}</span>
+        <button class="ex-swipe-reveal" onclick="UI._removeEx(${i})">Delete</button>
       </div>`;
     }).join("");
 
-    el.innerHTML = editBar + rows;
+    el.innerHTML = editBar + hintHTML + rows;
 
     // Update day name
     const dn = document.getElementById("drawer-day-name");
     const day = PROGRAM[App.state.activeDay] || {};
     if (dn) dn.textContent = day.title || "";
+  },
+
+  _setDrawerEdit(state) {
+    this._drawerEditing = state;
+    this._updateDrawer();
+  },
+
+  _dismissDrawerHint() {
+    this._drawerHintDismissed = true;
+    this._updateDrawer();
+  },
+
+  // Drawer swipe-to-delete (parallel to preview swipe)
+  _drwSwipeStart(e, idx) {
+    const t = e.touches?.[0]; if (!t) return;
+    this._drwSwipe = { idx, startX: t.clientX, startY: t.clientY, dx: 0, locked: null };
+  },
+  _drwSwipeMove(e, idx) {
+    if (!this._drwSwipe || this._drwSwipe.idx !== idx) return;
+    const t = e.touches?.[0]; if (!t) return;
+    const dx = t.clientX - this._drwSwipe.startX;
+    const dy = t.clientY - this._drwSwipe.startY;
+    if (this._drwSwipe.locked === null) {
+      if (Math.abs(dx) > 8 || Math.abs(dy) > 8) {
+        this._drwSwipe.locked = Math.abs(dx) > Math.abs(dy) ? "h" : "v";
+      }
+    }
+    if (this._drwSwipe.locked !== "h") return;
+    e.preventDefault?.();
+    this._drwSwipe.dx = Math.min(0, Math.max(dx, -80));
+    const row = document.querySelector(`.ex-row-v2[data-didx="${idx}"]`);
+    if (row) row.style.transform = `translateX(${this._drwSwipe.dx}px)`;
+  },
+  _drwSwipeEnd(e, idx) {
+    if (!this._drwSwipe || this._drwSwipe.idx !== idx) return;
+    const row = document.querySelector(`.ex-row-v2[data-didx="${idx}"]`);
+    if (!row) { this._drwSwipe = null; return; }
+    const dx = this._drwSwipe.dx;
+    document.querySelectorAll(".ex-row-v2.drawer-row.swiped").forEach(r => {
+      if (r !== row) { r.classList.remove("swiped"); r.style.transform = ""; }
+    });
+    row.style.transition = "transform .2s ease";
+    if (dx < -40) { row.classList.add("swiped"); row.style.transform = "translateX(-72px)"; }
+    else { row.classList.remove("swiped"); row.style.transform = ""; }
+    setTimeout(() => { if (row) row.style.transition = ""; }, 220);
+    this._drwSwipe = null;
+  },
+
+  _drwDragStart(e, idx) {
+    e.stopPropagation?.();
+    const t = e.touches?.[0]; if (!t) return;
+    e.preventDefault?.();
+    const wrapEl = document.querySelector(`.ex-swipe-wrap[data-didx="${idx}"]`);
+    if (!wrapEl) return;
+    const rect = wrapEl.getBoundingClientRect();
+    const rowH = rect.height + 6;
+    this._drwDrag = { idx, startY: t.clientY, currentIdx: idx, rowH, wrapEl };
+    wrapEl.classList.add("dragging");
+    if (navigator.vibrate) navigator.vibrate(15);
+
+    const onMove = (ev) => {
+      const tt = ev.touches?.[0]; if (!tt) return;
+      ev.preventDefault();
+      const dy = tt.clientY - this._drwDrag.startY;
+      this._drwDrag.wrapEl.style.transform = `translateY(${dy}px)`;
+      const exs = App.state.session?.exercises || [];
+      const newIdx = Math.max(0, Math.min(exs.length-1,
+        this._drwDrag.idx + Math.round(dy / this._drwDrag.rowH)));
+      this._drwDrag.currentIdx = newIdx;
+    };
+    const onEnd = () => {
+      document.removeEventListener("touchmove", onMove);
+      document.removeEventListener("touchend", onEnd);
+      if (!this._drwDrag) return;
+      const { idx: from, currentIdx: to } = this._drwDrag;
+      this._drwDrag.wrapEl.classList.remove("dragging");
+      this._drwDrag.wrapEl.style.transform = "";
+      this._drwDrag = null;
+      if (from !== to) {
+        this._sessionMove(from, to - from);
+      }
+    };
+    document.addEventListener("touchmove", onMove, { passive: false });
+    document.addEventListener("touchend", onEnd);
   },
 
   _toggleDrawerEdit() {
@@ -1317,12 +1791,15 @@ const UI = {
   // Move an exercise in the live session (different from _moveEx which moves the active one)
   _sessionMove(i, dir) {
     const exs = App.state.session?.exercises;
-    const ni = i+dir;
-    if (!exs || ni<0 || ni>=exs.length) return;
-    [exs[i], exs[ni]] = [exs[ni], exs[i]];
-    // If we moved the active exercise, follow it
+    if (!exs) return;
+    const ni = Math.max(0, Math.min(exs.length - 1, i + dir));
+    if (ni === i) return;
+    const [moved] = exs.splice(i, 1);
+    exs.splice(ni, 0, moved);
+    // Track active exercise
     if (this._activeExIdx === i) this._activeExIdx = ni;
-    else if (this._activeExIdx === ni) this._activeExIdx = i;
+    else if (i < this._activeExIdx && ni >= this._activeExIdx) this._activeExIdx--;
+    else if (i > this._activeExIdx && ni <= this._activeExIdx) this._activeExIdx++;
     this._updateFocusView();
     this._updateHeader();
     this._updateQueue();
@@ -1592,121 +2069,305 @@ const UI = {
       const notes = document.getElementById("sport-notes")?.value||"";
       toSave.exercises=[{id:"sport",name:type,sets:[{reps:`${dur} min`,weight:0,note:notes}]}];
     }
+    // Capture session metadata for the finish screen BEFORE we save (so we can
+    // diff against the previous session and compute a story).
+    const sessionStartTime = this._sessionStartTime || null;
+    const lastSession = App.state.lastSession || null;
     try {
       await App.saveSession(toSave);
-      // Show celebration before clearing state
-      const summary = this._buildSessionSummary(toSave);
+      const summary = this._buildSessionSummary(toSave, lastSession, sessionStartTime);
       App.state.session = App.state.activeDay = null;
       App.state.history = null;
       this._renderFinishScreen(summary, day);
     } catch(e) { this._toast("Save failed"); }
   },
 
-  _buildSessionSummary(toSave) {
+  _buildSessionSummary(toSave, lastSession, startTime) {
     const exs = toSave.exercises || [];
-    const totalSets = exs.reduce((n,ex)=>n + (ex.sets?.filter(s=>!s.isWarmup&&s.logged).length||0), 0);
+    const workingSets = exs.flatMap(ex => (ex.sets||[]).filter(s=>!s.isWarmup));
+    const loggedSets = workingSets.filter(s=>s.logged);
+    const skippedSets = workingSets.length - loggedSets.length;
+
     let totalReps = 0;
     let totalVolume = 0;
-    let topLift = null;
-    exs.forEach(ex => {
-      (ex.sets||[]).forEach(s => {
-        if (s.isWarmup || !s.logged) return;
-        const reps = parseInt(s.reps) || 0;
-        const wt   = parseFloat(s.weight) || 0;
-        totalReps += reps;
-        totalVolume += reps * wt;
-        if (wt > 0 && (!topLift || wt > topLift.weight)) {
-          topLift = { name: ex.name, weight: wt, reps };
-        }
+    let prevVolume = 0;
+
+    // Build per-exercise comparison rows
+    const compare = exs.filter(ex => !ex.isFinisher).map(ex => {
+      const working = (ex.sets||[]).filter(s=>!s.isWarmup&&s.logged);
+      if (!working.length) return null;
+      // Best set this session
+      const best = working.reduce((b,s)=>parseFloat(s.weight||0)>parseFloat(b?.weight||0)?s:b, null);
+      // Find matching exercise in last session
+      const prevEx = lastSession?.exercises?.find(e => e.id === ex.id);
+      const prevWorking = prevEx?.sets?.filter(s=>!s.isWarmup) || [];
+      const prevBest = prevWorking.reduce((b,s)=>parseFloat(s.weight||0)>parseFloat(b?.weight||0)?s:b, null);
+
+      // Tally volume
+      working.forEach(s => {
+        const r = parseInt(s.reps) || 0;
+        const w = parseFloat(s.weight) || 0;
+        totalReps += r;
+        totalVolume += r * w;
       });
-    });
-    // Best PR from prev
-    let pr = null;
-    exs.forEach(ex => {
-      (ex.sets||[]).forEach(s => {
-        if (s.isWarmup || !s.logged) return;
-        const wt   = parseFloat(s.weight) || 0;
-        const prevWt = parseFloat(s.prev?.weight) || 0;
-        if (wt > prevWt && prevWt > 0 && wt - prevWt >= 2.5) {
-          if (!pr || (wt - prevWt) > (pr.diff)) {
-            pr = { name: ex.name, weight: wt, diff: wt - prevWt };
-          }
-        }
+      prevWorking.forEach(s => {
+        const r = parseInt(s.reps) || 0;
+        const w = parseFloat(s.weight) || 0;
+        prevVolume += r * w;
       });
-    });
-    return { exCount: exs.filter(ex=>!ex.isFinisher).length, totalSets, totalReps, totalVolume, topLift, pr };
+
+      // Compute delta vs prev best
+      let delta = null;
+      let deltaKind = "flat";
+      if (best && prevBest) {
+        const wDiff = parseFloat(best.weight||0) - parseFloat(prevBest.weight||0);
+        const rDiff = parseInt(best.reps||0) - parseInt(prevBest.reps||0);
+        if (Math.abs(wDiff) >= 0.5) {
+          delta = (wDiff > 0 ? "+" : "") + wDiff;
+          deltaKind = wDiff > 0 ? "up" : "down";
+        } else if (rDiff !== 0) {
+          delta = (rDiff > 0 ? "+" : "") + rDiff + "r";
+          deltaKind = rDiff > 0 ? "up" : "down";
+        } else {
+          delta = "=";
+          deltaKind = "flat";
+        }
+      } else if (best && !prevBest) {
+        delta = "NEW";
+        deltaKind = "up";
+      }
+
+      return {
+        name: ex.name,
+        cur: best ? `${best.reps}×${best.weight}` : "—",
+        prev: prevBest ? `${prevBest.reps}×${prevBest.weight}` : null,
+        delta,
+        deltaKind,
+        weight: best ? parseFloat(best.weight)||0 : 0,
+        prevWeight: prevBest ? parseFloat(prevBest.weight)||0 : 0,
+        reps: best ? parseInt(best.reps)||0 : 0,
+        prevReps: prevBest ? parseInt(prevBest.reps)||0 : 0,
+      };
+    }).filter(Boolean);
+
+    // Volume delta vs last
+    let volDeltaPct = null;
+    if (prevVolume > 0) {
+      volDeltaPct = Math.round(((totalVolume - prevVolume) / prevVolume) * 100);
+    }
+
+    // Pick the headline: prioritize a PR (weight bump), then rep PR, then volume jump, then completion
+    let headline = null;
+    const prCandidate = compare.find(c => c.deltaKind === "up" && c.weight > c.prevWeight && c.prevWeight > 0);
+    const repCandidate = compare.find(c => c.deltaKind === "up" && c.weight === c.prevWeight && c.reps > c.prevReps);
+    const newCandidate = compare.find(c => c.delta === "NEW");
+
+    if (prCandidate) {
+      const diff = prCandidate.weight - prCandidate.prevWeight;
+      headline = {
+        kind: "pr",
+        label: "★ New PR",
+        main: `You hit <span class="accent">${prCandidate.cur}</span> on ${prCandidate.name} —<br>that's a ${diff}-pound jump.`,
+        sub: prCandidate.prev ? `Last session: ${prCandidate.prev} lbs.` : "First time at this weight."
+      };
+    } else if (repCandidate) {
+      const rDiff = repCandidate.reps - repCandidate.prevReps;
+      headline = {
+        kind: "reps",
+        label: "★ Rep PR",
+        main: `${rDiff} more rep${rDiff>1?"s":""} on ${repCandidate.name} —<br>at the same weight.`,
+        sub: `${repCandidate.cur} (was ${repCandidate.prev}).`
+      };
+    } else if (newCandidate) {
+      headline = {
+        kind: "new",
+        label: "First time",
+        main: `${newCandidate.name} added to your program —<br>baseline locked at <span class="accent">${newCandidate.cur}</span>.`,
+        sub: "Now there's a number to beat."
+      };
+    } else if (volDeltaPct !== null && volDeltaPct >= 5) {
+      headline = {
+        kind: "volume",
+        label: "Volume up",
+        main: `Moved <span class="accent">${volDeltaPct}% more weight</span> than last time.<br>Same plan, bigger numbers.`,
+        sub: `${Math.round(totalVolume).toLocaleString()} lbs total today.`
+      };
+    } else if (skippedSets === 0 && loggedSets.length >= 10) {
+      headline = {
+        kind: "complete",
+        label: "Full clear",
+        main: `Every set, every lift — no skips.<br><span class="accent">Solid session.</span>`,
+        sub: "Consistency is the whole point."
+      };
+    } else {
+      headline = {
+        kind: "default",
+        label: "Logged",
+        main: `Another one in the books.<br><span class="accent">${exs.filter(e=>!e.isFinisher).length} lifts</span> done.`,
+        sub: skippedSets > 0 ? `${skippedSets} set${skippedSets>1?"s":""} skipped.` : "Stay on the plan."
+      };
+    }
+
+    // Duration
+    let durationStr = null;
+    if (startTime) {
+      const sec = Math.round((Date.now() - startTime) / 1000);
+      const m = Math.floor(sec / 60);
+      const s = sec % 60;
+      durationStr = `${m}:${String(s).padStart(2,"0")} elapsed`;
+    }
+    const timeStr = new Date().toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"});
+
+    // Last session date (for the compare card header)
+    let lastSessionAgo = null;
+    if (lastSession?.date) {
+      const d = new Date(String(lastSession.date).slice(0,10) + "T12:00:00");
+      if (!isNaN(d.getTime())) {
+        const days = Math.round((Date.now() - d.getTime()) / 86400000);
+        lastSessionAgo = days === 0 ? "earlier today" : days === 1 ? "yesterday" : `${days} days ago`;
+      }
+    }
+
+    return {
+      exCount: exs.filter(ex=>!ex.isFinisher).length,
+      totalSets: loggedSets.length,
+      totalReps,
+      totalVolume,
+      prevVolume,
+      volDeltaPct,
+      compare,
+      headline,
+      skippedSets,
+      workingSetCount: workingSets.length,
+      durationStr,
+      timeStr,
+      lastSessionAgo
+    };
   },
 
   _renderFinishScreen(summary, day) {
     this.root.innerHTML = "";
     document.getElementById("bottom-nav")?.remove();
 
-    const motivations = [
-      "Showed up. That's the whole game.",
-      "Every rep is a vote for who you're becoming.",
-      "Rest hard. Lift harder.",
-      "Progress doesn't ask if you felt like it.",
-      "Today's work is tomorrow's strength.",
-      "You did the thing. Now eat.",
-      "Logged. Done. Onward.",
-      "The bar doesn't lie. Neither do you.",
-      "Stack the days. That's how it compounds."
-    ];
-    const motivation = motivations[Math.floor(Math.random() * motivations.length)];
-
     const dayTitle = day?.title || "Workout";
-    const volStr = summary.totalVolume > 0
-      ? `${Math.round(summary.totalVolume).toLocaleString()} <span class="finish-unit">lbs moved</span>`
-      : "";
+
+    // Contextual quote — references day or phase rather than being purely generic
+    const quotes = [
+      `The bar doesn't lie. Neither do you.`,
+      `Today's work is tomorrow's strength.`,
+      `Stack the days. That's how it compounds.`,
+      `Every rep is a vote for who you're becoming.`,
+      `Showing up is half. You did the other half.`,
+      `Progress doesn't ask if you felt like it.`,
+      `You moved real weight today. Bank it.`,
+      `One more day on the plan. Don't break the chain.`
+    ];
+    const quote = quotes[Math.floor(Math.random() * quotes.length)];
+
+    // Compare rows
+    const compareHTML = summary.compare.length ? `
+      <div class="finv2-compare">
+        <div class="finv2-compare-head">
+          <span>Vs. last session</span>
+          ${summary.lastSessionAgo ? `<span>${summary.lastSessionAgo}</span>` : ""}
+        </div>
+        ${summary.compare.map(c => `
+          <div class="finv2-compare-row">
+            <span class="finv2-name">${c.name}</span>
+            <span class="finv2-vals"><strong>${c.cur}</strong>${c.prev ? ` <span class="finv2-was">· was ${c.prev}</span>` : ""}</span>
+            ${c.delta !== null ? `<span class="finv2-delta finv2-delta-${c.deltaKind}">${c.delta}</span>` : ""}
+          </div>`).join("")}
+      </div>` : "";
+
+    // Stats grid (2-up)
+    const volStr = summary.totalVolume > 0 ? Math.round(summary.totalVolume).toLocaleString() : "0";
+    const volDeltaHTML = summary.volDeltaPct !== null
+      ? `<div class="finv2-delta-line ${summary.volDeltaPct > 0 ? 'up' : summary.volDeltaPct < 0 ? 'down' : 'flat'}">
+          ${summary.volDeltaPct > 0 ? '↑' : summary.volDeltaPct < 0 ? '↓' : '='} ${Math.abs(summary.volDeltaPct)}% vs last
+        </div>`
+      : `<div class="finv2-delta-line flat">First time</div>`;
+    const completionPct = summary.workingSetCount > 0
+      ? Math.round((summary.totalSets / summary.workingSetCount) * 100)
+      : 100;
+    const completionDelta = summary.skippedSets === 0
+      ? `<div class="finv2-delta-line up">Full clear</div>`
+      : `<div class="finv2-delta-line flat">${summary.skippedSets} skipped</div>`;
 
     const wrap = document.createElement("div");
-    wrap.id = "finish-screen";
+    wrap.id = "finv2";
     wrap.innerHTML = `
       <canvas id="confetti-canvas"></canvas>
-      <div class="finish-inner">
-        <div class="finish-check">
-          <svg width="72" height="72" viewBox="0 0 72 72" fill="none">
-            <circle cx="36" cy="36" r="34" stroke="var(--green)" stroke-width="3" fill="rgba(61,255,160,.08)"/>
-            <path d="M22 37l10 10 18-22" stroke="var(--green)" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-          </svg>
-        </div>
-        <div class="finish-eyebrow">WORKOUT COMPLETE</div>
-        <div class="finish-title">${dayTitle}</div>
-        <div class="finish-motivation">${motivation}</div>
-
-        <div class="finish-stats">
-          <div class="finish-stat">
-            <div class="finish-stat-num">${summary.totalSets}</div>
-            <div class="finish-stat-lbl">Sets</div>
-          </div>
-          <div class="finish-stat">
-            <div class="finish-stat-num">${summary.totalReps}</div>
-            <div class="finish-stat-lbl">Reps</div>
-          </div>
-          <div class="finish-stat">
-            <div class="finish-stat-num">${summary.exCount}</div>
-            <div class="finish-stat-lbl">Lifts</div>
-          </div>
+      <div class="finv2-bg-dots"></div>
+      <div class="finv2-inner">
+        <div class="finv2-eyebrow">Workout complete</div>
+        <div class="finv2-day-name">${dayTitle}</div>
+        <div class="finv2-meta-line">
+          ${summary.durationStr ? `<span>${summary.durationStr}</span><span class="finv2-pip">·</span>` : ""}
+          <span>${summary.timeStr}</span>
         </div>
 
-        ${volStr ? `<div class="finish-volume">${volStr}</div>` : ""}
+        <div class="finv2-headline finv2-headline-${summary.headline.kind}">
+          <span class="finv2-headline-lbl">${summary.headline.label}</span>
+          <div class="finv2-headline-main">${summary.headline.main}</div>
+          <div class="finv2-headline-sub">${summary.headline.sub}</div>
+        </div>
 
-        ${summary.pr ? `
-          <div class="finish-pr">
-            <div class="finish-pr-badge">NEW PR</div>
-            <div class="finish-pr-text">${summary.pr.name} — ${summary.pr.weight} lbs <span class="finish-pr-diff">(+${summary.pr.diff})</span></div>
-          </div>` : ""}
+        <div class="finv2-stats">
+          <div class="finv2-stat">
+            <div class="finv2-stat-lbl">Volume moved</div>
+            <div class="finv2-stat-val">${volStr}<span class="finv2-stat-unit">lbs</span></div>
+            ${volDeltaHTML}
+          </div>
+          <div class="finv2-stat">
+            <div class="finv2-stat-lbl">Working sets</div>
+            <div class="finv2-stat-val">${summary.totalSets} <span class="finv2-stat-unit">/ ${summary.workingSetCount}</span></div>
+            ${completionDelta}
+          </div>
+        </div>
 
-        <button class="finish-cta" onclick="UI._closeFinish()">DONE</button>
+        ${compareHTML}
+
+        <div class="finv2-bottom">
+          <div class="finv2-quote">${quote}</div>
+          <div class="finv2-actions">
+            <button class="finv2-share" onclick="UI._shareFinish()" aria-label="Share">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4l-3-3-3 3M7 1v8M2 9v3a1 1 0 001 1h8a1 1 0 001-1V9"/></svg>
+              Share
+            </button>
+            <button class="finv2-cta" onclick="UI._closeFinish()">Done →</button>
+          </div>
+        </div>
       </div>
     `;
     this.root.appendChild(wrap);
 
-    // Fire confetti
+    // Subtle confetti — quieter than before but still earned
     this._fireConfetti();
 
     // Haptic
     if (navigator.vibrate) navigator.vibrate([60, 40, 60, 40, 120]);
+
+    // Stash summary for share intent
+    this._lastFinishSummary = summary;
+    this._lastFinishDayTitle = dayTitle;
+  },
+
+  _shareFinish() {
+    const s = this._lastFinishSummary;
+    const t = this._lastFinishDayTitle;
+    if (!s) return;
+    const lines = [
+      `💪 ${t}`,
+      s.headline.label + " — " + s.headline.main.replace(/<[^>]+>/g, "").replace(/\n/g, " "),
+      `${Math.round(s.totalVolume).toLocaleString()} lbs moved · ${s.totalSets}/${s.workingSetCount} sets`,
+    ];
+    const text = lines.join("\n");
+    if (navigator.share) {
+      navigator.share({ text }).catch(()=>{});
+    } else if (navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+      this._toast("Copied to clipboard");
+    }
   },
 
   _closeFinish() {
