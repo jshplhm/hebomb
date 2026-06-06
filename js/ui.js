@@ -406,7 +406,7 @@ const UI = {
           </div>`;
 
       return `<div class="ex-row-v2 editing${finisherCls}" data-idx="${i}">
-          <div class="ex-grip" ontouchstart="UI._exDragStart(event,${i})">
+          <div class="ex-grip">
             <span></span><span></span><span></span>
           </div>
           <div class="ex-row-main">
@@ -459,6 +459,24 @@ const UI = {
     document.getElementById("bottom-nav")?.remove();
     this.root.appendChild(wrap);
     this._nav();
+
+    // Attach drag listeners imperatively (passive:false required for iOS PWA)
+    if (editing) this._attachDragListeners();
+  },
+
+  // Must be called after the preview list is in the DOM.
+  // Attaches touchstart with passive:false to every grip handle so
+  // e.preventDefault() actually works and doesn't fight iOS scroll.
+  _attachDragListeners() {
+    document.querySelectorAll(".ex-grip").forEach((grip, gi) => {
+      // Get data-idx from the parent row
+      const row = grip.closest(".ex-row-v2[data-idx]");
+      if (!row) return;
+      const idx = parseInt(row.getAttribute("data-idx"), 10);
+      grip.addEventListener("touchstart", (e) => {
+        this._exDragStart(e, idx);
+      }, { passive: false });
+    });
   },
 
   _setDraftEdit(state) {
@@ -761,24 +779,9 @@ const UI = {
         <div class="sess-dots-row" id="sess-dots-row"></div>
       </div>
 
-      <!-- ② Focused logging zone -->
+      <!-- ② Focused logging zone — just the big numbers, nothing else -->
       <div class="sess-focus" id="sess-focus">
-        <!-- Set identity -->
-        <div class="sf-set-id" id="sf-set-id">
-          <span class="sf-set-label" id="sf-set-label">WORKING SET</span>
-          <div>
-            <span class="sf-set-num" id="sf-set-num">1</span>
-            <span class="sf-set-of" id="sf-set-of">of 4</span>
-          </div>
-        </div>
-        <!-- Target chip -->
-        <div class="sf-target-row" id="sf-target-row">
-          <span class="sf-target-chip" id="sf-target-chip">
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="6" cy="6" r="5"/><circle cx="6" cy="6" r="2"/></svg>
-            <span id="sf-target-text">— reps × — lbs</span>
-          </span>
-        </div>
-        <!-- Big reps × weight steppers -->
+        <!-- Big reps × weight steppers fill all available space -->
         <div class="sf-big-row">
           <div class="sf-field">
             <div class="sf-field-label">REPS</div>
@@ -1675,7 +1678,7 @@ const UI = {
           </div>`;
 
       return `<div class="ex-row-v2 editing drawer-row${curCls}${finisherCls}" data-didx="${i}">
-          <div class="ex-grip" ontouchstart="UI._drwDragStart(event,${i})">
+          <div class="ex-grip" data-dragidx="${i}">
             <span></span><span></span><span></span>
           </div>
           <div class="ex-row-main">
@@ -1690,6 +1693,16 @@ const UI = {
     }).join("");
 
     el.innerHTML = editBar + rows;
+
+    // Attach drag listeners imperatively for drawer grips
+    if (editing) {
+      el.querySelectorAll(".ex-grip[data-dragidx]").forEach(grip => {
+        const idx = parseInt(grip.getAttribute("data-dragidx"), 10);
+        grip.addEventListener("touchstart", (e) => {
+          this._drwDragStart(e, idx);
+        }, { passive: false });
+      });
+    }
 
     // Update day name
     const dn = document.getElementById("drawer-day-name");
