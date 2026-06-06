@@ -169,42 +169,39 @@ input[type=number] { -moz-appearance:textfield; }
 
 /* ── SESSION HEADER (pinned) ── */
 .sess-header { flex-shrink:0; background:var(--bg); padding:calc(var(--safe-top) + 4px) 12px 0; }
-.sess-hdr-row { display:grid; grid-template-columns:44px 1fr 44px; align-items:center; gap:8px; padding-bottom:8px; border-bottom:1px solid var(--border); }
+.sess-hdr-row { display:grid; grid-template-columns:44px 1fr 44px; align-items:center; gap:8px; padding-bottom:6px; border-bottom:1px solid var(--border); }
 .sess-icon-btn { width:44px; height:36px; background:transparent; border:none; color:var(--muted); padding:0; cursor:pointer; display:flex; align-items:center; justify-content:flex-start; -webkit-tap-highlight-color:transparent; transition:color 0.1s; }
 .sess-icon-btn.sess-icon-end { justify-content:flex-end; }
 .sess-icon-btn:active { color:var(--text); }
-.sess-ex-name { font-family:'Barlow Condensed',sans-serif; font-size:20px; font-weight:900; text-transform:uppercase; color:var(--text); line-height:1; background:transparent; border:none; padding:0; cursor:pointer; text-align:center; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; -webkit-tap-highlight-color:transparent; letter-spacing:0.3px; }
+.sess-ex-name { font-family:'Barlow Condensed',sans-serif; font-size:18px; font-weight:900; text-transform:uppercase; color:var(--text); line-height:1; background:transparent; border:none; padding:0; cursor:pointer; text-align:center; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; -webkit-tap-highlight-color:transparent; letter-spacing:0.3px; }
 
-/* Set counter + dots row */
-.sess-dots-row { display:flex; align-items:center; justify-content:center; gap:6px; padding:8px 0 6px; min-height:26px; }
+/* Compact set-progress row — dots + set counter + target all in one line */
+.sess-dots-row { display:flex; align-items:center; justify-content:center; gap:5px; padding:5px 0 5px; min-height:22px; flex-wrap:wrap; }
 .sdot { display:inline-block; border-radius:50%; flex-shrink:0; transition:all 0.2s; }
 .sdot-done { width:8px; height:8px; background:var(--yellow); }
 .sdot-next { width:10px; height:10px; background:transparent; border:2px solid var(--yellow); }
 .sdot-up   { width:7px; height:7px; background:transparent; border:1.5px solid var(--border2); }
 .sdot-warm { width:5px; height:5px; background:var(--muted); }
-.sess-set-label { font-family:'Barlow Condensed',sans-serif; font-size:13px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:var(--muted); margin-left:4px; }
+.sess-set-label { font-family:'Barlow Condensed',sans-serif; font-size:12px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:var(--muted); margin-left:2px; }
+/* Inline target — compact, in dots row */
+.sess-target-inline { font-family:'Barlow Condensed',sans-serif; font-size:11px; font-weight:700; letter-spacing:1px; color:var(--green); background:rgba(61,255,160,.08); border:1px solid rgba(61,255,160,.2); border-radius:10px; padding:2px 8px; margin-left:4px; white-space:nowrap; flex-shrink:0; }
+.sess-set-type-badge { font-family:'Barlow Condensed',sans-serif; font-size:10px; font-weight:700; letter-spacing:2px; text-transform:uppercase; color:var(--muted); margin-left:4px; }
 
 /* ── LOGGING STATE — focus zone ── */
-.sess-focus { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+.sess-focus { flex:1; display:flex; flex-direction:column; overflow:hidden; min-height:0; }
 
-/* Set identity: "WORKING SET / Set 2 of 4" */
-.sf-set-id { text-align:center; padding:14px 20px 4px; flex-shrink:0; }
-.sf-set-label { font-family:'Barlow Condensed',sans-serif; font-size:11px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:var(--muted); }
-.sf-set-num { font-family:'Barlow Condensed',sans-serif; font-size:76px; font-weight:900; color:var(--text); line-height:0.9; letter-spacing:-3px; display:block; }
-.sf-set-of { font-family:'Barlow Condensed',sans-serif; font-size:22px; font-weight:400; color:var(--sub); margin-left:6px; letter-spacing:0; vertical-align:middle; }
+/* Set identity — hidden; info now lives in the header dots row */
+.sf-set-id { display:none; }
+.sf-target-row { display:none; }
 
-/* Target chip */
-.sf-target-chip { display:inline-flex; align-items:center; gap:6px; background:rgba(61,255,160,.08); border:1px solid rgba(61,255,160,.25); border-radius:20px; padding:5px 14px; font-family:'Barlow Condensed',sans-serif; font-size:14px; font-weight:700; color:var(--green); letter-spacing:0.5px; cursor:default; }
-.sf-target-row { text-align:center; padding:6px 20px 12px; flex-shrink:0; }
-
-/* Steppers area — MASSIVE */
-.sf-big-row { display:flex; align-items:center; justify-content:center; gap:6px; flex:1; padding:0 14px; max-height:220px; }
-.sf-x { font-family:'Barlow Condensed',sans-serif; font-size:28px; font-weight:300; color:var(--border2); flex-shrink:0; align-self:center; margin-bottom:28px; }
+/* Big reps × weight — full height */
+.sf-big-row { display:flex; align-items:center; justify-content:center; gap:6px; flex:1; padding:8px 12px 0; }
+.sf-x { font-family:'Barlow Condensed',sans-serif; font-size:24px; font-weight:300; color:var(--border2); flex-shrink:0; align-self:center; padding-bottom:52px; }
 .sf-field { display:flex; flex-direction:column; align-items:center; gap:0; flex:1; }
-.sf-field-label { font-family:'Barlow Condensed',sans-serif; font-size:10px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:var(--muted); margin-bottom:4px; }
-.sf-big-num { font-family:'Barlow Condensed',sans-serif; font-size:88px; font-weight:900; color:var(--text); line-height:1; letter-spacing:-3px; text-align:center; min-width:80px; transition:color 0.15s; }
-.sf-steppers { display:flex; gap:8px; width:100%; margin-top:8px; }
-.sf-step-btn { flex:1; height:60px; background:var(--card); border:1.5px solid var(--border2); border-radius:10px; color:var(--sub); font-size:32px; font-weight:300; cursor:pointer; display:flex; align-items:center; justify-content:center; -webkit-tap-highlight-color:transparent; transition:background 0.08s, color 0.08s, transform 0.08s; user-select:none; }
+.sf-field-label { font-family:'Barlow Condensed',sans-serif; font-size:10px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:var(--muted); margin-bottom:2px; }
+.sf-big-num { font-family:'Barlow Condensed',sans-serif; font-size:clamp(72px, 18vw, 100px); font-weight:900; color:var(--text); line-height:1; letter-spacing:-3px; text-align:center; min-width:72px; transition:color 0.15s; }
+.sf-steppers { display:flex; gap:8px; width:100%; margin-top:10px; }
+.sf-step-btn { flex:1; height:72px; background:var(--card); border:1.5px solid var(--border2); border-radius:10px; color:var(--sub); font-size:36px; font-weight:300; cursor:pointer; display:flex; align-items:center; justify-content:center; -webkit-tap-highlight-color:transparent; transition:background 0.08s, color 0.08s, transform 0.08s; user-select:none; }
 .sf-step-btn:active { background:var(--lift); color:var(--yellow); transform:scale(0.95); }
 
 /* Skip + Log row */
@@ -906,7 +903,7 @@ input[type=number] { -moz-appearance:textfield; }
 
 /* Session cards */
 .histv2-card { background:var(--card); border:1px solid var(--border); border-radius:12px; margin-bottom:8px; overflow:hidden; }
-.histv2-card-head { display:grid; grid-template-columns:1fr auto; align-items:center; padding:14px 14px 0; gap:12px; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+.histv2-card-head { display:grid; grid-template-columns:1fr auto; align-items:center; padding:12px 14px; gap:12px; cursor:pointer; -webkit-tap-highlight-color:transparent; }
 .histv2-card-l { min-width:0; }
 .histv2-day-top { display:flex; align-items:baseline; gap:8px; font-family:'Barlow Condensed',sans-serif; margin-bottom:3px; }
 .histv2-day-date { font-size:11px; font-weight:700; letter-spacing:2px; text-transform:uppercase; color:var(--yellow); }
