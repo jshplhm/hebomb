@@ -13,7 +13,41 @@ const UI = {
     this._swappingEi   = undefined;
     this._bwRange      = 30;
     this._statsTab     = "body";
+
+    // Kick off all background fetches in parallel — don't await, let render proceed.
+    // Each handler updates App.state and triggers a targeted re-render only if the
+    // user is still on the relevant view (no stomping).
+    this._prefetchAll();
+
     this.render();
+  },
+
+  _prefetchAll() {
+    // History → enables hero card on picker, fuels Stats lifts/recomp + History tab
+    if (!App.state.history) {
+      App.fetchHistory().then(({sessions}) => {
+        App.state.history = sessions;
+        // Re-render picker only if user is still there
+        if ((App.state.view || "picker") === "picker") {
+          this.root.innerHTML = "";
+          document.getElementById("bottom-nav")?.remove();
+          this.renderPicker();
+          this._nav();
+        }
+      }).catch(()=>{});
+    }
+    // Body weight log → instant Body tab when user navigates to Stats.
+    // Merge server response with localStorage shadow so recent saves survive
+    // hard refresh even if the backend retrieve range misses the latest rows.
+    if (!App.state.bwLog) {
+      App.getBodyweightLog()
+        .then(log => { App.state.bwLog = this._bwMergeWithShadow(log); })
+        .catch(() => { App.state.bwLog = this._bwMergeWithShadow([]); });
+    }
+    // Stats roll-up → instant Lifts/Recomp tabs
+    if (!App.state.stats) {
+      App.fetchStats().then(stats => { App.state.stats = stats; }).catch(()=>{});
+    }
   },
 
   render() {
@@ -62,21 +96,8 @@ const UI = {
     const greeting = hour < 12 ? "Morning" : hour < 17 ? "Afternoon" : "Evening";
     this._renderPickerInto(wrap, cw, wd, pid, greeting);
     this.root.appendChild(wrap);
-    // Fetch history in background to get last-done dates, then re-render.
-    // Guard: only re-render if the user is still on the picker — not if they've
-    // already tapped into a preview or started a session.
-    if (!App.state.history) {
-      App.fetchHistory().then(({sessions}) => {
-        App.state.history = sessions;
-        if ((App.state.view || "picker") !== "picker") return;
-        this.root.innerHTML = "";
-        document.getElementById("bottom-nav")?.remove();
-        const w2 = this.el("div","picker-page");
-        this._renderPickerInto(w2, cw, wd, pid, greeting);
-        this.root.appendChild(w2);
-        this._nav();
-      }).catch(()=>{});
-    }
+    // History fetch is kicked off in init() via _prefetchAll, which calls
+    // back to re-render the picker once data lands. No need to duplicate here.
   },
 
   _renderPickerInto(wrap, cw, wd, pid, greeting) {
@@ -784,20 +805,22 @@ const UI = {
     wrap.id = "session-wrap";
 
     wrap.innerHTML = `
-      <!-- ① Pinned header: PROGRAM icon | EXERCISE NAME (true center) | END icon -->
+      <!-- ① Compact header: PROGRAM | EXERCISE NAME · dots · target | END -->
       <div class="sess-header" id="sess-header">
         <div class="sess-hdr-row">
           <button class="sess-icon-btn" id="sess-prog-btn" onclick="UI._toggleDrawer()" aria-label="Program">
             <svg width="20" height="16" viewBox="0 0 20 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="0" y1="2" x2="20" y2="2"/><line x1="0" y1="8" x2="14" y2="8"/><line x1="0" y1="14" x2="9" y2="14"/></svg>
           </button>
-          <button class="sess-ex-name" id="sess-ex-name"
-            ontouchstart="UI._lpStart(event)" ontouchend="UI._lpEnd()" ontouchmove="UI._lpEnd()"
-            oncontextmenu="event.preventDefault();UI._showExMenu()">—</button>
+          <div class="sess-hdr-center">
+            <button class="sess-ex-name" id="sess-ex-name"
+              ontouchstart="UI._lpStart(event)" ontouchend="UI._lpEnd()" ontouchmove="UI._lpEnd()"
+              oncontextmenu="event.preventDefault();UI._showExMenu()">—</button>
+            <div class="sess-dots-row" id="sess-dots-row"></div>
+          </div>
           <button class="sess-icon-btn sess-icon-end" onclick="UI._confirmEnd()" aria-label="End workout">
             <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="12" height="12" rx="1.5"/></svg>
           </button>
         </div>
-        <div class="sess-dots-row" id="sess-dots-row"></div>
       </div>
 
       <!-- ② Focused logging zone — set context list for current exercise -->
@@ -808,27 +831,27 @@ const UI = {
       <!-- Exercise queue scroll strip -->
       <div class="sess-queue" id="sess-queue"></div>
 
-      <!-- ③ Skip + LOG SET -->
+      <!-- Thin rest progress bar — only visible during rest, above action row -->
+      <div id="rest-progress-bar"><div id="rest-progress-fill"></div></div>
+
+      <!-- ③ Action row: SKIP + LOG. During rest, the SKIP becomes the rest pill. -->
       <div class="sf-action-row" id="sf-action-row">
-        <button class="sf-skip-btn" onclick="UI._skipCurrentSet()">SKIP</button>
+        <button class="sf-skip-btn" id="sf-skip-btn" onclick="UI._skipCurrentSet()">SKIP</button>
+        <div class="sf-rest-pill" id="sf-rest-pill" style="display:none">
+          <div class="sf-rest-time-block">
+            <span class="sf-rest-label" id="rest-banner-label">REST</span>
+            <span class="sf-rest-time" id="rest-banner-time">1:30</span>
+          </div>
+          <div class="sf-rest-adj">
+            <button onclick="UI._adjRest(-30)">−30s</button>
+            <button onclick="UI._adjRest(30)">+30s</button>
+            <button class="sf-rest-skip" onclick="UI._skipRest()">SKIP</button>
+          </div>
+        </div>
         <button class="sf-log-btn" id="sess-save-btn" onclick="UI._tapCurrentSetDone()">
           <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l5 5 7-8"/></svg>
           LOG SET
         </button>
-      </div>
-
-      <!-- Inline rest banner — slides in below header, doesn't cover the set list -->
-      <div id="rest-banner">
-        <div class="rest-banner-bar"><div class="rest-banner-fill" id="rest-banner-fill"></div></div>
-        <div class="rest-banner-inner">
-          <span class="rest-banner-label" id="rest-banner-label">REST</span>
-          <span class="rest-banner-time" id="rest-banner-time">1:30</span>
-          <div class="rest-banner-actions">
-            <button class="rest-banner-adj" onclick="UI._adjRest(-30)">−30s</button>
-            <button class="rest-banner-adj" onclick="UI._adjRest(30)">+30s</button>
-            <button class="rest-banner-skip" onclick="UI._skipRest()">SKIP</button>
-          </div>
-        </div>
       </div>
 
       <!-- ⑤ Program drawer (slides down from top) -->
@@ -882,9 +905,45 @@ const UI = {
 
     // ── All sets done ─────────────────────────────────────────────────────
     if (si < 0) {
-      listEl.innerHTML = `<div class="sf-all-done">
-        <div class="sf-done-check">✓</div>
-        <div class="sf-done-label">All sets done</div>
+      // Compact summary of what was actually done — warmups separated, working sets prominent
+      const wDone = ex.sets.filter(s => !s.isWarmup && !s.excluded && s.logged);
+      const warmDone = ex.sets.filter(s => s.isWarmup && !s.excluded && s.logged);
+      const totalVol = wDone.reduce((sum, s) =>
+        sum + (parseInt(s.reps)||0) * (parseFloat(s.weight)||0), 0);
+      const isPR = wDone.some(s => {
+        const cur = parseFloat(s.weight)||0;
+        const prev = parseFloat(s.prev?.weight)||0;
+        return prev > 0 && cur > prev;
+      });
+
+      const rows = [];
+      if (warmDone.length) {
+        rows.push(`<div class="sf-done-row sf-done-row-warm">
+          <span class="sf-done-w">W</span>
+          <span class="sf-done-data">${warmDone.length} warm-up${warmDone.length===1?"":"s"}</span>
+        </div>`);
+      }
+      wDone.forEach((s, i) => {
+        const cur = parseFloat(s.weight)||0;
+        const prev = parseFloat(s.prev?.weight)||0;
+        const pr = prev > 0 && cur > prev;
+        rows.push(`<div class="sf-done-row${pr?" sf-done-row-pr":""}">
+          <span class="sf-done-num">${i+1}</span>
+          <span class="sf-done-data">${s.reps}<span class="sf-done-x">×</span>${s.weight}<span class="sf-done-unit">lbs</span></span>
+          ${pr ? `<span class="sf-done-pr">PR</span>` : `<span class="sf-done-tick">✓</span>`}
+        </div>`);
+      });
+
+      listEl.innerHTML = `<div class="sf-done-wrap">
+        <div class="sf-done-list">${rows.join("")}</div>
+        <div class="sf-done-stats">
+          <span class="sf-done-stat-val">${Math.round(totalVol).toLocaleString()}</span>
+          <span class="sf-done-stat-lbl">lbs moved</span>
+        </div>
+        <div class="sf-done-hero">
+          <div class="sf-done-check${isPR?" sf-done-check-pr":""}">✓</div>
+          <div class="sf-done-label">${isPR ? "Personal best" : "All sets done"}</div>
+        </div>
       </div>`;
       if (setBtn) {
         const allDone = App.state.session.exercises.every(e=>e.sets.filter(s=>!s.excluded).every(s=>s.logged));
@@ -932,15 +991,23 @@ const UI = {
             <div class="sf-big-row">
               <div class="sf-field">
                 <span class="sf-field-label">REPS</span>
-                <span class="sf-big-num" id="sf-reps">${rVal}</span>
-                <button class="sf-step-btn" onclick="UI._focusStep('reps',-1)">−</button>
-                <button class="sf-step-btn" onclick="UI._focusStep('reps',1)">+</button>
+                <div class="sf-field-row">
+                  <span class="sf-big-num" id="sf-reps">${rVal}</span>
+                  <div class="sf-steppers">
+                    <button class="sf-step-btn" onclick="UI._focusStep('reps',-1)">−</button>
+                    <button class="sf-step-btn" onclick="UI._focusStep('reps',1)">+</button>
+                  </div>
+                </div>
               </div>
               <div class="sf-field">
                 <span class="sf-field-label">LBS</span>
-                <span class="sf-big-num" id="sf-weight">${wVal}</span>
-                <button class="sf-step-btn" onclick="UI._focusStep('weight',-1)">−</button>
-                <button class="sf-step-btn" onclick="UI._focusStep('weight',1)">+</button>
+                <div class="sf-field-row">
+                  <span class="sf-big-num" id="sf-weight">${wVal}</span>
+                  <div class="sf-steppers">
+                    <button class="sf-step-btn" onclick="UI._focusStep('weight',-1)">−</button>
+                    <button class="sf-step-btn" onclick="UI._focusStep('weight',1)">+</button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -1315,6 +1382,16 @@ const UI = {
     }
   },
 
+  _flashSaved() {
+    const row = document.getElementById("sf-action-row");
+    if (!row) return;
+    row.classList.remove("flash-saved");
+    // Force reflow to restart animation
+    void row.offsetWidth;
+    row.classList.add("flash-saved");
+    setTimeout(()=>row.classList.remove("flash-saved"), 700);
+  },
+
   _tapDone(ei, si) {
     const s = App.state.session?.exercises?.[ei]?.sets?.[si];
     if (!s || s.excluded) return;
@@ -1338,6 +1415,8 @@ const UI = {
     this._updateHeader();
     this._updateQueue();
     if (s.logged) {
+      // Subtle save indicator flash — pulses green check on action row briefly
+      this._flashSaved();
       const ex = App.state.session.exercises[ei];
       this._startRest(this._parseRest(ex.rest));
       const allDone = ex.sets.filter(s=>!s.excluded).every(s=>s.logged);
@@ -1487,26 +1566,32 @@ const UI = {
     this._restStarted = true;
     this._restOver    = false;
 
-    // Show the inline rest banner inside the session focus zone
-    const banner = document.getElementById("rest-banner");
-    if (banner) banner.classList.add("visible");
+    // Swap action row into rest mode: hide SKIP button, show rest pill
+    const skipBtn = document.getElementById("sf-skip-btn");
+    const pill    = document.getElementById("sf-rest-pill");
+    const progBar = document.getElementById("rest-progress-bar");
+    if (skipBtn) skipBtn.style.display = "none";
+    if (pill)    pill.style.display = "flex";
+    if (progBar) progBar.classList.add("active");
 
     const tick = () => {
       const raw  = (this._restTarget - Date.now()) / 1000;
       const rem  = Math.ceil(raw);
       const timeEl = document.getElementById("rest-banner-time");
       const labelEl = document.getElementById("rest-banner-label");
-      const fillEl = document.getElementById("rest-banner-fill");
-      const banner = document.getElementById("rest-banner");
+      const fillEl = document.getElementById("rest-progress-fill");
+      const pillEl = document.getElementById("sf-rest-pill");
 
-      if (!timeEl || !banner) return;
+      if (!timeEl) return;
 
       if (rem > 0) {
         const pct = Math.max(0, Math.min(1, raw / this._restTotal));
         timeEl.textContent = this._fmtTime(rem);
         if (labelEl) labelEl.textContent = "REST";
         if (fillEl) fillEl.style.width = `${pct * 100}%`;
-        banner.classList.remove("overtime");
+        if (pillEl) pillEl.classList.remove("overtime");
+        const pb = document.getElementById("rest-progress-bar");
+        if (pb) pb.classList.remove("overtime");
       } else {
         if (!this._restOver) {
           this._restOver = true;
@@ -1514,9 +1599,11 @@ const UI = {
         }
         const over = Math.abs(Math.floor(raw));
         timeEl.textContent = `+${this._fmtTime(over)}`;
-        if (labelEl) labelEl.textContent = "OVERTIME";
+        if (labelEl) labelEl.textContent = "OVER";
         if (fillEl) fillEl.style.width = "100%";
-        banner.classList.add("overtime");
+        if (pillEl) pillEl.classList.add("overtime");
+        const pb = document.getElementById("rest-progress-bar");
+        if (pb) pb.classList.add("overtime");
       }
     };
     tick();
@@ -1527,8 +1614,12 @@ const UI = {
     if (this._restTimer) { clearInterval(this._restTimer); this._restTimer = null; }
     this._restStarted = false;
     this._restOver    = false;
-    const banner = document.getElementById("rest-banner");
-    if (banner) { banner.classList.remove("visible"); banner.classList.remove("overtime"); }
+    const skipBtn = document.getElementById("sf-skip-btn");
+    const pill    = document.getElementById("sf-rest-pill");
+    const progBar = document.getElementById("rest-progress-bar");
+    if (skipBtn) skipBtn.style.display = "";
+    if (pill)    { pill.style.display = "none"; pill.classList.remove("overtime"); }
+    if (progBar) { progBar.classList.remove("active"); progBar.classList.remove("overtime"); }
   },
 
   _adjRest(d) {
@@ -2465,7 +2556,7 @@ const UI = {
   },
 
   // ── STATS ─────────────────────────────────────────────────────────────────
-  async renderStats() {
+  renderStats() {
     const wrap = this.el("div","page stats-page");
     wrap.innerHTML = `
       <div class="statsv2-top">
@@ -2484,7 +2575,7 @@ const UI = {
       </div>
       <div id="stats-content"><div class="loading-text">Loading…</div></div>`;
     this.root.appendChild(wrap);
-    if (!App.state.stats) App.state.stats = await App.fetchStats();
+    // Render the active tab immediately — each tab handles its own data dependency
     this._renderStatsTab();
   },
 
@@ -2497,23 +2588,52 @@ const UI = {
   _renderStatsTab() {
     const el = document.getElementById("stats-content");
     if (!el) return;
-    const stats = App.state.stats;
     const tab = this._statsTab;
-    if (tab==="body")  { this._bodyTab().then(h=>{if(el)el.innerHTML=h;}); return; }
-    if (tab==="lifts") el.innerHTML = this._liftsTab(stats);
-    if (tab==="recomp")el.innerHTML = this._recompTab(stats);
-    if (tab==="coach") el.innerHTML = this._coachTab(stats);
+    // Body tab needs bwLog only — render immediately if cached, otherwise show loading + fetch
+    if (tab==="body") { this._bodyTab().then(h=>{if(el && this._statsTab==="body") el.innerHTML=h;}); return; }
+    // Lifts/Recomp/Coach need full stats — render now if cached, otherwise fetch
+    if (App.state.stats) {
+      if (tab==="lifts") el.innerHTML = this._liftsTab(App.state.stats);
+      if (tab==="recomp")el.innerHTML = this._recompTab(App.state.stats);
+      if (tab==="coach") el.innerHTML = this._coachTab(App.state.stats);
+      return;
+    }
+    App.fetchStats().then(stats => {
+      App.state.stats = stats;
+      if (!el || this._statsTab !== tab) return;
+      if (tab==="lifts") el.innerHTML = this._liftsTab(stats);
+      if (tab==="recomp")el.innerHTML = this._recompTab(stats);
+      if (tab==="coach") el.innerHTML = this._coachTab(stats);
+    }).catch(()=>{});
   },
 
   async _bodyTab() {
     let raw = App.state.bwLog;
-    if (!raw) { raw = await App.getBodyweightLog(); App.state.bwLog = raw; }
+    if (!raw) {
+      try {
+        const server = await App.getBodyweightLog();
+        raw = this._bwMergeWithShadow(server);
+      } catch {
+        raw = this._bwMergeWithShadow([]);
+      }
+      App.state.bwLog = raw;
+    }
 
-    // Normalise and sort entries by date ascending (oldest first) regardless of API order.
-    // e.date should always be YYYY-MM-DD from the input picker.
-    const entries = (raw || [])
-      .map(e => ({ ...e, _ymd: String(e.date).slice(0,10) }))
-      .filter(e => /^\d{4}-\d{2}-\d{2}$/.test(e._ymd))
+    // Normalise. Server log may contain duplicate rows for the same date (append-only).
+    // Dedupe by YMD: prefer the entry with the latest `logged_at` if present; otherwise
+    // the entry that appears later in the array (presumed newer).
+    const byDate = new Map();
+    (raw || []).forEach((e, i) => {
+      const ymd = String(e.date).slice(0,10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return;
+      const prior = byDate.get(ymd);
+      const curStamp = e.logged_at ? new Date(e.logged_at).getTime() : i;
+      const priorStamp = prior ? (prior.logged_at ? new Date(prior.logged_at).getTime() : prior._idx) : -Infinity;
+      if (!prior || curStamp >= priorStamp) {
+        byDate.set(ymd, { ...e, _ymd: ymd, _idx: i });
+      }
+    });
+    const entries = Array.from(byDate.values())
       .sort((a,b) => a._ymd < b._ymd ? -1 : a._ymd > b._ymd ? 1 : 0);
 
     const gl=CONFIG.GOAL_LB_LOW, gh=CONFIG.GOAL_LB_HIGH;
@@ -2652,6 +2772,36 @@ const UI = {
     return `${dow} · ${mon} ${day}`;
   },
 
+  // localStorage shadow: keeps recent saves alive even if the backend retrieve
+  // returns a stale dataset (server-side read range limitation).
+  _bwShadowKey: "bw_shadow_v1",
+  _bwShadowMaxAge: 90 * 86400 * 1000, // 90 days
+  _bwShadowGet() {
+    try {
+      const raw = localStorage.getItem(this._bwShadowKey);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      const cutoff = Date.now() - this._bwShadowMaxAge;
+      return parsed.filter(e => new Date(e.date+"T12:00:00").getTime() >= cutoff);
+    } catch { return []; }
+  },
+  _bwShadowAdd(date, w) {
+    const list = this._bwShadowGet().filter(e => e.date !== date);
+    list.push({ date, w, ts: Date.now() });
+    try { localStorage.setItem(this._bwShadowKey, JSON.stringify(list)); } catch {}
+  },
+  // Merge server log + local shadow. Server wins for dates present in both.
+  _bwMergeWithShadow(serverLog) {
+    const merged = new Map();
+    this._bwShadowGet().forEach(e => merged.set(e.date, { date: e.date, w: e.w, logged_at: new Date(e.ts).toISOString(), _shadow: true }));
+    (serverLog || []).forEach(e => {
+      const ymd = String(e.date).slice(0,10);
+      // Server entries override shadow for the same date
+      merged.set(ymd, { ...e, date: ymd });
+    });
+    return Array.from(merged.values());
+  },
+
   async _saveBW() {
     const w = parseFloat(document.getElementById("bw-in")?.value);
     const d = document.getElementById("bw-date")?.value;
@@ -2666,6 +2816,10 @@ const UI = {
     else log.push({ date: d, w });
     App.state.bwLog = log;
 
+    // Mirror to localStorage so the entry survives a hard refresh, even if the
+    // backend retrieve range doesn't return the latest rows.
+    this._bwShadowAdd(d, w);
+
     // Re-render Body tab right away so the row shows
     this._setTab("body");
     this._toast("Saved ✓");
@@ -2674,10 +2828,10 @@ const UI = {
     try {
       await App.logBodyweight(d, w);
     } catch (e) {
-      // If persist fails, roll back the optimistic entry and tell the user
-      App.state.bwLog = null;
-      this._toast("Save failed — try again");
-      this._setTab("body");
+      // Network failed entirely — surface to user. The shadow entry stays in
+      // localStorage so the value isn't lost across a refresh, and the next
+      // successful save will sync.
+      this._toast("Save failed — kept locally");
     }
   },
 
@@ -2706,19 +2860,30 @@ const UI = {
     const sl=(n*sxy-sx*sy)/(n*sx2-sx*sx||1),ic=(sy-sl*sx)/n;
     const ty0=H-((ic-mn)/rng)*H,ty1=H-(((sl*(n-1)+ic)-mn)/rng)*H;
     const tr=sl<-0.05?"↓ trending down":sl>0.05?"↑ trending up":"→ steady";
-    const gBot=H-((gh-mn)/rng)*H,gH=Math.max(0,((gh-gl)/rng)*H);
+    const gTop=H-((gh-mn)/rng)*H, gBotPx=H-((gl-mn)/rng)*H, gH=Math.max(0, gBotPx-gTop);
+    const latest = data[data.length-1]?.w;
+    const status = latest >= gl && latest <= gh ? "in goal" :
+                   latest > gh ? `${(latest-gh).toFixed(1)} above` :
+                   `${(gl-latest).toFixed(1)} below`;
+    const statusCls = latest >= gl && latest <= gh ? "in" :
+                      latest > gh ? "above" : "below";
     return `<div class="chart-block" style="padding:14px">
       <div class="chart-title-row"><span class="chart-title">${data.length} entries</span><span class="chart-trend">${tr}</span></div>
       <div class="svg-chart-wrap">
         <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="svg-chart">
-          <rect x="0" y="${gBot}" width="${W}" height="${gH}" fill="rgba(61,255,160,.08)"/>
+          <rect x="0" y="${gTop}" width="${W}" height="${gH}" fill="rgba(61,255,160,.14)"/>
+          <line x1="0" y1="${gTop}" x2="${W}" y2="${gTop}" stroke="rgba(61,255,160,.55)" stroke-width="0.8" stroke-dasharray="3 3"/>
+          <line x1="0" y1="${gBotPx}" x2="${W}" y2="${gBotPx}" stroke="rgba(61,255,160,.55)" stroke-width="0.8" stroke-dasharray="3 3"/>
           <line x1="0" y1="${ty0}" x2="${W}" y2="${ty1}" stroke="#5ba4ff" stroke-width="1" stroke-dasharray="4 3" opacity="0.5"/>
           <polyline points="${pts}" fill="none" stroke="#e8ff47" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
           ${data.length<=20?data.map((e,i)=>`<circle cx="${(i/(data.length-1))*W}" cy="${H-((e.w-mn)/rng)*H}" r="2.5" fill="#e8ff47"/>`).join(""):""}
         </svg>
         <div class="svg-y-labels"><span>${mx.toFixed(0)}</span><span>${((mx+mn)/2).toFixed(0)}</span><span>${mn.toFixed(0)}</span></div>
       </div>
-      <div class="chart-goal-label"><span class="goal-band-dot"></span> Goal ${gl}–${gh} lbs</div>
+      <div class="chart-goal-label">
+        <span class="goal-band-dot"></span> Goal ${gl}–${gh} lbs
+        <span class="goal-status goal-status-${statusCls}">${status}</span>
+      </div>
     </div>`;
   },
 
