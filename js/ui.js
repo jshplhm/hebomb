@@ -2211,9 +2211,17 @@ const UI = {
     let durationStr = null;
     if (startTime) {
       const sec = Math.round((Date.now() - startTime) / 1000);
-      const m = Math.floor(sec / 60);
-      const s = sec % 60;
-      durationStr = `${m}:${String(s).padStart(2,"0")} elapsed`;
+      if (sec < 60) {
+        durationStr = `${sec}s`;
+      } else {
+        const m = Math.floor(sec / 60);
+        const h = Math.floor(m / 60);
+        if (h >= 1) {
+          durationStr = `${h}h ${m - h*60}m`;
+        } else {
+          durationStr = `${m} min`;
+        }
+      }
     }
     const timeStr = new Date().toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"});
 
@@ -2264,11 +2272,13 @@ const UI = {
     const quote = quotes[Math.floor(Math.random() * quotes.length)];
 
     // Compare rows
+    const allNew = summary.compare.length > 0 && summary.compare.every(c => !c.prev);
+    const compareHeading = allNew ? "Baselines locked" : "Vs. last session";
     const compareHTML = summary.compare.length ? `
       <div class="finv2-compare">
         <div class="finv2-compare-head">
-          <span>Vs. last session</span>
-          ${summary.lastSessionAgo ? `<span>${summary.lastSessionAgo}</span>` : ""}
+          <span>${compareHeading}</span>
+          ${(!allNew && summary.lastSessionAgo) ? `<span>${summary.lastSessionAgo}</span>` : ""}
         </div>
         ${summary.compare.map(c => `
           <div class="finv2-compare-row">
@@ -2298,36 +2308,41 @@ const UI = {
       <canvas id="confetti-canvas"></canvas>
       <div class="finv2-bg-dots"></div>
       <div class="finv2-inner">
-        <div class="finv2-eyebrow">Workout complete</div>
-        <div class="finv2-day-name">${dayTitle}</div>
-        <div class="finv2-meta-line">
-          ${summary.durationStr ? `<span>${summary.durationStr}</span><span class="finv2-pip">·</span>` : ""}
-          <span>${summary.timeStr}</span>
-        </div>
-
-        <div class="finv2-headline finv2-headline-${summary.headline.kind}">
-          <span class="finv2-headline-lbl">${summary.headline.label}</span>
-          <div class="finv2-headline-main">${summary.headline.main}</div>
-          <div class="finv2-headline-sub">${summary.headline.sub}</div>
-        </div>
-
-        <div class="finv2-stats">
-          <div class="finv2-stat">
-            <div class="finv2-stat-lbl">Volume moved</div>
-            <div class="finv2-stat-val">${volStr}<span class="finv2-stat-unit">lbs</span></div>
-            ${volDeltaHTML}
-          </div>
-          <div class="finv2-stat">
-            <div class="finv2-stat-lbl">Working sets</div>
-            <div class="finv2-stat-val">${summary.totalSets} <span class="finv2-stat-unit">/ ${summary.workingSetCount}</span></div>
-            ${completionDelta}
+        <div class="finv2-header">
+          <div class="finv2-eyebrow">Workout complete</div>
+          <div class="finv2-day-name">${dayTitle}</div>
+          <div class="finv2-meta-line">
+            ${summary.durationStr ? `<span>${summary.durationStr}</span><span class="finv2-pip">·</span>` : ""}
+            <span>${summary.timeStr}</span>
           </div>
         </div>
 
-        ${compareHTML}
+        <div class="finv2-scroll">
+          <div class="finv2-headline finv2-headline-${summary.headline.kind}">
+            <span class="finv2-headline-lbl">${summary.headline.label}</span>
+            <div class="finv2-headline-main">${summary.headline.main}</div>
+            <div class="finv2-headline-sub">${summary.headline.sub}</div>
+          </div>
 
-        <div class="finv2-bottom">
+          <div class="finv2-stats">
+            <div class="finv2-stat">
+              <div class="finv2-stat-lbl">Volume moved</div>
+              <div class="finv2-stat-val">${volStr}<span class="finv2-stat-unit">lbs</span></div>
+              ${volDeltaHTML}
+            </div>
+            <div class="finv2-stat">
+              <div class="finv2-stat-lbl">Working sets</div>
+              <div class="finv2-stat-val">${summary.totalSets} <span class="finv2-stat-unit">/ ${summary.workingSetCount}</span></div>
+              ${completionDelta}
+            </div>
+          </div>
+
+          ${compareHTML}
+
           <div class="finv2-quote">${quote}</div>
+        </div>
+
+        <div class="finv2-footer">
           <div class="finv2-actions">
             <button class="finv2-share" onclick="UI._shareFinish()" aria-label="Share">
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4l-3-3-3 3M7 1v8M2 9v3a1 1 0 001 1h8a1 1 0 001-1V9"/></svg>
@@ -2829,24 +2844,28 @@ const UI = {
       if (d >= month30) {
         (s.exercises||[]).forEach(ex => {
           (ex.sets||[]).forEach(st => {
-            if (st.isWarmup || !st.logged) return;
+            // Skip warmups; count a set if it has reps OR weight, regardless of
+            // whether the `logged` flag is set (older saved sets don't carry it).
+            if (st.isWarmup) return;
+            const reps = parseInt(st.reps)||0;
+            const wt   = parseFloat(st.weight)||0;
+            if (reps === 0 && wt === 0) return;
             month30Sets++;
-            month30Vol += (parseInt(st.reps)||0) * (parseFloat(st.weight)||0);
+            month30Vol += reps * wt;
             const prevW = parseFloat(st.prev?.weight||0);
-            if (parseFloat(st.weight||0) > prevW && prevW > 0) month30PRs++;
+            if (wt > prevW && prevW > 0) month30PRs++;
           });
         });
       }
     });
-    const volStr = month30Vol >= 1000
-      ? `${(month30Vol/1000).toFixed(1)}k`
-      : String(Math.round(month30Vol));
+    // Always show the full number with commas — "18.5k" loses the satisfying detail
+    const volStr = Math.round(month30Vol).toLocaleString();
     const summaryEl = document.getElementById("hist-summary-strip");
     if (summaryEl) {
       summaryEl.innerHTML = `
         <div class="histv2-sum"><div class="histv2-sum-lbl">This wk</div><div class="histv2-sum-val">${weekCount}</div></div>
         <div class="histv2-sum"><div class="histv2-sum-lbl">30d sets</div><div class="histv2-sum-val">${month30Sets}</div></div>
-        <div class="histv2-sum"><div class="histv2-sum-lbl">30d vol</div><div class="histv2-sum-val yellow">${volStr}</div></div>
+        <div class="histv2-sum histv2-sum-wide"><div class="histv2-sum-lbl">30d vol</div><div class="histv2-sum-val yellow">${volStr}<span class="histv2-sum-unit">lbs</span></div></div>
         <div class="histv2-sum"><div class="histv2-sum-lbl">PRs</div><div class="histv2-sum-val green">${month30PRs}</div></div>
       `;
     }
@@ -2877,17 +2896,20 @@ const UI = {
     // Build HTML
     const html = groups.map(g => {
       const sessionCards = g.sessions.map(({ s, idx }) => {
-        // Volume + set count
+        // Volume + set count — count any non-warmup set with reps or weight,
+        // regardless of whether `logged` flag is set (older saved sets lack it)
         let vol = 0, sets = 0;
         (s.exercises||[]).forEach(ex => {
           (ex.sets||[]).forEach(st => {
-            if (!st.isWarmup && st.logged !== false) {
-              sets++;
-              vol += (parseInt(st.reps)||0) * (parseFloat(st.weight)||0);
-            }
+            if (st.isWarmup) return;
+            const reps = parseInt(st.reps)||0;
+            const wt   = parseFloat(st.weight)||0;
+            if (reps === 0 && wt === 0) return;
+            sets++;
+            vol += reps * wt;
           });
         });
-        const volDisp = vol >= 1000 ? `${(vol/1000).toFixed(1)}k` : vol > 0 ? String(Math.round(vol)) : "—";
+        const volDisp = vol > 0 ? Math.round(vol).toLocaleString() : "—";
 
         // Date label
         const ymd = String(s.date).slice(0,10);
