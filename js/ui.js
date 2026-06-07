@@ -351,7 +351,6 @@ const UI = {
 
   _renderPreview(dayId, d, cw, pid) {
     const wrap = this.el("div","preview-v2");
-    const editing = this._draftEditing;
     const exs = this._draft.exercises;
     const lastSession = (App.state.history||[]).find(s => s.dayId === dayId);
 
@@ -382,21 +381,7 @@ const UI = {
 
       const finisherCls = ex.isFinisher ? " ex-row-finisher" : "";
 
-      // VIEW mode — clean single row, no controls
-      if (!editing) {
-        const setBadge = ex.isFinisher
-          ? `<div class="ex-row-finbadge">FINISHER</div>`
-          : `<div class="ex-row-sets-static"><span class="val">${working}</span><span class="lbl">${working===1?"set":"sets"}</span></div>`;
-        return `<div class="ex-row-v2${finisherCls}">
-          <div class="ex-row-main">
-            <div class="ex-row-name">${ex.name}</div>
-            <div class="ex-row-meta">${metaHTML}</div>
-          </div>
-          ${setBadge}
-        </div>`;
-      }
-
-      // EDIT mode — grip handle, set chip with ±, always-visible inline delete
+      // Single editable row — grip + name/meta + set chip + subtle delete
       const setChip = ex.isFinisher
         ? `<div class="ex-row-finbadge">FINISHER</div>`
         : `<div class="set-chip" role="group" aria-label="Set count">
@@ -414,13 +399,11 @@ const UI = {
             <div class="ex-row-meta">${metaHTML}</div>
           </div>
           ${setChip}
-          <button class="ex-row-trash" onclick="UI._draftRemove(${i})" aria-label="Delete">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M2 3.5h10M5 3.5V2.2c0-.7.5-1.2 1.2-1.2h1.6c.7 0 1.2.5 1.2 1.2V3.5M3.5 3.5L4 12c0 .8.7 1.5 1.5 1.5h3c.8 0 1.5-.7 1.5-1.5l.5-8.5M6 6.5v4M8 6.5v4"/></svg>
+          <button class="ex-row-trash" onclick="UI._draftRemove(${i})" aria-label="Remove">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 3l8 8M11 3l-8 8"/></svg>
           </button>
         </div>`;
     }).join("") || `<div style="color:var(--sub);font-size:14px;padding:16px 0">${d.title}</div>`;
-
-    // No hint banner — controls are self-evident
 
     wrap.innerHTML = `
       <div class="prev-header">
@@ -430,14 +413,10 @@ const UI = {
           <span class="prev-wk-chip">WK ${cw}</span>
         </div>
         <div class="prev-toolbar">
-          <div class="prev-tool-segment">
-            <button class="prev-tool-btn${!editing?" active":""}" onclick="UI._setDraftEdit(false)">View</button>
-            <button class="prev-tool-btn${editing?" active":""}" onclick="UI._setDraftEdit(true)">Edit</button>
-          </div>
-          ${editing ? `<button class="prev-tool-add" onclick="UI._draftAdd()">
+          <button class="prev-tool-add" onclick="UI._draftAdd()">
             <svg width="11" height="11" viewBox="0 0 11 11" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"><path d="M5.5 1v9M1 5.5h9"/></svg>
-            Add
-          </button>` : ""}
+            Add exercise
+          </button>
         </div>
       </div>
 
@@ -460,8 +439,8 @@ const UI = {
     this.root.appendChild(wrap);
     this._nav();
 
-    // Attach drag listeners imperatively (passive:false required for iOS PWA)
-    if (editing) this._attachDragListeners();
+    // Always attach drag listeners — single editable view
+    this._attachDragListeners();
   },
 
   // Must be called after the preview list is in the DOM.
@@ -544,35 +523,53 @@ const UI = {
     if (!rowEl) return;
     const rect = rowEl.getBoundingClientRect();
     const rowH = rect.height + 6; // gap
-    // Collect all sibling rows (other draggable rows in the same list)
     const siblings = Array.from(document.querySelectorAll(".prev-list .ex-row-v2[data-idx]"))
       .filter(el => el !== rowEl);
-    this._drag = { idx, startY: t.clientY, currentIdx: idx, rowH, rowEl, siblings };
+    this._drag = {
+      idx, startY: t.clientY, currentIdx: idx, rowH, rowEl, siblings,
+      pendingDy: 0, pendingIdx: idx, raf: null
+    };
 
+    // Promote dragged row to its own layer (hardware-accelerated)
     rowEl.style.zIndex = "10";
     rowEl.style.boxShadow = "0 8px 24px rgba(0,0,0,.5)";
     rowEl.style.opacity = "0.95";
     rowEl.style.willChange = "transform";
-    rowEl.style.webkitBackfaceVisibility = "hidden";
-    rowEl.style.transform = "translateZ(0)";
-    // Add a smooth transition for siblings (not the dragged row)
-    siblings.forEach(sib => { sib.style.transition = "transform 0.18s ease"; sib.style.willChange = "transform"; });
+    rowEl.style.transform = "translate3d(0,0,0)";
+
+    // Pre-promote siblings to GPU layers with smooth transitions for shifts
+    siblings.forEach(sib => {
+      sib.style.willChange = "transform";
+      sib.style.transition = "transform 0.16s cubic-bezier(.2,.7,.3,1)";
+      sib.style.transform = "translate3d(0,0,0)";
+    });
     if (navigator.vibrate) navigator.vibrate(15);
 
-    const applySiblingShift = (toIdx) => {
-      const fromIdx = this._drag.idx;
-      this._drag.siblings.forEach(sib => {
-        const sIdx = parseInt(sib.getAttribute("data-idx"), 10);
-        let shift = 0;
-        if (fromIdx < toIdx) {
-          // Dragging down: rows between (fromIdx, toIdx] shift UP
-          if (sIdx > fromIdx && sIdx <= toIdx) shift = -rowH;
-        } else if (fromIdx > toIdx) {
-          // Dragging up: rows between [toIdx, fromIdx) shift DOWN
-          if (sIdx >= toIdx && sIdx < fromIdx) shift = rowH;
-        }
-        sib.style.transform = shift ? `translateY(${shift}px)` : "";
-      });
+    const applyFrame = () => {
+      if (!this._drag) return;
+      this._drag.raf = null;
+      const { pendingDy, pendingIdx } = this._drag;
+      // Move dragged row
+      this._drag.rowEl.style.transform = `translate3d(0,${pendingDy}px,0)`;
+      // Shift siblings only when the slot changes
+      if (pendingIdx !== this._drag.currentIdx) {
+        const fromIdx = this._drag.idx;
+        const toIdx = pendingIdx;
+        this._drag.siblings.forEach(sib => {
+          const sIdx = parseInt(sib.getAttribute("data-idx"), 10);
+          let shift = 0;
+          if (fromIdx < toIdx) {
+            if (sIdx > fromIdx && sIdx <= toIdx) shift = -rowH;
+          } else if (fromIdx > toIdx) {
+            if (sIdx >= toIdx && sIdx < fromIdx) shift = rowH;
+          }
+          sib.style.transform = shift
+            ? `translate3d(0,${shift}px,0)`
+            : "translate3d(0,0,0)";
+        });
+        this._drag.currentIdx = pendingIdx;
+        if (navigator.vibrate) navigator.vibrate(6);
+      }
     };
 
     const onMove = (ev) => {
@@ -580,23 +577,22 @@ const UI = {
       ev.preventDefault();
       if (!this._drag) return;
       const dy = tt.clientY - this._drag.startY;
-      this._drag.rowEl.style.transform = `translateY(${dy}px)`;
       const newIdx = Math.max(0, Math.min((this._draft?.exercises?.length || 1)-1,
         this._drag.idx + Math.round(dy / this._drag.rowH)));
-      if (newIdx !== this._drag.currentIdx) {
-        this._drag.currentIdx = newIdx;
-        applySiblingShift(newIdx);
-        if (navigator.vibrate) navigator.vibrate(8);
-      }
+      this._drag.pendingDy = dy;
+      this._drag.pendingIdx = newIdx;
+      // Batch DOM writes into the next animation frame to prevent jitter
+      if (!this._drag.raf) this._drag.raf = requestAnimationFrame(applyFrame);
     };
     const onEnd = () => {
       document.removeEventListener("touchmove", onMove);
       document.removeEventListener("touchend", onEnd);
       if (!this._drag) return;
+      if (this._drag.raf) cancelAnimationFrame(this._drag.raf);
       const { idx: from, currentIdx: to, rowEl: el, siblings: sibs } = this._drag;
       // Reset transient inline styles before re-render
       el.style.transform = ""; el.style.zIndex = ""; el.style.boxShadow = "";
-      el.style.opacity = ""; el.style.willChange = ""; el.style.webkitBackfaceVisibility = "";
+      el.style.opacity = ""; el.style.willChange = "";
       sibs.forEach(s => { s.style.transition = ""; s.style.transform = ""; s.style.willChange = ""; });
       this._drag = null;
       if (from !== to) {
@@ -821,44 +817,18 @@ const UI = {
         </button>
       </div>
 
-      <!-- ④ Rest screen (overlays everything, tap ring area to minimize) -->
-      <div id="rest-screen">
-        <div class="rest-header">
-          <span class="rest-label" id="rest-mode-label">REST</span>
-          <button class="rest-minimize-btn" onclick="UI._minimizeRest()" aria-label="Minimize" title="Keep timer running, go back to sets">
-            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 9h10"/></svg>
-          </button>
-        </div>
-        <!-- Tap ring area to minimize -->
-        <div class="rest-ring-wrap" onclick="UI._minimizeRest()">
-          <svg class="rest-ring-svg" viewBox="0 0 260 260">
-            <circle class="rest-ring-track" cx="130" cy="130" r="116"/>
-            <circle class="rest-ring-fill" id="rest-ring-fill" cx="130" cy="130" r="116"
-              stroke-dasharray="729" stroke-dashoffset="0"/>
-          </svg>
-          <div class="rest-ring-center">
-            <span class="rest-time-num" id="rest-time-num">1:30</span>
-            <span class="rest-target-lbl" id="rest-target-lbl">TARGET 1:30</span>
-            <span class="rest-tap-hint">tap to minimize</span>
+      <!-- Inline rest banner — slides in below header, doesn't cover the set list -->
+      <div id="rest-banner">
+        <div class="rest-banner-bar"><div class="rest-banner-fill" id="rest-banner-fill"></div></div>
+        <div class="rest-banner-inner">
+          <span class="rest-banner-label" id="rest-banner-label">REST</span>
+          <span class="rest-banner-time" id="rest-banner-time">1:30</span>
+          <div class="rest-banner-actions">
+            <button class="rest-banner-adj" onclick="UI._adjRest(-30)">−30s</button>
+            <button class="rest-banner-adj" onclick="UI._adjRest(30)">+30s</button>
+            <button class="rest-banner-skip" onclick="UI._skipRest()">SKIP</button>
           </div>
         </div>
-        <div class="rest-adj-row">
-          <button class="rest-adj-btn" onclick="UI._adjRest(-30)">−30s</button>
-          <button class="rest-adj-btn" onclick="UI._adjRest(30)">+30s</button>
-        </div>
-        <div class="rest-upnext">
-          <span class="rest-upnext-lbl">UP NEXT</span>
-          <span class="rest-upnext-val" id="rest-upnext"></span>
-        </div>
-        <div class="rest-cta-row">
-          <button class="rest-cta-btn" id="rest-cta-btn" onclick="UI._skipRest()">SKIP REST → START SET</button>
-        </div>
-      </div>
-
-      <!-- Floating rest pill — visible when rest is minimized -->
-      <div id="rest-pill" onclick="UI._restoreRest()">
-        <span id="rest-pill-time">1:30</span>
-        <span class="rest-pill-label">REST</span>
       </div>
 
       <!-- ⑤ Program drawer (slides down from top) -->
@@ -958,25 +928,19 @@ const UI = {
         const rVal = s.claimed?.reps   ?? s.reps;
         const wVal = s.claimed?.weight ?? s.weight;
         return `<div class="sf-row sf-row-current">
-          <span class="sf-row-num sf-row-num-cur">${numLabel}</span>
           <div class="sf-current-block">
             <div class="sf-big-row">
               <div class="sf-field">
-                <div class="sf-field-label">REPS</div>
-                <div class="sf-big-num" id="sf-reps">${rVal}</div>
-                <div class="sf-steppers">
-                  <button class="sf-step-btn" onclick="UI._focusStep('reps',-1)">−</button>
-                  <button class="sf-step-btn" onclick="UI._focusStep('reps',1)">+</button>
-                </div>
+                <span class="sf-field-label">REPS</span>
+                <span class="sf-big-num" id="sf-reps">${rVal}</span>
+                <button class="sf-step-btn" onclick="UI._focusStep('reps',-1)">−</button>
+                <button class="sf-step-btn" onclick="UI._focusStep('reps',1)">+</button>
               </div>
-              <div class="sf-x">×</div>
               <div class="sf-field">
-                <div class="sf-field-label">LBS</div>
-                <div class="sf-big-num" id="sf-weight">${wVal}</div>
-                <div class="sf-steppers">
-                  <button class="sf-step-btn" onclick="UI._focusStep('weight',-1)">−</button>
-                  <button class="sf-step-btn" onclick="UI._focusStep('weight',1)">+</button>
-                </div>
+                <span class="sf-field-label">LBS</span>
+                <span class="sf-big-num" id="sf-weight">${wVal}</span>
+                <button class="sf-step-btn" onclick="UI._focusStep('weight',-1)">−</button>
+                <button class="sf-step-btn" onclick="UI._focusStep('weight',1)">+</button>
               </div>
             </div>
           </div>
@@ -1522,60 +1486,37 @@ const UI = {
     this._restTotal   = sec;
     this._restStarted = true;
     this._restOver    = false;
-    this._restMinimized = false;
 
-    // Show rest screen
-    const rs = document.getElementById("rest-screen");
-    if (rs) { rs.classList.add("active"); rs.classList.remove("minimized"); }
-    const pill = document.getElementById("rest-pill");
-    if (pill) pill.classList.remove("visible");
-
-    this._updateRestUpNext();
-
-    const CIRC = 2 * Math.PI * 116; // 729
-    const targetLbl = document.getElementById("rest-target-lbl");
-    if (targetLbl) targetLbl.textContent = `TARGET ${this._fmtTime(sec)}`;
+    // Show the inline rest banner inside the session focus zone
+    const banner = document.getElementById("rest-banner");
+    if (banner) banner.classList.add("visible");
 
     const tick = () => {
       const raw  = (this._restTarget - Date.now()) / 1000;
       const rem  = Math.ceil(raw);
-      const timeEl  = document.getElementById("rest-time-num");
-      const ringEl  = document.getElementById("rest-ring-fill");
-      const modeEl  = document.getElementById("rest-mode-label");
-      const ctaEl   = document.getElementById("rest-cta-btn");
-      const pillEl  = document.getElementById("rest-pill-time");
+      const timeEl = document.getElementById("rest-banner-time");
+      const labelEl = document.getElementById("rest-banner-label");
+      const fillEl = document.getElementById("rest-banner-fill");
+      const banner = document.getElementById("rest-banner");
 
-      // Pill always gets the current time (visible when minimized)
-      if (pillEl) {
-        const pillTxt = rem > 0 ? this._fmtTime(rem) : `+${this._fmtTime(Math.abs(Math.floor(raw)))}`;
-        pillEl.textContent = pillTxt;
-        const pillWrap = document.getElementById("rest-pill");
-        if (pillWrap) pillWrap.classList.toggle("overtime", rem <= 0);
-      }
-
-      if (!timeEl) return;
+      if (!timeEl || !banner) return;
 
       if (rem > 0) {
-        const pct = Math.min(1, raw / this._restTotal);
-        const offset = CIRC * (1 - pct);
+        const pct = Math.max(0, Math.min(1, raw / this._restTotal));
         timeEl.textContent = this._fmtTime(rem);
-        timeEl.className = "rest-time-num";
-        if (ringEl) { ringEl.style.strokeDashoffset = offset; ringEl.className = "rest-ring-fill"; }
-        if (modeEl) { modeEl.textContent = "REST"; modeEl.className = "rest-label"; }
-        if (ctaEl)  { ctaEl.textContent = "SKIP REST → START SET"; ctaEl.className = "rest-cta-btn"; }
+        if (labelEl) labelEl.textContent = "REST";
+        if (fillEl) fillEl.style.width = `${pct * 100}%`;
+        banner.classList.remove("overtime");
       } else {
         if (!this._restOver) {
           this._restOver = true;
           if (navigator.vibrate) navigator.vibrate([150,80,150]);
-          // Auto-restore pill to full screen on overtime
-          if (this._restMinimized) this._restoreRest();
         }
         const over = Math.abs(Math.floor(raw));
         timeEl.textContent = `+${this._fmtTime(over)}`;
-        timeEl.className = "rest-time-num overtime";
-        if (ringEl) { ringEl.style.strokeDashoffset = 0; ringEl.className = "rest-ring-fill overtime"; }
-        if (modeEl) { modeEl.textContent = "OVERTIME"; modeEl.className = "rest-label overtime"; }
-        if (ctaEl)  { ctaEl.textContent = "I'M READY → START SET"; ctaEl.className = "rest-cta-btn overtime"; }
+        if (labelEl) labelEl.textContent = "OVERTIME";
+        if (fillEl) fillEl.style.width = "100%";
+        banner.classList.add("overtime");
       }
     };
     tick();
@@ -1586,30 +1527,8 @@ const UI = {
     if (this._restTimer) { clearInterval(this._restTimer); this._restTimer = null; }
     this._restStarted = false;
     this._restOver    = false;
-    this._restMinimized = false;
-    const rs = document.getElementById("rest-screen");
-    if (rs) { rs.classList.remove("active"); rs.classList.remove("minimized"); }
-    const pill = document.getElementById("rest-pill");
-    if (pill) pill.classList.remove("visible");
-  },
-
-  // Minimize rest overlay — timer keeps running, pill appears
-  _minimizeRest() {
-    if (!this._restStarted) return;
-    this._restMinimized = true;
-    const rs = document.getElementById("rest-screen");
-    if (rs) rs.classList.remove("active");
-    const pill = document.getElementById("rest-pill");
-    if (pill) pill.classList.add("visible");
-  },
-
-  // Restore full rest screen from pill
-  _restoreRest() {
-    this._restMinimized = false;
-    const rs = document.getElementById("rest-screen");
-    if (rs) rs.classList.add("active");
-    const pill = document.getElementById("rest-pill");
-    if (pill) pill.classList.remove("visible");
+    const banner = document.getElementById("rest-banner");
+    if (banner) { banner.classList.remove("visible"); banner.classList.remove("overtime"); }
   },
 
   _adjRest(d) {
@@ -2718,13 +2637,33 @@ const UI = {
     return `${dow} · ${mon} ${day}`;
   },
 
-  _saveBW() {
-    const w=parseFloat(document.getElementById("bw-in")?.value);
-    const d=document.getElementById("bw-date")?.value;
-    if (!w||w<50||w>500){this._toast("Enter a valid weight");return;}
-    App.logBodyweight(d,w); App.state.bwLog=null;
+  async _saveBW() {
+    const w = parseFloat(document.getElementById("bw-in")?.value);
+    const d = document.getElementById("bw-date")?.value;
+    if (!w || w < 50 || w > 500) { this._toast("Enter a valid weight"); return; }
+
+    // Optimistic update — push into local cache immediately so the entry shows
+    // even before the network round-trip completes. If an entry for this date
+    // already exists, replace it; otherwise insert.
+    const log = App.state.bwLog || [];
+    const idx = log.findIndex(e => String(e.date).slice(0,10) === d);
+    if (idx >= 0) log[idx] = { ...log[idx], w };
+    else log.push({ date: d, w });
+    App.state.bwLog = log;
+
+    // Re-render Body tab right away so the row shows
+    this._setTab("body");
     this._toast("Saved ✓");
-    setTimeout(()=>this._setTab("body"),500);
+
+    // Persist in the background
+    try {
+      await App.logBodyweight(d, w);
+    } catch (e) {
+      // If persist fails, roll back the optimistic entry and tell the user
+      App.state.bwLog = null;
+      this._toast("Save failed — try again");
+      this._setTab("body");
+    }
   },
 
   _setBWRange(r) {
