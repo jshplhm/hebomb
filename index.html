@@ -182,7 +182,7 @@ input[type=number] { -moz-appearance:textfield; }
 .sdot-next { width:9px; height:9px; background:transparent; border:2px solid var(--yellow); }
 .sdot-up   { width:6px; height:6px; background:transparent; border:1.5px solid var(--border2); }
 .sdot-warm { width:4px; height:4px; background:var(--muted); }
-.sess-set-label { font-family:'Barlow Condensed',sans-serif; font-size:10px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:var(--muted); margin-left:4px; flex-shrink:0; }
+.sess-set-label { font-family:'Barlow Condensed',sans-serif; font-size:12px; font-weight:700; letter-spacing:2px; text-transform:uppercase; color:var(--sub); margin-left:6px; flex-shrink:0; }
 .sess-target-inline { font-family:'Barlow Condensed',sans-serif; font-size:10px; font-weight:700; letter-spacing:1px; color:var(--green); background:rgba(61,255,160,.08); border:1px solid rgba(61,255,160,.2); border-radius:9px; padding:1px 7px; margin-left:4px; white-space:nowrap; flex-shrink:0; }
 .sess-set-type-badge { font-family:'Barlow Condensed',sans-serif; font-size:9px; font-weight:700; letter-spacing:2px; text-transform:uppercase; color:var(--muted); margin-left:4px; flex-shrink:0; }
 
@@ -311,8 +311,30 @@ input[type=number] { -moz-appearance:textfield; }
 .sf-done-label { font-family:'Barlow Condensed',sans-serif; font-size:13px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:var(--muted); }
 .sf-done-check-pr + .sf-done-label { color:var(--yellow); }
 
-/* Skip + Log row */
-.sf-action-row { flex-shrink:0; display:flex; gap:8px; padding:12px 14px calc(var(--safe-bot) + 14px); background:var(--bg); border-top:1px solid var(--border); }
+/* Current set — prominent SET N OF M label above the tiles */
+.sf-current-set-label {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--yellow);
+  text-align: center;
+  padding: 6px 14px 4px;
+  flex-shrink: 0;
+}
+
+/* Edit icon on done rows */
+.sf-row-edit {
+  color: var(--muted);
+  font-size: 13px;
+  flex-shrink: 0;
+  opacity: 0.35;
+  transition: opacity 0.15s;
+}
+.sf-row-done:active .sf-row-edit { opacity: 1; }
+.sf-row-done { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.sf-row-done:active { background: var(--card2); opacity: 1; } flex-shrink:0; display:flex; gap:8px; padding:12px 14px calc(var(--safe-bot) + 14px); background:var(--bg); border-top:1px solid var(--border); }
 .sf-skip-btn { background:transparent; border:1.5px solid var(--border2); color:var(--muted); font-family:'Barlow Condensed',sans-serif; font-size:13px; font-weight:700; letter-spacing:2px; text-transform:uppercase; padding:0 18px; border-radius:10px; cursor:pointer; -webkit-tap-highlight-color:transparent; flex-shrink:0; transition:all 0.12s; }
 .sf-skip-btn:active { border-color:var(--sub); color:var(--sub); }
 .sf-log-btn { flex:1; height:64px; background:var(--yellow); border:none; border-radius:10px; color:#0a0a0a; font-family:'Barlow Condensed',sans-serif; font-size:18px; font-weight:900; letter-spacing:2px; text-transform:uppercase; cursor:pointer; -webkit-tap-highlight-color:transparent; display:flex; align-items:center; justify-content:center; gap:8px; transition:opacity 0.1s, transform 0.08s; }
@@ -327,66 +349,77 @@ input[type=number] { -moz-appearance:textfield; }
   100% { box-shadow: 0 -2px 0 0 transparent; }
 }
 
-/* ── REST UI — pill that replaces SKIP button, + thin progress bar above action row ── */
+/* ── REST UI — pill in action row + always-reserved progress bar ── */
 #rest-progress-bar {
-  height:0;
-  background:rgba(255,255,255,.05);
-  overflow:hidden;
-  flex-shrink:0;
-  transition:height 0.18s ease;
+  height: 3px;                      /* always 3px — no layout shift on activation */
+  background: rgba(255,255,255,.05);
+  flex-shrink: 0;
+  overflow: hidden;
 }
-#rest-progress-bar.active { height:3px; }
 #rest-progress-fill {
-  height:100%;
-  background:var(--green);
-  width:0%;
-  transition:width 0.5s linear, background 0.3s;
+  height: 100%;
+  background: transparent;          /* transparent until active */
+  width: 0%;
+  transition: width 0.5s linear, background 0.3s;
 }
-#rest-progress-bar.overtime #rest-progress-fill { background:var(--orange); }
-/* Pill that occupies the SKIP slot during rest. flex-direction column = compact. */
+#rest-progress-bar.active #rest-progress-fill { background: var(--green); }
+#rest-progress-bar.overtime #rest-progress-fill { background: var(--orange); }
+
+/* Rest pill — no SKIP, time is big, −30/+30 stacked on right */
 .sf-rest-pill {
-  display:flex;
-  flex-direction:column;
-  align-items:stretch;
-  gap:4px;
-  flex:1;
-  min-width:0;
-  background:linear-gradient(180deg, rgba(61,255,160,.10), rgba(61,255,160,.03));
-  border:1.5px solid rgba(61,255,160,.35);
-  border-radius:10px;
-  padding:6px 10px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  background: linear-gradient(135deg, rgba(61,255,160,.12), rgba(61,255,160,.04));
+  border: 1.5px solid rgba(61,255,160,.4);
+  border-radius: 10px;
+  padding: 8px 12px;
 }
 .sf-rest-pill.overtime {
-  background:linear-gradient(180deg, rgba(255,107,53,.12), rgba(255,107,53,.04));
-  border-color:rgba(255,107,53,.45);
-  animation:restPulse 1.2s ease-in-out infinite;
+  background: linear-gradient(135deg, rgba(255,107,53,.14), rgba(255,107,53,.05));
+  border-color: rgba(255,107,53,.5);
+  animation: restPulse 1.2s ease-in-out infinite;
 }
 @keyframes restPulse {
-  0%,100% { box-shadow:0 0 0 0 rgba(255,107,53,0); }
-  50%     { box-shadow:0 0 0 3px rgba(255,107,53,.15); }
+  0%,100% { box-shadow: 0 0 0 0 rgba(255,107,53,0); }
+  50%     { box-shadow: 0 0 0 4px rgba(255,107,53,.18); }
 }
-.sf-rest-time-block { display:flex; align-items:baseline; gap:8px; }
-.sf-rest-label { font-family:'Barlow Condensed',sans-serif; font-size:9px; font-weight:700; letter-spacing:2px; text-transform:uppercase; color:var(--green); }
-.sf-rest-pill.overtime .sf-rest-label { color:var(--orange); }
-.sf-rest-time { font-family:'Barlow Condensed',sans-serif; font-size:24px; font-weight:900; color:var(--text); line-height:1; letter-spacing:-1px; }
-.sf-rest-pill.overtime .sf-rest-time { color:var(--orange); }
-.sf-rest-adj { display:flex; gap:4px; }
+.sf-rest-time-block { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.sf-rest-label {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 9px; font-weight: 700; letter-spacing: 2.5px; text-transform: uppercase;
+  color: var(--green); line-height: 1; margin-bottom: 2px;
+}
+.sf-rest-pill.overtime .sf-rest-label { color: var(--orange); }
+.sf-rest-time {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 38px; font-weight: 900; color: var(--text);
+  line-height: 0.9; letter-spacing: -2px;
+}
+.sf-rest-pill.overtime .sf-rest-time { color: var(--orange); }
+.sf-rest-adj {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex-shrink: 0;
+}
 .sf-rest-adj button {
-  flex:1;
-  background:transparent;
-  border:1px solid var(--border2);
-  color:var(--sub);
-  font-family:'Barlow Condensed',sans-serif;
-  font-size:10px; font-weight:700; letter-spacing:1px;
-  padding:5px 0;
-  border-radius:6px;
-  cursor:pointer;
-  -webkit-tap-highlight-color:transparent;
-  min-width:0;
+  background: transparent;
+  border: 1px solid var(--border2);
+  color: var(--sub);
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 11px; font-weight: 700; letter-spacing: 1px;
+  padding: 5px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  white-space: nowrap;
+  transition: all 0.1s;
 }
-.sf-rest-adj button:active { border-color:var(--sub); color:var(--text); }
-.sf-rest-adj .sf-rest-skip { color:var(--green); border-color:rgba(61,255,160,.4); }
-.sf-rest-adj .sf-rest-skip:active { background:rgba(61,255,160,.1); color:var(--text); }
+.sf-rest-adj button:active { border-color: var(--sub); color: var(--text); }
 
 /* ── PROGRAM DRAWER ── */
 #prog-drawer { position:absolute; inset:0; background:var(--bg); z-index:80; transform:translateY(-100%); transition:transform 0.3s cubic-bezier(0.32,0.72,0,1); overflow:hidden; display:flex; flex-direction:column; }
@@ -1102,10 +1135,10 @@ input[type=number] { -moz-appearance:textfield; }
 <body>
 <div id="app"></div>
 <!-- Increment ?v= on every deploy to bust cache -->
-<script src="js/config.js?v=20260606-06"></script>
-<script src="js/program.js?v=20260606-06"></script>
-<script src="js/app.js?v=20260606-06"></script>
-<script src="js/ui.js?v=20260606-06"></script>
+<script src="js/config.js?v=20260606-07"></script>
+<script src="js/program.js?v=20260606-07"></script>
+<script src="js/app.js?v=20260606-07"></script>
+<script src="js/ui.js?v=20260606-07"></script>
 <script>
   document.addEventListener("DOMContentLoaded", () => UI.init());
 </script>
