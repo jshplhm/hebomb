@@ -2,7 +2,7 @@
 
 const UI = {
 
-  init() {
+  async init() {
     this.root          = document.getElementById("app");
     this._restTimer    = null;
     this._restTarget   = null;
@@ -14,72 +14,38 @@ const UI = {
     this._bwRange      = 30;
     this._statsTab     = "body";
 
-    // Kick off all background fetches in parallel — don't await, let render proceed.
-    // Each handler updates App.state and triggers a targeted re-render only if the
-    // user is still on the relevant view (no stomping).
-    this._prefetchAll();
+    // Show a minimal loading state while the critical first fetch runs.
+    // This is fast (~200–400ms) and means the picker renders correctly on
+    // the first paint rather than showing wrong data that later corrects.
+    if (!App.state.history) {
+      this.root.innerHTML = `<div class="init-loading"><div class="init-loading-inner"><div class="init-loading-logo">Week ${getCurrentWeek()}</div><div class="init-loading-sub">Loading…</div></div></div>`;
+      try {
+        const { sessions } = await App.fetchHistory();
+        App.state.history = sessions;
+      } catch (e) {
+        App.state.history = [];
+      }
+    }
 
+    // Fire the rest of the prefetches in the background (non-blocking)
+    this._prefetchBackground();
     this.render();
   },
 
-  _prefetchAll() {
-    // History → enables hero card on picker, fuels Stats lifts/recomp + History tab
-    if (!App.state.history) {
-      App.fetchHistory().then(({sessions}) => {
-        App.state.history = sessions;
-        if ((App.state.view || "picker") !== "picker") return;
-        // Try in-place update first (no flicker, no scroll-reset)
-        const weekEl = document.getElementById("land-week-strip");
-        if (weekEl) {
-          // Re-compute lastDone + week cells with real data and patch DOM
-          const cw  = getCurrentWeek();
-          const wd  = WEEKS[cw] || {};
-          const pid = wd.phaseId || "strength";
-          const lastDone = {};
-          sessions.forEach(s => {
-            if (!lastDone[s.dayId] || s.date > lastDone[s.dayId]) lastDone[s.dayId] = s.date;
-          });
-          const cells = this._buildWeekRhythm(sessions, lastDone);
-          weekEl.innerHTML = cells.map(c => `
-            <div class="land-week-cell ${c.cls}">
-              <div class="dow">${c.dow}</div>
-              <div class="dot">${c.dotChar}</div>
-              <div class="lbl">${c.label}</div>
-            </div>`).join("");
-          // Update hero card last-done text
-          const heroEl = document.getElementById("land-hero-lastdone");
-          const dayIds = ["dayA","dayB","dayC"];
-          const heroId = dayIds.reduce((best, id) => {
-            const a = lastDone[id] || "0000-00-00";
-            const b = lastDone[best] || "0000-00-00";
-            return a < b ? id : best;
-          }, dayIds[0]);
-          if (heroEl) {
-            heroEl.textContent = lastDone[heroId] ? UI._daysAgo(lastDone[heroId]) : "not done yet";
-          }
-          const heroCard = document.getElementById("land-hero-card");
-          if (heroCard) heroCard.classList.remove("land-hero-loading");
-        } else {
-          // Fallback: full re-render if elements aren't in DOM
-          this.root.innerHTML = "";
-          document.getElementById("bottom-nav")?.remove();
-          this.renderPicker();
-          this._nav();
-        }
-      }).catch(()=>{});
-    }
-    // Body weight log → instant Body tab when user navigates to Stats.
-    // Merge server response with localStorage shadow so recent saves survive
-    // hard refresh even if the backend retrieve range misses the latest rows.
+  _prefetchBackground() {
     if (!App.state.bwLog) {
       App.getBodyweightLog()
         .then(log => { App.state.bwLog = this._bwMergeWithShadow(log); })
         .catch(() => { App.state.bwLog = this._bwMergeWithShadow([]); });
     }
-    // Stats roll-up → instant Lifts/Recomp tabs
     if (!App.state.stats) {
       App.fetchStats().then(stats => { App.state.stats = stats; }).catch(()=>{});
     }
+  },
+
+  _prefetchAll() {
+    // Legacy: kept for any callers, delegates to _prefetchBackground
+    this._prefetchBackground();
   },
 
   render() {
@@ -465,7 +431,7 @@ const UI = {
           <div class="prev-title">${d.title}</div>
           <button class="prev-tool-add" onclick="UI._draftAdd()">
             <svg width="11" height="11" viewBox="0 0 11 11" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"><path d="M5.5 1v9M1 5.5h9"/></svg>
-            Add
+            Exercise
           </button>
         </div>
       </div>
