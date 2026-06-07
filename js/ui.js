@@ -47,11 +47,19 @@ const UI = {
           <div class="init-loading-spinner"><span></span><span></span><span></span></div>
         </div>
       </div>`;
-      // Wait for both: the fetch AND a 5-second minimum hold so the user can read the quote
+      // Wait for both: the fetch AND a 2-second minimum so the quote is readable.
+      // Then fade out smoothly so it doesn't feel like an abrupt cut.
       await Promise.all([
         App.fetchHistory().then(({sessions}) => { App.state.history = sessions; }).catch(() => { App.state.history = []; }),
-        new Promise(r => setTimeout(r, 5000))
+        new Promise(r => setTimeout(r, 2000))
       ]);
+      // Fade out the splash before rendering the picker
+      const splash = this.root.querySelector(".init-loading");
+      if (splash) {
+        splash.style.transition = "opacity 0.4s ease";
+        splash.style.opacity = "0";
+        await new Promise(r => setTimeout(r, 400));
+      }
     }
 
     // Fire the rest of the prefetches in the background (non-blocking)
@@ -1032,6 +1040,8 @@ const UI = {
     const r = s.claimed?.reps   ?? s.reps;
     const w = s.claimed?.weight ?? s.weight;
     const isWarm = s.isWarmup;
+    const wTot  = wSets.length;
+    const wDone = wSets.filter(s=>s.logged).length;
 
     // Build rows for each set in this exercise (excluding excluded ones)
     const activeSets = ex.sets.filter(x=>!x.excluded);
