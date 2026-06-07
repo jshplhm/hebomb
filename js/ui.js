@@ -2679,11 +2679,24 @@ const UI = {
     }
 
     // Normalise. Server log may contain duplicate rows for the same date (append-only).
-    // Dedupe by YMD: prefer the entry with the latest `logged_at` if present; otherwise
-    // the entry that appears later in the array (presumed newer).
+    // Google Sheets sometimes stores dates as serial numbers (days since Dec 30, 1899)
+    // instead of "YYYY-MM-DD" text — detect and convert before the regex filter.
+    const sheetSerialToYmd = (n) => {
+      // Sheets epoch: Dec 30, 1899. JS epoch: Jan 1, 1970 = serial 25569.
+      // Subtract 1 because Sheets incorrectly treats 1900 as a leap year.
+      const ms = (n - 25569) * 86400000;
+      const d = new Date(ms);
+      // Use UTC to avoid timezone-driven off-by-one
+      return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}-${String(d.getUTCDate()).padStart(2,"0")}`;
+    };
+
     const byDate = new Map();
     (raw || []).forEach((e, i) => {
-      const ymd = String(e.date).slice(0,10);
+      let ymd = String(e.date).slice(0,10);
+      // If the date looks like a bare integer serial (e.g. "46772"), convert it
+      if (/^\d{4,6}$/.test(ymd.trim()) && !ymd.includes("-")) {
+        ymd = sheetSerialToYmd(parseInt(e.date, 10));
+      }
       if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return;
       const prior = byDate.get(ymd);
       const curStamp = e.logged_at ? new Date(e.logged_at).getTime() : i;
@@ -2851,10 +2864,20 @@ const UI = {
   },
   // Merge server log + local shadow. Server wins for dates present in both.
   _bwMergeWithShadow(serverLog) {
+    const sheetSerialToYmd = (n) => {
+      const d = new Date((n - 25569) * 86400000);
+      return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}-${String(d.getUTCDate()).padStart(2,"0")}`;
+    };
+    const toYmd = (raw) => {
+      let ymd = String(raw).slice(0,10);
+      if (/^\d{4,6}$/.test(ymd.trim()) && !ymd.includes("-")) ymd = sheetSerialToYmd(parseInt(raw, 10));
+      return ymd;
+    };
     const merged = new Map();
     this._bwShadowGet().forEach(e => merged.set(e.date, { date: e.date, w: e.w, logged_at: new Date(e.ts).toISOString(), _shadow: true }));
     (serverLog || []).forEach(e => {
-      const ymd = String(e.date).slice(0,10);
+      const ymd = toYmd(e.date);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return; // skip unparseable
       // Server entries override shadow for the same date
       merged.set(ymd, { ...e, date: ymd });
     });
@@ -2898,8 +2921,19 @@ const UI = {
     this._bwRange = r;
     const el = document.getElementById("bw-chart");
     if (el && App.state.bwLog) {
+      // bwLog may be raw (from server) or already processed (from _bodyTab cache).
+      // Normalize dates to _ymd using the same serial-conversion logic.
+      const sheetSerialToYmd = (n) => {
+        const d = new Date((n - 25569) * 86400000);
+        return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}-${String(d.getUTCDate()).padStart(2,"0")}`;
+      };
       const sorted = (App.state.bwLog||[])
-        .map(e=>({...e, _ymd:String(e.date).slice(0,10)}))
+        .map(e => {
+          if (e._ymd) return e; // already normalized
+          let ymd = String(e.date).slice(0,10);
+          if (/^\d{4,6}$/.test(ymd.trim()) && !ymd.includes("-")) ymd = sheetSerialToYmd(parseInt(e.date,10));
+          return { ...e, _ymd: ymd };
+        })
         .filter(e=>/^\d{4}-\d{2}-\d{2}$/.test(e._ymd))
         .sort((a,b)=>a._ymd<b._ymd?-1:a._ymd>b._ymd?1:0);
       el.innerHTML = this._bwChart(sorted, r);
