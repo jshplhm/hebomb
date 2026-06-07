@@ -208,25 +208,25 @@ input[type=number] { -moz-appearance:textfield; }
 
 /* Current set — grows to fill remaining space */
 .sf-row-current { background:transparent; padding:0; align-items:stretch; gap:0; flex-direction:column; flex:1 1 auto; min-height:0; }
-.sf-current-block { flex:1 1 auto; display:flex; flex-direction:column; min-height:0; }
-.sf-current-block .sf-big-row { flex:1 1 auto; }
+.sf-current-block { flex:1 1 auto; display:flex; flex-direction:column; min-height:0; justify-content:center; }
+.sf-current-block .sf-big-row { flex:0 0 auto; }
 
 /* Set identity — hidden; info now lives in the header dots row */
 .sf-set-id { display:none; }
 .sf-target-row { display:none; }
 
 /* Big reps × weight — stacked vertically, each half fills 50% of the focus zone */
-.sf-big-row { display:flex; flex-direction:column; align-items:stretch; gap:8px; padding:8px 14px; flex:1 1 auto; min-height:0; }
+.sf-big-row { display:flex; flex-direction:column; align-items:stretch; gap:8px; padding:0 14px; flex:0 0 auto; }
 .sf-x { display:none; }
 .sf-field {
-  flex: 1 1 50%;
-  min-height: 0;
+  height: 160px;
+  flex: 0 0 160px;
   display: flex;
   flex-direction: column;
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 14px;
-  padding: 10px 14px;
+  padding: 12px 14px 10px;
 }
 .sf-field-label {
   font-family:'Barlow Condensed',sans-serif; font-size:11px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:var(--muted);
@@ -242,7 +242,7 @@ input[type=number] { -moz-appearance:textfield; }
 }
 .sf-big-num {
   font-family:'Barlow Condensed',sans-serif;
-  font-size: min(34vw, 22vh);
+  font-size: 96px;
   font-weight: 900; color: var(--text);
   line-height: 1;
   letter-spacing: -3px;
@@ -260,17 +260,22 @@ input[type=number] { -moz-appearance:textfield; }
 }
 .sf-step-btn {
   width: 56px;
-  height: clamp(56px, 10vh, 80px);
+  height: 56px;
   background: var(--card2);
   border: 1.5px solid var(--border2);
   border-radius: 12px;
   color: var(--sub);
-  font-size: 30px;
+  font-size: 28px;
   font-weight: 300;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.08s, color 0.08s, transform 0.08s;
+  user-select: none;
+  padding: 0;
+}
   -webkit-tap-highlight-color: transparent;
   transition: background 0.08s, color 0.08s, transform 0.08s;
   user-select: none;
@@ -1190,10 +1195,10 @@ input[type=number] { -moz-appearance:textfield; }
 <body>
 <div id="app"></div>
 <!-- Increment ?v= on every deploy to bust cache -->
-<script src="js/config.js?v=20260606-12"></script>
-<script src="js/program.js?v=20260606-12"></script>
-<script src="js/app.js?v=20260606-12"></script>
-<script src="js/ui.js?v=20260606-12"></script>
+<script src="js/config.js?v=20260606-13"></script>
+<script src="js/program.js?v=20260606-13"></script>
+<script src="js/app.js?v=20260606-13"></script>
+<script src="js/ui.js?v=20260606-13"></script>
 <script>
   document.addEventListener("DOMContentLoaded", () => UI.init());
 </script>
