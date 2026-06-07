@@ -192,39 +192,85 @@ input[type=number] { -moz-appearance:textfield; }
 .sf-set-list { display:flex; flex-direction:column; padding:10px 14px 6px; gap:5px; flex:1; min-height:0; }
 
 /* Done/upcoming compact rows */
-.sf-row { display:flex; align-items:center; gap:12px; padding:8px 14px; border-radius:8px; flex-shrink:0; }
-.sf-row-done { background:var(--card); opacity:0.55; }
+.sf-row { display:flex; align-items:center; gap:10px; padding:6px 12px; border-radius:8px; flex-shrink:0; }
+.sf-row-done { background:var(--card); opacity:0.5; }
 .sf-row-up { background:transparent; border:1px dashed var(--border); }
 
-.sf-row-num { font-family:'Barlow Condensed',sans-serif; font-size:11px; font-weight:700; color:var(--muted); width:16px; text-align:center; flex-shrink:0; letter-spacing:1px; }
-.sf-row-num-cur { color:var(--yellow); font-size:13px; }
-.sf-row-data { font-family:'Barlow Condensed',sans-serif; font-size:17px; font-weight:700; color:var(--sub); flex:1; letter-spacing:-0.3px; }
-.sf-row-data-up { color:var(--muted); font-size:15px; }
-.sf-row-x { color:var(--muted); font-weight:300; margin:0 3px; font-size:13px; }
-.sf-row-unit { font-size:10px; color:var(--muted); font-weight:700; letter-spacing:1px; margin-left:3px; text-transform:uppercase; }
-.sf-row-check { color:var(--green); font-size:14px; flex-shrink:0; }
+.sf-row-num { font-family:'Barlow Condensed',sans-serif; font-size:10px; font-weight:700; color:var(--muted); width:14px; text-align:center; flex-shrink:0; letter-spacing:1px; }
+.sf-row-num-cur { color:var(--yellow); font-size:12px; }
+.sf-row-data { font-family:'Barlow Condensed',sans-serif; font-size:15px; font-weight:700; color:var(--sub); flex:1; letter-spacing:-0.3px; }
+.sf-row-data-up { color:var(--muted); font-size:14px; }
+.sf-row-x { color:var(--muted); font-weight:300; margin:0 3px; font-size:12px; }
+.sf-row-unit { font-size:9px; color:var(--muted); font-weight:700; letter-spacing:1px; margin-left:3px; text-transform:uppercase; }
+.sf-row-check { color:var(--green); font-size:13px; flex-shrink:0; }
 
-/* Current set — grows to fill remaining space, centered numbers */
-.sf-row-current { background:transparent; padding:0; align-items:stretch; gap:0; flex-direction:column; flex:1; min-height:0; justify-content:center; }
-.sf-current-block { flex:1; display:flex; flex-direction:column; min-height:0; justify-content:center; }
-.sf-current-block .sf-big-row { flex:0 1 auto; align-items:flex-end; }
-.sf-current-header { display:flex; align-items:center; justify-content:center; gap:6px; padding:2px 0 8px; }
-.sf-current-header .sf-row-num-cur { font-size:11px; color:var(--yellow); letter-spacing:1.5px; }
-.sf-current-header .sf-current-target { font-family:'Barlow Condensed',sans-serif; font-size:10px; font-weight:700; letter-spacing:1.5px; color:var(--muted); text-transform:uppercase; }
+/* Current set — grows to fill remaining space */
+.sf-row-current { background:transparent; padding:0; align-items:stretch; gap:0; flex-direction:column; flex:1 1 auto; min-height:0; }
+.sf-current-block { flex:1 1 auto; display:flex; flex-direction:column; min-height:0; }
+.sf-current-block .sf-big-row { flex:1 1 auto; }
 
 /* Set identity — hidden; info now lives in the header dots row */
 .sf-set-id { display:none; }
 .sf-target-row { display:none; }
 
-/* Big reps × weight — full height */
-/* Big reps × weight — stacked vertically */
-.sf-big-row { display:flex; flex-direction:column; align-items:stretch; justify-content:center; gap:14px; padding:8px 14px; flex:1; min-height:0; }
+/* Big reps × weight — stacked vertically, each half fills 50% of the focus zone */
+.sf-big-row { display:flex; flex-direction:column; align-items:stretch; gap:8px; padding:8px 14px; flex:1 1 auto; min-height:0; }
 .sf-x { display:none; }
-.sf-field { display:grid; grid-template-columns:auto 1fr auto auto; align-items:center; gap:12px; flex:0 0 auto; }
-.sf-field-label { font-family:'Barlow Condensed',sans-serif; font-size:11px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:var(--muted); width:38px; text-align:left; }
-.sf-big-num { font-family:'Barlow Condensed',sans-serif; font-size:min(20vw, 16vh); font-weight:900; color:var(--text); line-height:0.95; letter-spacing:-2px; text-align:center; transition:color 0.15s; }
+.sf-field {
+  flex:1 1 50%;
+  min-height:0;
+  display:grid;
+  grid-template-columns: 1fr auto auto;
+  grid-template-rows: auto 1fr;
+  grid-template-areas:
+    "label  steppers steppers"
+    "number minus    plus";
+  column-gap: 10px;
+  row-gap: 4px;
+  align-items: center;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 10px 14px 14px;
+}
+.sf-field-label {
+  grid-area: label;
+  font-family:'Barlow Condensed',sans-serif; font-size:11px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:var(--muted);
+  align-self: start;
+}
+.sf-big-num {
+  grid-area: number;
+  font-family:'Barlow Condensed',sans-serif;
+  font-size: min(34vw, 24vh);
+  font-weight:900; color:var(--text); line-height:0.9; letter-spacing:-3px;
+  text-align: left;
+  align-self: center;
+  transition:color 0.15s;
+  white-space: nowrap;
+  overflow: hidden;
+}
 .sf-steppers { display:contents; }
-.sf-step-btn { width:54px; height:54px; background:var(--card); border:1.5px solid var(--border2); border-radius:10px; color:var(--sub); font-size:28px; font-weight:300; cursor:pointer; display:flex; align-items:center; justify-content:center; -webkit-tap-highlight-color:transparent; transition:background 0.08s, color 0.08s, transform 0.08s; user-select:none; padding:0; }
+.sf-step-btn {
+  width: 60px;
+  height: clamp(58px, 11vh, 90px);
+  background: var(--card2);
+  border: 1.5px solid var(--border2);
+  border-radius: 12px;
+  color: var(--sub);
+  font-size: 30px;
+  font-weight: 300;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.08s, color 0.08s, transform 0.08s;
+  user-select: none;
+  padding: 0;
+  align-self: stretch;
+}
+.sf-step-btn:nth-of-type(1) { grid-area: minus; }
+.sf-step-btn:nth-of-type(2) { grid-area: plus; }
 .sf-step-btn:active { background:var(--lift); color:var(--yellow); transform:scale(0.95); }
 
 /* All done state */
@@ -653,8 +699,7 @@ input[type=number] { -moz-appearance:textfield; }
     var(--bg);
   display:flex; flex-direction:column;
   animation:finv2In 0.35s ease-out;
-  overflow-y:auto;
-  -webkit-overflow-scrolling:touch;
+  overflow:hidden;
 }
 #confetti-canvas { position:absolute; inset:0; pointer-events:none; z-index:0; }
 .finv2-bg-dots {
@@ -669,7 +714,20 @@ input[type=number] { -moz-appearance:textfield; }
     radial-gradient(circle at 92% 88%, rgba(232,255,71,.5) 0, transparent 1px);
   background-size: 6px 6px;
 }
-.finv2-inner { flex:1; padding:calc(var(--safe-top) + 20px) 22px calc(var(--safe-bot) + 24px); display:flex; flex-direction:column; position:relative; z-index:1; max-width:480px; margin:0 auto; width:100%; }
+.finv2-inner {
+  flex:1 1 auto;
+  display:flex;
+  flex-direction:column;
+  position:relative;
+  z-index:1;
+  max-width:480px;
+  margin:0 auto;
+  width:100%;
+  min-height:0;
+}
+.finv2-header { flex-shrink:0; padding:calc(var(--safe-top) + 20px) 22px 0; }
+.finv2-scroll { flex:1 1 auto; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:0 22px; }
+.finv2-footer { flex-shrink:0; padding:14px 22px calc(var(--safe-bot) + 16px); background:linear-gradient(180deg, transparent 0%, var(--bg) 24%); position:relative; }
 
 .finv2-eyebrow {
   font-family:'Barlow Condensed',sans-serif; font-size:11px; font-weight:700; letter-spacing:3px; text-transform:uppercase;
@@ -794,14 +852,15 @@ input[type=number] { -moz-appearance:textfield; }
 .finv2-delta-down { background:rgba(255,107,53,.1); color:var(--orange); }
 
 /* Bottom */
-.finv2-bottom { margin-top:auto; display:flex; flex-direction:column; gap:14px; animation:finv2Slide 0.4s ease-out 0.7s both; }
+.finv2-bottom { display:none; } /* legacy, replaced by .finv2-footer */
 .finv2-quote {
   font-family:'Barlow',sans-serif; font-size:14px; font-style:italic;
-  color:var(--sub); line-height:1.45; padding:0 4px; position:relative;
+  color:var(--sub); line-height:1.45; padding:18px 4px 6px 12px; position:relative;
+  margin-top:8px;
 }
 .finv2-quote::before {
-  content:"\201C"; position:absolute; left:-8px; top:-8px;
-  color:var(--yellow); font-size:28px; font-family:serif; line-height:1;
+  content:"\201C"; position:absolute; left:0; top:8px;
+  color:var(--yellow); font-size:32px; font-family:serif; line-height:1;
 }
 .finv2-actions { display:flex; gap:8px; }
 .finv2-share {
@@ -920,10 +979,12 @@ input[type=number] { -moz-appearance:textfield; }
 .histv2-summary-strip::-webkit-scrollbar { display:none; }
 .histv2-sum-loading { font-family:'Barlow Condensed',sans-serif; font-size:12px; color:var(--muted); padding:4px 0; }
 .histv2-sum { background:var(--card); border:1px solid var(--border); border-radius:8px; padding:8px 12px; flex-shrink:0; min-width:72px; }
+.histv2-sum-wide { min-width:96px; }
 .histv2-sum-lbl { font-family:'Barlow Condensed',sans-serif; font-size:9px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:var(--muted); }
 .histv2-sum-val { font-family:'Barlow Condensed',sans-serif; font-size:22px; font-weight:900; color:var(--text); line-height:1; margin-top:2px; }
 .histv2-sum-val.green { color:var(--green); }
 .histv2-sum-val.yellow { color:var(--yellow); }
+.histv2-sum-unit { font-size:9px; color:var(--muted); font-weight:700; letter-spacing:1px; margin-left:3px; text-transform:uppercase; }
 .histv2-body { padding:16px; flex:1; }
 
 /* Group headers */
@@ -971,10 +1032,10 @@ input[type=number] { -moz-appearance:textfield; }
 <body>
 <div id="app"></div>
 <!-- Increment ?v= on every deploy to bust cache -->
-<script src="js/config.js?v=20260606-04"></script>
-<script src="js/program.js?v=20260606-04"></script>
-<script src="js/app.js?v=20260606-04"></script>
-<script src="js/ui.js?v=20260606-04"></script>
+<script src="js/config.js?v=20260606-05"></script>
+<script src="js/program.js?v=20260606-05"></script>
+<script src="js/app.js?v=20260606-05"></script>
+<script src="js/ui.js?v=20260606-05"></script>
 <script>
   document.addEventListener("DOMContentLoaded", () => UI.init());
 </script>
