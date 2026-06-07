@@ -845,7 +845,6 @@ const UI = {
           <div class="sf-rest-adj">
             <button onclick="UI._adjRest(-30)">−30s</button>
             <button onclick="UI._adjRest(30)">+30s</button>
-            <button class="sf-rest-skip" onclick="UI._skipRest()">SKIP</button>
           </div>
         </div>
         <button class="sf-log-btn" id="sess-save-btn" onclick="UI._tapCurrentSetDone()">
@@ -953,6 +952,9 @@ const UI = {
         else if (next>=0) { setBtn.innerHTML = `NEXT: ${App.state.session.exercises[next].name} →`; setBtn.onclick = ()=>UI._tapCurrentSetDone(); }
         else { setBtn.innerHTML = 'FINISH WORKOUT'; setBtn.onclick = ()=>UI._confirmFinish(); }
       }
+      // Hide SKIP — no set to skip in this state
+      const skipBtn2 = document.getElementById("sf-skip-btn");
+      if (skipBtn2) skipBtn2.style.display = "none";
       return;
     }
 
@@ -974,20 +976,24 @@ const UI = {
       const numLabel = isWarmSet ? "W" : String(wIdx+1);
 
       if (set.logged) {
-        // ── DONE row ──
-        return `<div class="sf-row sf-row-done">
+        // ── DONE row — tappable to un-log and re-edit ──
+        return `<div class="sf-row sf-row-done" onclick="UI._unlockSet(${activeSets.indexOf(set)})" title="Tap to edit">
           <span class="sf-row-num">${numLabel}</span>
           <span class="sf-row-data">${set.claimed?.reps??set.reps}<span class="sf-row-x">×</span>${set.claimed?.weight??set.weight}<span class="sf-row-unit">lbs</span></span>
-          <span class="sf-row-check">✓</span>
+          <span class="sf-row-edit">✎</span>
         </div>`;
       }
 
       if (set === s) {
-        // ── CURRENT — big input ──
+        // ── CURRENT — prominent set label + big input ──
         const rVal = s.claimed?.reps   ?? s.reps;
         const wVal = s.claimed?.weight ?? s.weight;
+        const setLabel = isWarm
+          ? "WARM-UP"
+          : (wTot > 1 ? `SET ${wDone + 1} OF ${wTot}` : "SET 1");
         return `<div class="sf-row sf-row-current">
           <div class="sf-current-block">
+            <div class="sf-current-set-label">${setLabel}</div>
             <div class="sf-big-row">
               <div class="sf-field">
                 <span class="sf-field-label">REPS</span>
@@ -1025,12 +1031,45 @@ const UI = {
 
     listEl.innerHTML = rows;
 
-    // Log button
+    // Log button + SKIP visibility
     if (setBtn) {
       setBtn.classList.remove("ready");
       setBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l5 5 7-8"/></svg>${isWarm ? "LOG WARM-UP" : "LOG SET"}`;
       setBtn.onclick = ()=>UI._tapCurrentSetDone();
     }
+    // SKIP is useful for active sets (skip a warmup, skip a set you can't do).
+    // Show it only when there's an active set to skip — not on NEXT/FINISH states.
+    const skipBtn = document.getElementById("sf-skip-btn");
+    if (skipBtn && !document.getElementById("sf-rest-pill")?.style.display === "none") {
+      skipBtn.style.display = "";
+    }
+  },
+
+  // Un-log a previously logged set so it can be re-edited.
+  // `aidx` is the index within activeSets (excludes excluded sets).
+  _unlockSet(aidx) {
+    const ei = this._activeExIdx;
+    const ex = App.state.session?.exercises?.[ei];
+    if (!ex) return;
+    const activeSets = ex.sets.filter(s=>!s.excluded);
+    const set = activeSets[aidx];
+    if (!set || !set.logged) return;
+
+    // Un-log it
+    set.logged = false;
+    // Clear claimed so it shows the original target values
+    delete set.claimed;
+
+    // Stop any rest timer (we're going back to edit mode)
+    this._stopRest();
+
+    // Rebuild the view
+    this._updateFocusView();
+    this._updateHeader();
+    this._updateQueue();
+
+    // Haptic nudge
+    if (navigator.vibrate) navigator.vibrate(10);
   },
 
   _focusStep(field, dir) {
@@ -1274,7 +1313,7 @@ const UI = {
     const prevR = curSet?.prev?.reps   ?? curSet?.reps;
     const prevW = curSet?.prev?.weight ?? curSet?.weight;
 
-    // Dots + set label + inline target
+    // Dots + set counter — no target chip (that's shown in the set list)
     const dotsEl = document.getElementById("sess-dots-row");
     if (dotsEl) {
       const activeSets = ex.sets.filter(s=>!s.excluded);
@@ -1289,14 +1328,10 @@ const UI = {
           if (i === firstUndone) return `<span class="sdot sdot-next"></span>`;
           return `<span class="sdot sdot-up"></span>`;
         }).join("");
-        const countHtml = `<span class="sess-set-label">${wDone}/${wTot}</span>`;
         const typeHtml = isWarmup
-          ? `<span class="sess-set-type-badge">WARM-UP</span>`
-          : (si >= 0 ? `<span class="sess-set-type-badge">SET ${wDone+1}</span>` : "");
-        const targetHtml = (curSet && (prevR || prevW))
-          ? `<span class="sess-target-inline">${prevR ?? "—"}×${prevW ?? "—"}</span>`
-          : "";
-        dotsEl.innerHTML = dotsHtml + countHtml + typeHtml + targetHtml;
+          ? `<span class="sess-set-label">WARM-UP</span>`
+          : (si >= 0 ? `<span class="sess-set-label">SET ${wDone+1} / ${wTot}</span>` : `<span class="sess-set-label">${wTot} / ${wTot} DONE</span>`);
+        dotsEl.innerHTML = dotsHtml + typeHtml;
       }
     }
   },
