@@ -537,10 +537,17 @@ input[type=number] { -moz-appearance:textfield; }
 .loading-text { text-align:center; padding:30px 0; color:var(--sub); font-size:14px; }
 .loading-text.muted { color:var(--muted); }
 .init-loading { position:fixed; inset:0; background:var(--bg); display:flex; align-items:center; justify-content:center; z-index:9999; }
-.init-loading-inner { display:flex; flex-direction:column; align-items:center; gap:8px; }
-.init-loading-logo { font-family:'Barlow Condensed',sans-serif; font-size:36px; font-weight:900; color:var(--text); letter-spacing:-1px; }
-.init-loading-sub { font-family:'Barlow Condensed',sans-serif; font-size:11px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:var(--muted); animation:initPulse 1.2s ease-in-out infinite; }
-@keyframes initPulse { 0%,100%{opacity:0.4} 50%{opacity:1} }
+.init-loading-inner { display:flex; flex-direction:column; align-items:center; gap:12px; padding:0 32px; text-align:center; }
+.init-loading-headline { font-family:'Barlow Condensed',sans-serif; font-size:28px; font-weight:900; color:var(--text); letter-spacing:-0.5px; line-height:1.1; text-transform:uppercase; }
+.init-loading-sub { font-family:'Barlow Condensed',sans-serif; font-size:14px; font-weight:500; color:var(--muted); letter-spacing:0.5px; }
+.init-loading-spinner { display:flex; gap:6px; margin-top:4px; }
+.init-loading-spinner span { width:6px; height:6px; border-radius:50%; background:var(--yellow); animation:spinDot 1.2s ease-in-out infinite; }
+.init-loading-spinner span:nth-child(2) { animation-delay:0.2s; }
+.init-loading-spinner span:nth-child(3) { animation-delay:0.4s; }
+@keyframes spinDot { 0%,80%,100%{opacity:0.2; transform:scale(0.8)} 40%{opacity:1; transform:scale(1)} }
+.workout-start-loading { }
+.workout-countdown { font-family:'Barlow Condensed',sans-serif; font-size:120px; font-weight:900; color:var(--yellow); line-height:1; letter-spacing:-4px; animation:countPop 0.3s ease-out; }
+@keyframes countPop { from{transform:scale(1.4); opacity:0.5} to{transform:scale(1); opacity:1} }
 .section-head-plain { font-size:11px; font-weight:600; letter-spacing:2px; text-transform:uppercase; color:var(--muted); margin:16px 0 10px; }
 .chart-block { background:var(--card); border:1px solid var(--border); border-radius:6px; padding:14px; margin-bottom:10px; }
 .chart-title { font-family:'Barlow Condensed',sans-serif; font-size:12px; font-weight:700; letter-spacing:2px; text-transform:uppercase; color:var(--sub); }
@@ -1149,10 +1156,10 @@ input[type=number] { -moz-appearance:textfield; }
 <body>
 <div id="app"></div>
 <!-- Increment ?v= on every deploy to bust cache -->
-<script src="js/config.js?v=20260606-10"></script>
-<script src="js/program.js?v=20260606-10"></script>
-<script src="js/app.js?v=20260606-10"></script>
-<script src="js/ui.js?v=20260606-10"></script>
+<script src="js/config.js?v=20260606-11"></script>
+<script src="js/program.js?v=20260606-11"></script>
+<script src="js/app.js?v=20260606-11"></script>
+<script src="js/ui.js?v=20260606-11"></script>
 <script>
   document.addEventListener("DOMContentLoaded", () => UI.init());
 </script>
