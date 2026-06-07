@@ -18,7 +18,31 @@ const UI = {
     // This is fast (~200–400ms) and means the picker renders correctly on
     // the first paint rather than showing wrong data that later corrects.
     if (!App.state.history) {
-      this.root.innerHTML = `<div class="init-loading"><div class="init-loading-inner"><div class="init-loading-logo">Week ${getCurrentWeek()}</div><div class="init-loading-sub">Loading…</div></div></div>`;
+      const phrases = [
+        ["Welcome back, Josh", "Let's get after it."],
+        ["Ready when you are", "Your program is waiting."],
+        ["Consistency is the goal", "Show up. Again."],
+        ["Every rep counts", "Make this one count too."],
+        ["Strong by design", "Not by accident."],
+        ["Progress, not perfection", "Let's move."],
+        ["Today is earned", "Put in the work."],
+        ["Trust the process", "The numbers don't lie."],
+        ["No shortcuts", "Just work."],
+        ["One more session", "That's all it ever is."],
+        ["Discipline builds champions", "Let's go, Josh."],
+        ["What you do today", "Shapes what you lift tomorrow."],
+        ["You showed up", "That's already half the battle."],
+        ["Train smart. Train hard.", "Then do it again."],
+        ["The bar doesn't care", "How you feel. Lift anyway."],
+      ];
+      const [headline, sub] = phrases[Math.floor(Math.random() * phrases.length)];
+      this.root.innerHTML = `<div class="init-loading">
+        <div class="init-loading-inner">
+          <div class="init-loading-headline">${headline}</div>
+          <div class="init-loading-sub">${sub}</div>
+          <div class="init-loading-spinner"><span></span><span></span><span></span></div>
+        </div>
+      </div>`;
       try {
         const { sessions } = await App.fetchHistory();
         App.state.history = sessions;
@@ -707,18 +731,59 @@ const UI = {
 
   // ── START ─────────────────────────────────────────────────────────────────
   async startDay(dayId) {
-    this.root.innerHTML = `<div class="session-loading">Loading…</div>`;
     document.getElementById("bottom-nav")?.remove();
-    // Check both picker date and preview-page date
-    this._logDate = document.getElementById("preview-date")?.value
-                 || document.getElementById("log-past-date")?.value
-                 || null;
-    const today = this._today();
-    if (this._logDate === today) this._logDate = null;
-    App.state.activeDay = dayId;
-    this._sessionStartTime = Date.now();
-    const session = App.newSession(dayId);
-    const last = await App.fetchLastSession(dayId);
+
+    // Show a 3-2-1 countdown with a motivating phrase while we fetch last session
+    const phrases = [
+      ["Let's get to work", ""],
+      ["Time to train", ""],
+      ["Make it count", ""],
+      ["Lock in", ""],
+      ["Let's go", ""],
+      ["Eyes on the bar", ""],
+      ["Show up strong", ""],
+      ["Focus. Breathe. Lift.", ""],
+      ["Every set matters", ""],
+      ["Today you earn it", ""],
+    ];
+    const [headline] = phrases[Math.floor(Math.random() * phrases.length)];
+
+    const renderCountdown = (n) => {
+      this.root.innerHTML = `<div class="init-loading workout-start-loading">
+        <div class="init-loading-inner">
+          <div class="init-loading-headline">${headline}</div>
+          <div class="workout-countdown">${n > 0 ? n : "GO"}</div>
+          <div class="init-loading-spinner"><span></span><span></span><span></span></div>
+        </div>
+      </div>`;
+    };
+
+    renderCountdown(3);
+    // Fire the fetch immediately in parallel with countdown
+    const fetchPromise = (async () => {
+      this._logDate = document.getElementById("preview-date")?.value
+                   || document.getElementById("log-past-date")?.value
+                   || null;
+      const today = this._today();
+      if (this._logDate === today) this._logDate = null;
+      App.state.activeDay = dayId;
+      this._sessionStartTime = Date.now();
+      const session = App.newSession(dayId);
+      const last = await App.fetchLastSession(dayId);
+      App.state.lastSession = last;
+      return { session, last };
+    })();
+
+    // Tick down visually
+    await new Promise(r => setTimeout(r, 600));
+    renderCountdown(2);
+    await new Promise(r => setTimeout(r, 600));
+    renderCountdown(1);
+    await new Promise(r => setTimeout(r, 600));
+    renderCountdown(0);
+    await new Promise(r => setTimeout(r, 400));
+
+    const { session, last } = await fetchPromise;
     App.state.lastSession = last;
     App.state.session = App.applyLastSession(session, last);
 
@@ -1032,12 +1097,12 @@ const UI = {
       setBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l5 5 7-8"/></svg>${isWarm ? "LOG WARM-UP" : "LOG SET"}`;
       setBtn.onclick = ()=>UI._tapCurrentSetDone();
     }
-    // SKIP is useful for active sets (skip a warmup, skip a set you can't do).
-    // Show it only when there's an active set to skip — not on NEXT/FINISH states.
+    // SKIP is useful for active sets. Show it whenever there's an active set.
+    // Restore if the rest pill is not currently showing.
     const skipBtn = document.getElementById("sf-skip-btn");
-    if (skipBtn && !document.getElementById("sf-rest-pill")?.style.display === "none") {
-      skipBtn.style.display = "";
-    }
+    const restPill = document.getElementById("sf-rest-pill");
+    const restActive = restPill && restPill.style.display !== "none";
+    if (skipBtn) skipBtn.style.display = restActive ? "none" : "";
   },
 
   // Un-log a previously logged set so it can be re-edited.
@@ -1426,47 +1491,39 @@ const UI = {
     const s = App.state.session?.exercises?.[ei]?.sets?.[si];
     if (!s || s.excluded) return;
 
-    // Claim ghost values first — circle tap solidifies whatever is showing
     this._claimSet(ei, si);
-
     s.logged = !s.logged;
-    // Commit claimed values on done
     if (s.logged && s.claimed) {
       if (s.claimed.reps   !== undefined) s.reps   = s.claimed.reps;
       if (s.claimed.weight !== undefined) s.weight = s.claimed.weight;
     }
-    // Rebuild the active block (set classes shift)
-    this._rebuildActive();
-    // Auto-claim the new current set so it immediately shows white
+
+    // Pre-claim the next unlogged set
     const ex = App.state.session.exercises[ei];
     const nextSi = ex.sets.findIndex(s=>!s.logged&&!s.excluded);
     if (nextSi >= 0) this._claimSet(ei, nextSi);
 
     this._updateHeader();
-    this._updateQueue();
+
     if (s.logged) {
-      // Subtle save indicator flash
       this._flashSaved();
-      const ex = App.state.session.exercises[ei];
       const allDone = ex.sets.filter(s=>!s.excluded).every(s=>s.logged);
       if (!allDone) {
-        // More sets — start rest timer and show next set
         this._startRest(this._parseRest(ex.rest));
-        setTimeout(() => {
-          this._updateFocusView();
-          this._updateQueue();
-        }, 100);
+        this._updateFocusView();
+        this._updateQueue();
+        this._updateDrawer();
       } else {
-        // Exercise complete — stop rest (user is moving on), show done view.
-        // User taps NEXT to advance; no auto-advance.
         this._stopRest();
         this._updateFocusView();
         this._updateQueue();
+        this._updateDrawer();
       }
     } else {
       this._stopRest();
       this._updateFocusView();
       this._updateQueue();
+      this._updateDrawer();
     }
   },
 
@@ -2668,7 +2725,9 @@ const UI = {
       const curStamp = e.logged_at ? new Date(e.logged_at).getTime() : i;
       const priorStamp = prior ? (prior.logged_at ? new Date(prior.logged_at).getTime() : prior._idx) : -Infinity;
       if (!prior || curStamp >= priorStamp) {
-        byDate.set(ymd, { ...e, _ymd: ymd, _idx: i });
+        // Normalize weight field — server may return either `w` or `weight_lbs`
+        const weight = e.w ?? e.weight_lbs ?? e.weight;
+        byDate.set(ymd, { ...e, _ymd: ymd, _idx: i, w: parseFloat(weight)||0 });
       }
     });
     const entries = Array.from(byDate.values())
@@ -2768,10 +2827,6 @@ const UI = {
         </div>
         <!-- Chart -->
         <div class="bwv2-chart-card">
-          <div class="bwv2-chart-head">
-            <span class="bwv2-chart-lbl">${entries.length} entries</span>
-            ${change30!==null?`<span class="bwv2-chart-trend ${parseFloat(change30)<0?"down":"up"}">${parseFloat(change30)<0?"↓ Trending down":"↑ Trending up"} · ${change30 > 0 ? "+":""}${change30} lbs</span>`:""}
-          </div>
           <div id="bw-chart">${this._bwChart(entries,r)}</div>
         </div>
       `:""}
@@ -2844,8 +2899,9 @@ const UI = {
     (serverLog || []).forEach(e => {
       const ymd = toYmd(e.date);
       if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return; // skip unparseable
-      // Server entries override shadow for the same date
-      merged.set(ymd, { ...e, date: ymd });
+      // Server entries override shadow for the same date. Normalize weight field.
+      const weight = e.w ?? e.weight_lbs ?? e.weight;
+      merged.set(ymd, { ...e, date: ymd, w: parseFloat(weight)||0 });
     });
     return Array.from(merged.values());
   },
