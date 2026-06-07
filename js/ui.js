@@ -34,6 +34,10 @@ const UI = {
         ["You showed up", "That's already half the battle."],
         ["Train smart. Train hard.", "Then do it again."],
         ["The bar doesn't care", "How you feel. Lift anyway."],
+        ["Weak points made strong", "That's what today is for."],
+        ["Stack the sessions", "That's how it compounds."],
+        ["The work is simple", "Show up and lift."],
+        ["Champions are built quietly", "Set by set."],
       ];
       const [headline, sub] = phrases[Math.floor(Math.random() * phrases.length)];
       this.root.innerHTML = `<div class="init-loading">
@@ -43,12 +47,11 @@ const UI = {
           <div class="init-loading-spinner"><span></span><span></span><span></span></div>
         </div>
       </div>`;
-      try {
-        const { sessions } = await App.fetchHistory();
-        App.state.history = sessions;
-      } catch (e) {
-        App.state.history = [];
-      }
+      // Wait for both: the fetch AND a 5-second minimum hold so the user can read the quote
+      await Promise.all([
+        App.fetchHistory().then(({sessions}) => { App.state.history = sessions; }).catch(() => { App.state.history = []; }),
+        new Promise(r => setTimeout(r, 5000))
+      ]);
     }
 
     // Fire the rest of the prefetches in the background (non-blocking)
@@ -749,17 +752,17 @@ const UI = {
     const [headline] = phrases[Math.floor(Math.random() * phrases.length)];
 
     const renderCountdown = (n) => {
+      const isGo = n === 0;
       this.root.innerHTML = `<div class="init-loading workout-start-loading">
         <div class="init-loading-inner">
           <div class="init-loading-headline">${headline}</div>
-          <div class="workout-countdown">${n > 0 ? n : "GO"}</div>
-          <div class="init-loading-spinner"><span></span><span></span><span></span></div>
+          <div class="workout-countdown ${isGo ? "workout-countdown-go" : ""}">${isGo ? "GO" : n}</div>
+          ${!isGo ? `<div class="workout-countdown-fill"><div class="workout-countdown-fill-bar"></div></div>` : ""}
         </div>
       </div>`;
     };
 
     renderCountdown(3);
-    // Fire the fetch immediately in parallel with countdown
     const fetchPromise = (async () => {
       this._logDate = document.getElementById("preview-date")?.value
                    || document.getElementById("log-past-date")?.value
@@ -774,16 +777,18 @@ const UI = {
       return { session, last };
     })();
 
-    // Tick down visually
-    await new Promise(r => setTimeout(r, 600));
+    // Each digit holds exactly 1000ms — a full second per number
+    await new Promise(r => setTimeout(r, 1000));
     renderCountdown(2);
-    await new Promise(r => setTimeout(r, 600));
+    await new Promise(r => setTimeout(r, 1000));
     renderCountdown(1);
-    await new Promise(r => setTimeout(r, 600));
+    await new Promise(r => setTimeout(r, 1000));
     renderCountdown(0);
-    await new Promise(r => setTimeout(r, 400));
+    // Wait for fetch to complete if it hasn't, then hold GO briefly before transition
+    const result = await fetchPromise;
+    await new Promise(r => setTimeout(r, 500));
 
-    const { session, last } = await fetchPromise;
+    const { session, last } = result;
     App.state.lastSession = last;
     App.state.session = App.applyLastSession(session, last);
 
