@@ -27,8 +27,40 @@ const UI = {
     if (!App.state.history) {
       App.fetchHistory().then(({sessions}) => {
         App.state.history = sessions;
-        // Re-render picker only if user is still there
-        if ((App.state.view || "picker") === "picker") {
+        if ((App.state.view || "picker") !== "picker") return;
+        // Try in-place update first (no flicker, no scroll-reset)
+        const weekEl = document.getElementById("land-week-strip");
+        if (weekEl) {
+          // Re-compute lastDone + week cells with real data and patch DOM
+          const cw  = getCurrentWeek();
+          const wd  = WEEKS[cw] || {};
+          const pid = wd.phaseId || "strength";
+          const lastDone = {};
+          sessions.forEach(s => {
+            if (!lastDone[s.dayId] || s.date > lastDone[s.dayId]) lastDone[s.dayId] = s.date;
+          });
+          const cells = this._buildWeekRhythm(sessions, lastDone);
+          weekEl.innerHTML = cells.map(c => `
+            <div class="land-week-cell ${c.cls}">
+              <div class="dow">${c.dow}</div>
+              <div class="dot">${c.dotChar}</div>
+              <div class="lbl">${c.label}</div>
+            </div>`).join("");
+          // Update hero card last-done text
+          const heroEl = document.getElementById("land-hero-lastdone");
+          const dayIds = ["dayA","dayB","dayC"];
+          const heroId = dayIds.reduce((best, id) => {
+            const a = lastDone[id] || "0000-00-00";
+            const b = lastDone[best] || "0000-00-00";
+            return a < b ? id : best;
+          }, dayIds[0]);
+          if (heroEl) {
+            heroEl.textContent = lastDone[heroId] ? UI._daysAgo(lastDone[heroId]) : "not done yet";
+          }
+          const heroCard = document.getElementById("land-hero-card");
+          if (heroCard) heroCard.classList.remove("land-hero-loading");
+        } else {
+          // Fallback: full re-render if elements aren't in DOM
           this.root.innerHTML = "";
           document.getElementById("bottom-nav")?.remove();
           this.renderPicker();
@@ -176,8 +208,8 @@ const UI = {
           </div>
         </div>
 
-        <!-- week rhythm -->
-        <div class="land-week">
+        <!-- week rhythm — updates in-place when history loads -->
+        <div class="land-week" id="land-week-strip">
           ${weekCells.map(c => `
             <div class="land-week-cell ${c.cls}">
               <div class="dow">${c.dow}</div>
@@ -186,8 +218,8 @@ const UI = {
             </div>`).join("")}
         </div>
 
-        <!-- hero card -->
-        <button class="land-today-hero" onclick="UI._previewDay('${heroId}')">
+        <!-- hero card — updates in-place when history loads -->
+        <button class="land-today-hero${!history.length?" land-hero-loading":""}" id="land-hero-card" onclick="UI._previewDay('${heroId}')">
           <div class="land-today-eyebrow"><span class="pulse"></span>Next up</div>
           <div class="land-today-title">${heroDay.title}</div>
           <div class="land-today-meta">
@@ -201,7 +233,7 @@ const UI = {
             </div>
             <div class="land-meta-pair">
               <span class="lbl">Last done</span>
-              <span class="val">${heroLastStr}</span>
+              <span class="val" id="land-hero-lastdone">${heroLastStr}</span>
             </div>
             ${topProg ? `
               <div class="land-meta-pair">
@@ -431,12 +463,9 @@ const UI = {
         <button class="prev-back" onclick="UI._exitPreview()">← Back</button>
         <div class="prev-title-row">
           <div class="prev-title">${d.title}</div>
-          <span class="prev-wk-chip">WK ${cw}</span>
-        </div>
-        <div class="prev-toolbar">
           <button class="prev-tool-add" onclick="UI._draftAdd()">
             <svg width="11" height="11" viewBox="0 0 11 11" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"><path d="M5.5 1v9M1 5.5h9"/></svg>
-            Add exercise
+            Add
           </button>
         </div>
       </div>
@@ -949,10 +978,10 @@ const UI = {
         const next = App.state.session.exercises.findIndex((e,i)=>i>ei&&!e.sets.filter(s=>!s.excluded).every(s=>s.logged));
         setBtn.classList.add("ready");
         if (allDone) { setBtn.innerHTML = 'FINISH WORKOUT'; setBtn.onclick = ()=>UI._confirmFinish(); }
-        else if (next>=0) { setBtn.innerHTML = `NEXT: ${App.state.session.exercises[next].name} →`; setBtn.onclick = ()=>UI._tapCurrentSetDone(); }
+        else if (next>=0) { setBtn.innerHTML = `NEXT: ${App.state.session.exercises[next].name} →`; setBtn.onclick = ()=>UI._bottomAction(); }
         else { setBtn.innerHTML = 'FINISH WORKOUT'; setBtn.onclick = ()=>UI._confirmFinish(); }
       }
-      // Hide SKIP — no set to skip in this state
+      // Hide SKIP — no active set to skip
       const skipBtn2 = document.getElementById("sf-skip-btn");
       if (skipBtn2) skipBtn2.style.display = "none";
       return;
@@ -1450,26 +1479,21 @@ const UI = {
     this._updateHeader();
     this._updateQueue();
     if (s.logged) {
-      // Subtle save indicator flash — pulses green check on action row briefly
+      // Subtle save indicator flash
       this._flashSaved();
       const ex = App.state.session.exercises[ei];
-      this._startRest(this._parseRest(ex.rest));
       const allDone = ex.sets.filter(s=>!s.excluded).every(s=>s.logged);
-      if (allDone && ei+1 < App.state.session.exercises.length) {
-        setTimeout(() => {
-          this._activeExIdx = ei + 1;
-          this._updateFocusView();
-          this._updateHeader();
-          this._updateQueue();
-        }, 600);
-      } else if (!allDone) {
-        // More sets on this exercise — refresh focus view for next set
+      if (!allDone) {
+        // More sets — start rest timer and show next set
+        this._startRest(this._parseRest(ex.rest));
         setTimeout(() => {
           this._updateFocusView();
           this._updateQueue();
         }, 100);
       } else {
-        // Entire session done
+        // Exercise complete — stop rest (user is moving on), show done view.
+        // User taps NEXT to advance; no auto-advance.
+        this._stopRest();
         this._updateFocusView();
         this._updateQueue();
       }
@@ -2761,7 +2785,7 @@ const UI = {
       ${entries.length>=2?`
         <!-- Range selector -->
         <div class="bwv2-range">
-          ${[30,90,365,0].map(rv=>`<button class="bwv2-range-btn ${r===rv?"active":""}" onclick="UI._setBWRange(${rv})">${rl[rv]}</button>`).join("")}
+          ${[30,90,365,0].map(rv=>`<button class="bwv2-range-btn ${r===rv?"active":""}" data-range="${rv}" onclick="UI._setBWRange(${rv})">${rl[rv]}</button>`).join("")}
         </div>
         <!-- Chart -->
         <div class="bwv2-chart-card">
@@ -2871,17 +2895,20 @@ const UI = {
   },
 
   _setBWRange(r) {
-    this._bwRange=r;
-    const el=document.getElementById("bw-chart");
-    if(el&&App.state.bwLog) {
+    this._bwRange = r;
+    const el = document.getElementById("bw-chart");
+    if (el && App.state.bwLog) {
       const sorted = (App.state.bwLog||[])
         .map(e=>({...e, _ymd:String(e.date).slice(0,10)}))
         .filter(e=>/^\d{4}-\d{2}-\d{2}$/.test(e._ymd))
         .sort((a,b)=>a._ymd<b._ymd?-1:a._ymd>b._ymd?1:0);
-      el.innerHTML = this._bwChart(sorted,r);
+      el.innerHTML = this._bwChart(sorted, r);
     }
-    const rl={30:"30 days",90:"90 days",365:"1 year",0:"All time"};
-    document.querySelectorAll(".bw-range-btn").forEach(b=>b.classList.toggle("active",b.textContent.trim()===rl[r]));
+    // Fix: class is bwv2-range-btn in the rendered HTML
+    document.querySelectorAll(".bwv2-range-btn").forEach(b => {
+      const btnRange = parseInt(b.getAttribute("data-range") ?? "-1");
+      b.classList.toggle("active", btnRange === r);
+    });
   },
 
   _bwChart(entries, range) {
@@ -2894,7 +2921,13 @@ const UI = {
     const sxy=data.reduce((s,e,i)=>s+i*e.w,0),sx2=data.reduce((s,_,i)=>s+i*i,0);
     const sl=(n*sxy-sx*sy)/(n*sx2-sx*sx||1),ic=(sy-sl*sx)/n;
     const ty0=H-((ic-mn)/rng)*H,ty1=H-(((sl*(n-1)+ic)-mn)/rng)*H;
-    const tr=sl<-0.05?"↓ trending down":sl>0.05?"↑ trending up":"→ steady";
+    // Net delta for this range — first to last weight in the selected window
+    const first = data[0]?.w, last = data[data.length-1]?.w;
+    const delta = (first != null && last != null) ? (last - first) : null;
+    const deltaStr = delta !== null
+      ? `${delta > 0 ? "+" : ""}${delta.toFixed(1)} lbs`
+      : "";
+    const deltaClass = delta !== null ? (delta < 0 ? "down" : delta > 0 ? "up" : "flat") : "";
     const gTop=H-((gh-mn)/rng)*H, gBotPx=H-((gl-mn)/rng)*H, gH=Math.max(0, gBotPx-gTop);
     const latest = data[data.length-1]?.w;
     const status = latest >= gl && latest <= gh ? "in goal" :
@@ -2903,7 +2936,7 @@ const UI = {
     const statusCls = latest >= gl && latest <= gh ? "in" :
                       latest > gh ? "above" : "below";
     return `<div class="chart-block" style="padding:14px">
-      <div class="chart-title-row"><span class="chart-title">${data.length} entries</span><span class="chart-trend">${tr}</span></div>
+      <div class="chart-title-row"><span class="chart-title">${data.length} entries</span>${deltaStr ? `<span class="chart-trend ${deltaClass}">${deltaStr}</span>` : ""}</div>
       <div class="svg-chart-wrap">
         <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="svg-chart">
           <rect x="0" y="${gTop}" width="${W}" height="${gH}" fill="rgba(61,255,160,.14)"/>
