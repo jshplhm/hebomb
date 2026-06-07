@@ -337,7 +337,10 @@ input[type=number] { -moz-appearance:textfield; }
 }
 .sf-row-done:active .sf-row-edit { opacity: 1; }
 .sf-row-done { cursor: pointer; -webkit-tap-highlight-color: transparent; }
-.sf-row-done:active { background: var(--card2); opacity: 1; } flex-shrink:0; display:flex; gap:8px; padding:12px 14px calc(var(--safe-bot) + 14px); background:var(--bg); border-top:1px solid var(--border); }
+.sf-row-done:active { background: var(--card2); opacity: 1; }
+
+/* Skip + Log action row */
+.sf-action-row { flex-shrink:0; display:flex; gap:8px; padding:12px 14px calc(var(--safe-bot) + 14px); background:var(--bg); border-top:1px solid var(--border); align-items:stretch; }
 .sf-skip-btn { background:transparent; border:1.5px solid var(--border2); color:var(--muted); font-family:'Barlow Condensed',sans-serif; font-size:13px; font-weight:700; letter-spacing:2px; text-transform:uppercase; padding:0 18px; border-radius:10px; cursor:pointer; -webkit-tap-highlight-color:transparent; flex-shrink:0; transition:all 0.12s; }
 .sf-skip-btn:active { border-color:var(--sub); color:var(--sub); }
 .sf-log-btn { flex:1; height:64px; background:var(--yellow); border:none; border-radius:10px; color:#0a0a0a; font-family:'Barlow Condensed',sans-serif; font-size:18px; font-weight:900; letter-spacing:2px; text-transform:uppercase; cursor:pointer; -webkit-tap-highlight-color:transparent; display:flex; align-items:center; justify-content:center; gap:8px; transition:opacity 0.1s, transform 0.08s; }
@@ -533,6 +536,11 @@ input[type=number] { -moz-appearance:textfield; }
 .stats-tab.active { background:var(--yellow); color:#0a0a0a; }
 .loading-text { text-align:center; padding:30px 0; color:var(--sub); font-size:14px; }
 .loading-text.muted { color:var(--muted); }
+.init-loading { position:fixed; inset:0; background:var(--bg); display:flex; align-items:center; justify-content:center; z-index:9999; }
+.init-loading-inner { display:flex; flex-direction:column; align-items:center; gap:8px; }
+.init-loading-logo { font-family:'Barlow Condensed',sans-serif; font-size:36px; font-weight:900; color:var(--text); letter-spacing:-1px; }
+.init-loading-sub { font-family:'Barlow Condensed',sans-serif; font-size:11px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:var(--muted); animation:initPulse 1.2s ease-in-out infinite; }
+@keyframes initPulse { 0%,100%{opacity:0.4} 50%{opacity:1} }
 .section-head-plain { font-size:11px; font-weight:600; letter-spacing:2px; text-transform:uppercase; color:var(--muted); margin:16px 0 10px; }
 .chart-block { background:var(--card); border:1px solid var(--border); border-radius:6px; padding:14px; margin-bottom:10px; }
 .chart-title { font-family:'Barlow Condensed',sans-serif; font-size:12px; font-weight:700; letter-spacing:2px; text-transform:uppercase; color:var(--sub); }
@@ -625,11 +633,11 @@ input[type=number] { -moz-appearance:textfield; }
 .prev-header { flex-shrink:0; padding:calc(var(--safe-top) + 12px) 16px 14px; }
 .prev-back { background:transparent; border:none; color:var(--sub); font-size:14px; cursor:pointer; padding:4px 0; display:inline-flex; align-items:center; gap:6px; -webkit-tap-highlight-color:transparent; margin-bottom:14px; }
 .prev-back:active { color:var(--text); }
-.prev-title-row { display:flex; align-items:flex-end; justify-content:space-between; gap:12px; margin-bottom:14px; }
-.prev-title { font-family:'Barlow Condensed',sans-serif; font-size:28px; font-weight:900; text-transform:uppercase; letter-spacing:-0.5px; color:var(--text); line-height:1; }
+.prev-title-row { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px; }
+.prev-title { font-family:'Barlow Condensed',sans-serif; font-size:28px; font-weight:900; text-transform:uppercase; letter-spacing:-0.5px; color:var(--text); line-height:1; flex:1; min-width:0; }
 .prev-wk-chip { font-family:'Barlow Condensed',sans-serif; font-size:10px; font-weight:900; letter-spacing:2px; padding:4px 10px; background:var(--yellow); color:#0a0a0a; border-radius:4px; flex-shrink:0; }
 .prev-toolbar { display:flex; gap:8px; padding-top:12px; border-top:1px solid var(--border); justify-content:flex-end; }
-.prev-tool-add { padding:10px 16px; background:transparent; border:1px dashed var(--border2); border-radius:8px; color:var(--yellow); font-family:'Barlow Condensed',sans-serif; font-size:11px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; cursor:pointer; display:flex; align-items:center; gap:6px; flex-shrink:0; -webkit-tap-highlight-color:transparent; }
+.prev-tool-add { height:32px; padding:0 12px; background:transparent; border:1px dashed var(--border2); border-radius:8px; color:var(--yellow); font-family:'Barlow Condensed',sans-serif; font-size:11px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; cursor:pointer; display:flex; align-items:center; gap:5px; flex-shrink:0; -webkit-tap-highlight-color:transparent; white-space:nowrap; }
 .prev-tool-add:active { background:rgba(232,255,71,.05); }
 
 /* Hint banner */
@@ -1141,10 +1149,10 @@ input[type=number] { -moz-appearance:textfield; }
 <body>
 <div id="app"></div>
 <!-- Increment ?v= on every deploy to bust cache -->
-<script src="js/config.js?v=20260606-09"></script>
-<script src="js/program.js?v=20260606-09"></script>
-<script src="js/app.js?v=20260606-09"></script>
-<script src="js/ui.js?v=20260606-09"></script>
+<script src="js/config.js?v=20260606-10"></script>
+<script src="js/program.js?v=20260606-10"></script>
+<script src="js/app.js?v=20260606-10"></script>
+<script src="js/ui.js?v=20260606-10"></script>
 <script>
   document.addEventListener("DOMContentLoaded", () => UI.init());
 </script>
