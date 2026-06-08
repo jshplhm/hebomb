@@ -798,8 +798,9 @@ const UI = {
         numEl.className = `workout-countdown ${isGo ? "workout-countdown-go" : ""}`;
         numEl.textContent = isGo ? "GO" : String(n);
         if (fillEl) {
-          if (isGo) { fillEl.style.display = "none"; }
+          if (isGo) { fillEl.style.opacity = "0"; } // keep space, just hide visually
           else {
+            fillEl.style.opacity = "1";
             fillEl.style.display = "";
             // Restart drain animation by replacing the fill bar
             fillEl.innerHTML = `<div class="workout-countdown-fill-bar"></div>`;
@@ -811,7 +812,7 @@ const UI = {
           <div class="init-loading-inner">
             <div class="init-loading-headline">${headline}</div>
             <div id="countdown-num" class="workout-countdown${isGo ? " workout-countdown-go" : ""}">${isGo ? "GO" : n}</div>
-            <div id="countdown-fill" class="workout-countdown-fill"${isGo ? ' style="display:none"' : ""}><div class="workout-countdown-fill-bar"></div></div>
+            <div id="countdown-fill" class="workout-countdown-fill"${isGo ? ' style="opacity:0"' : ""}><div class="workout-countdown-fill-bar"></div></div>
           </div>
         </div>`;
       }
