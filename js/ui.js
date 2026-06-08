@@ -1074,13 +1074,10 @@ const UI = {
         const setLabel = isWarm
           ? "WARM-UP"
           : (wTot > 1 ? `SET ${wDone + 1} OF ${wTot}` : "SET 1");
-        // Warmup toggle — lets user flip current set to/from warmup
-        const warmToggle = `<button class="sf-warm-toggle${isWarm?" active":""}" onclick="UI._toggleWarmup(${aidx})" title="${isWarm?"Mark as working set":"Mark as warm-up"}">${isWarm?"W · working →":"→ W"}</button>`;
         return `<div class="sf-row sf-row-current">
           <div class="sf-current-block">
             <div class="sf-current-set-label-row">
               <div class="sf-current-set-label">${setLabel}</div>
-              ${warmToggle}
             </div>
             <div class="sf-big-row">
               <div class="sf-field">
@@ -2338,16 +2335,24 @@ const UI = {
     const sessionStartTime = this._sessionStartTime || null;
     const lastSession = App.state.lastSession || null;
     try {
-      await App.saveSession(toSave);
-      this._saving = false;
+      // Build summary and show finish screen IMMEDIATELY — don't make user wait for network
       const summary = this._buildSessionSummary(toSave, lastSession, sessionStartTime);
       App.state.session = App.state.activeDay = null;
       App.state.history = null;
+      this._saving = false;
       this._renderFinishScreen(summary, day);
+
+      // Kick off the background save — show error only if it truly fails
+      App.saveSession(toSave).then(() => {
+        // Prefetch history in background so it's ready when user hits History tab
+        App.fetchHistory().then(({sessions}) => { App.state.history = sessions; }).catch(()=>{});
+      }).catch(() => {
+        this._toast("Save failed — please re-open the app and try again");
+      });
     } catch(e) {
       this._saving = false;
       if (setBtn) { setBtn.disabled = false; setBtn.innerHTML = "FINISH WORKOUT"; setBtn.style.opacity = ""; }
-      this._toast("Save failed — try again");
+      this._toast("Error building summary");
     }
   },
 
@@ -2636,22 +2641,160 @@ const UI = {
     this._lastFinishDayTitle = dayTitle;
   },
 
-  _shareFinish() {
+  async _shareFinish() {
     const s = this._lastFinishSummary;
     const t = this._lastFinishDayTitle;
     if (!s) return;
-    const lines = [
-      `💪 ${t}`,
-      s.headline.label + " — " + s.headline.main.replace(/<[^>]+>/g, "").replace(/\n/g, " "),
-      `${Math.round(s.totalVolume).toLocaleString()} lbs moved · ${s.totalSets}/${s.workingSetCount} sets`,
-    ];
-    const text = lines.join("\n");
-    if (navigator.share) {
-      navigator.share({ text }).catch(()=>{});
-    } else if (navigator.clipboard) {
-      navigator.clipboard.writeText(text);
-      this._toast("Copied to clipboard");
+
+    // Draw a styled summary card onto an offscreen canvas, then share as image
+    const dpr = window.devicePixelRatio || 2;
+    const W = 375, H = 500;
+    const cv = document.createElement("canvas");
+    cv.width = W * dpr; cv.height = H * dpr;
+    cv.style.width = W + "px"; cv.style.height = H + "px";
+    const ctx = cv.getContext("2d");
+    ctx.scale(dpr, dpr);
+
+    // Background
+    ctx.fillStyle = "#0a0a0a";
+    ctx.fillRect(0, 0, W, H);
+
+    // Yellow accent gradient
+    const grd = ctx.createRadialGradient(W/2, 40, 0, W/2, 40, 260);
+    grd.addColorStop(0, "rgba(232,255,71,0.12)");
+    grd.addColorStop(1, "rgba(232,255,71,0)");
+    ctx.fillStyle = grd;
+    ctx.fillRect(0, 0, W, H);
+
+    // WORKOUT COMPLETE pill
+    ctx.fillStyle = "rgba(61,255,160,0.15)";
+    this._roundRect(ctx, 22, 24, 160, 22, 6);
+    ctx.fill();
+    ctx.fillStyle = "#3DFFA0";
+    ctx.font = "700 9px 'Barlow Condensed', Arial";
+    ctx.letterSpacing = "2px";
+    ctx.fillText("● WORKOUT COMPLETE", 30, 39);
+
+    // Day title
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "900 38px 'Barlow Condensed', Arial";
+    ctx.fillText(t.toUpperCase(), 22, 90);
+
+    // Headline
+    const hl = s.headline.main.replace(/<[^>]+>/g, "").replace(/\n/g, " ");
+    ctx.fillStyle = "#E8FF47";
+    ctx.font = "700 18px 'Barlow Condensed', Arial";
+    this._wrapText(ctx, hl, 22, 120, W - 44, 22);
+
+    // Stats bar
+    const vol = Math.round(s.totalVolume).toLocaleString();
+    const sets = `${s.totalSets} / ${s.workingSetCount}`;
+
+    ctx.fillStyle = "#161616";
+    this._roundRect(ctx, 22, 155, W/2 - 27, 76, 10);
+    ctx.fill();
+    ctx.fillStyle = "#161616";
+    this._roundRect(ctx, W/2 + 5, 155, W/2 - 27, 76, 10);
+    ctx.fill();
+
+    ctx.fillStyle = "#888";
+    ctx.font = "700 9px 'Barlow Condensed', Arial";
+    ctx.fillText("VOLUME MOVED", 34, 175);
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "900 28px 'Barlow Condensed', Arial";
+    ctx.fillText(vol, 34, 210);
+    ctx.fillStyle = "#888";
+    ctx.font = "700 9px 'Barlow Condensed', Arial";
+    ctx.fillText("lbs", 34 + ctx.measureText(vol).width + 4, 210);
+
+    ctx.fillStyle = "#888";
+    ctx.font = "700 9px 'Barlow Condensed', Arial";
+    ctx.fillText("WORKING SETS", W/2 + 17, 175);
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "900 28px 'Barlow Condensed', Arial";
+    ctx.fillText(sets, W/2 + 17, 210);
+
+    // Compare rows
+    let y = 255;
+    if (s.compare.length) {
+      ctx.fillStyle = "#161616";
+      this._roundRect(ctx, 22, y - 10, W - 44, s.compare.length * 36 + 32, 10);
+      ctx.fill();
+
+      ctx.fillStyle = "#666";
+      ctx.font = "700 9px 'Barlow Condensed', Arial";
+      ctx.fillText("BASELINES LOCKED", 34, y + 8);
+      y += 22;
+
+      s.compare.slice(0, 5).forEach(c => {
+        ctx.fillStyle = "#ccc";
+        ctx.font = "600 13px 'Barlow Condensed', Arial";
+        ctx.fillText(c.name, 34, y + 14);
+        ctx.fillStyle = "#fff";
+        ctx.font = "700 13px 'Barlow Condensed', Arial";
+        ctx.fillText(c.cur, W - 44 - ctx.measureText(c.cur).width - (c.delta ? 48 : 6), y + 14);
+        if (c.delta) {
+          ctx.fillStyle = c.deltaKind === "up" ? "#3DFFA0" : c.deltaKind === "down" ? "#FF4848" : "#888";
+          ctx.font = "700 11px 'Barlow Condensed', Arial";
+          ctx.fillText(c.delta, W - 44, y + 14);
+        }
+        y += 36;
+      });
     }
+
+    // Branding footer
+    ctx.fillStyle = "rgba(255,255,255,0.12)";
+    ctx.fillRect(22, H - 40, W - 44, 0.5);
+    ctx.fillStyle = "#555";
+    ctx.font = "600 11px 'Barlow Condensed', Arial";
+    ctx.fillText("Hebomb Training", 22, H - 18);
+    ctx.fillStyle = "#E8FF47";
+    ctx.fillText("●", W - 36, H - 18);
+
+    // Convert to blob and share or download
+    cv.toBlob(async (blob) => {
+      const file = new File([blob], "workout.png", { type: "image/png" });
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], title: `${t} — Workout Complete` });
+        } catch(e) { /* user cancelled */ }
+      } else {
+        // Fallback: trigger download
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url; a.download = "workout.png"; a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 2000);
+        this._toast("Saved to downloads");
+      }
+    }, "image/png");
+  },
+
+  _roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  },
+
+  _wrapText(ctx, text, x, y, maxW, lineH) {
+    const words = text.split(" ");
+    let line = "";
+    for (const word of words) {
+      const test = line + word + " ";
+      if (ctx.measureText(test).width > maxW && line !== "") {
+        ctx.fillText(line.trim(), x, y);
+        line = word + " ";
+        y += lineH;
+      } else { line = test; }
+    }
+    ctx.fillText(line.trim(), x, y);
   },
 
   _closeFinish() {
@@ -3199,10 +3342,21 @@ const UI = {
       </div>
       <div id="hist-content" class="histv2-body"><div class="loading-text">Loading…</div></div>`;
     this.root.appendChild(wrap);
+
+    // Use cached history if available — renders instantly.
+    // Only fetch if cache is empty (first load or after a save that cleared it).
     if (!App.state.history) {
-      const { sessions } = await App.fetchHistory();
-      App.state.history = sessions;
+      try {
+        const { sessions } = await App.fetchHistory();
+        App.state.history = sessions;
+      } catch(e) {
+        App.state.history = [];
+      }
     }
+    this._renderHistoryContent();
+  },
+
+  _renderHistoryContent() {
     const el = document.getElementById("hist-content");
     if (!el) return;
     const sessions = App.state.history || [];
