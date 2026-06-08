@@ -907,9 +907,8 @@ const UI = {
       <!-- Thin rest progress bar — only visible during rest, above action row -->
       <div id="rest-progress-bar"><div id="rest-progress-fill"></div></div>
 
-      <!-- ③ Action row: SKIP + LOG. During rest, the SKIP becomes the rest pill. -->
+      <!-- ③ Action row: no SKIP — LOG SET fills the row -->
       <div class="sf-action-row" id="sf-action-row">
-        <button class="sf-skip-btn" id="sf-skip-btn" onclick="UI._skipCurrentSet()">SKIP</button>
         <div class="sf-rest-pill" id="sf-rest-pill" style="display:none">
           <div class="sf-rest-time-block">
             <span class="sf-rest-label" id="rest-banner-label">REST</span>
@@ -1025,9 +1024,18 @@ const UI = {
         else if (next>=0) { setBtn.innerHTML = `NEXT: ${App.state.session.exercises[next].name} →`; setBtn.onclick = ()=>UI._bottomAction(); }
         else { setBtn.innerHTML = 'FINISH WORKOUT'; setBtn.onclick = ()=>UI._confirmFinish(); }
       }
-      // Hide SKIP — no active set to skip
-      const skipBtn2 = document.getElementById("sf-skip-btn");
-      if (skipBtn2) skipBtn2.style.display = "none";
+      // Offer "Add another set" in the done view — injected below the done hero
+      const doneHero = listEl.querySelector(".sf-done-hero");
+      if (doneHero) {
+        const addBtn = document.createElement("button");
+        addBtn.className = "sf-done-add-set";
+        addBtn.innerHTML = `<span>+</span> Add another set`;
+        addBtn.onclick = () => UI._addSet(ei);
+        doneHero.appendChild(addBtn);
+      }
+      // Hide rest pill in done state
+      const skipBtnD = document.getElementById("sf-skip-btn");
+      if (skipBtnD) skipBtnD.style.display = "none";
       return;
     }
 
@@ -1066,9 +1074,14 @@ const UI = {
         const setLabel = isWarm
           ? "WARM-UP"
           : (wTot > 1 ? `SET ${wDone + 1} OF ${wTot}` : "SET 1");
+        // Warmup toggle — lets user flip current set to/from warmup
+        const warmToggle = `<button class="sf-warm-toggle${isWarm?" active":""}" onclick="UI._toggleWarmup(${aidx})" title="${isWarm?"Mark as working set":"Mark as warm-up"}">${isWarm?"W · working →":"→ W"}</button>`;
         return `<div class="sf-row sf-row-current">
           <div class="sf-current-block">
-            <div class="sf-current-set-label">${setLabel}</div>
+            <div class="sf-current-set-label-row">
+              <div class="sf-current-set-label">${setLabel}</div>
+              ${warmToggle}
+            </div>
             <div class="sf-big-row">
               <div class="sf-field">
                 <span class="sf-field-label">REPS</span>
@@ -1095,29 +1108,87 @@ const UI = {
         </div>`;
       }
 
-      // ── UPCOMING row ──
+      // ── UPCOMING row — with skip × ──
       const upR = set.prev?.reps   ?? set.reps;
       const upW = set.prev?.weight ?? set.weight;
       return `<div class="sf-row sf-row-up">
         <span class="sf-row-num">${numLabel}</span>
         <span class="sf-row-data sf-row-data-up">${upR}<span class="sf-row-x">×</span>${upW}<span class="sf-row-unit">lbs</span></span>
+        <button class="sf-set-skip" onclick="UI._skipSet(${aidx})" aria-label="Skip set">✕</button>
       </div>`;
     }).join("");
 
-    listEl.innerHTML = rows;
+    // "+ Add set" after last upcoming row — lets user add a set on the fly
+    const addSetRow = `<div class="sf-add-set-row" onclick="UI._addSet(${ei})">
+      <span class="sf-add-set-icon">+</span>
+      <span class="sf-add-set-lbl">Add set</span>
+    </div>`;
 
-    // Log button + SKIP visibility
+    listEl.innerHTML = rows + addSetRow;
+
+    // Log button (SKIP is now per-row, not a separate button)
     if (setBtn) {
       setBtn.classList.remove("ready");
       setBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l5 5 7-8"/></svg>${isWarm ? "LOG WARM-UP" : "LOG SET"}`;
       setBtn.onclick = ()=>UI._tapCurrentSetDone();
+      setBtn.disabled = false;
+      setBtn.style.opacity = "";
     }
-    // SKIP is useful for active sets. Show it whenever there's an active set.
-    // Restore if the rest pill is not currently showing.
-    const skipBtn = document.getElementById("sf-skip-btn");
+    // Rest pill visibility
     const restPill = document.getElementById("sf-rest-pill");
     const restActive = restPill && restPill.style.display !== "none";
-    if (skipBtn) skipBtn.style.display = restActive ? "none" : "";
+    if (restActive) {
+      setBtn && (setBtn.style.flex = "1");
+    }
+  },
+
+  // Skip an upcoming set (mark excluded so it's removed from the flow)
+  _skipSet(aidx) {
+    const ei = this._activeExIdx;
+    const ex = App.state.session?.exercises?.[ei];
+    if (!ex) return;
+    const activeSets = ex.sets.filter(s=>!s.excluded);
+    const set = activeSets[aidx];
+    if (!set || set.logged) return; // can't skip a done set
+    set.excluded = true;
+    if (navigator.vibrate) navigator.vibrate(10);
+    this._updateFocusView();
+    this._updateHeader();
+    this._updateQueue();
+  },
+
+  // Toggle current set between warmup and working
+  _toggleWarmup(aidx) {
+    const ei = this._activeExIdx;
+    const ex = App.state.session?.exercises?.[ei];
+    if (!ex) return;
+    const activeSets = ex.sets.filter(s=>!s.excluded);
+    const set = activeSets[aidx];
+    if (!set || set.logged) return;
+    set.isWarmup = !set.isWarmup;
+    if (navigator.vibrate) navigator.vibrate(8);
+    this._updateFocusView();
+    this._updateHeader();
+  },
+
+  // Add an extra set to the current exercise (copies last set's target)
+  _addSet(ei) {
+    const ex = App.state.session?.exercises?.[ei];
+    if (!ex) return;
+    const lastSet = ex.sets.filter(s=>!s.excluded).slice(-1)[0] || ex.sets[0];
+    const newSet = {
+      reps:   lastSet?.reps   ?? 8,
+      weight: lastSet?.weight ?? 0,
+      prev:   lastSet?.prev,
+      logged: false,
+      excluded: false,
+      _added: true
+    };
+    ex.sets.push(newSet);
+    if (navigator.vibrate) navigator.vibrate(10);
+    this._updateFocusView();
+    this._updateHeader();
+    this._updateQueue();
   },
 
   // Un-log a previously logged set so it can be re-edited.
@@ -2240,8 +2311,14 @@ const UI = {
     this._closeSheet();
     this._stopRest();
     const { session, activeDay } = App.state;
-    if (!session) return;
-    this._toast("Saving…");
+    if (!session || this._saving) return;
+    this._saving = true;
+
+    // Immediately replace the finish button with a saving indicator so
+    // a second tap can't fire another save while the network call is in-flight.
+    const setBtn = document.getElementById("sess-save-btn");
+    if (setBtn) { setBtn.disabled = true; setBtn.innerHTML = "Saving…"; setBtn.style.opacity = "0.6"; }
+
     const toSave = {
       ...session,
       exercises: session.exercises.map(ex => ({
@@ -2262,11 +2339,16 @@ const UI = {
     const lastSession = App.state.lastSession || null;
     try {
       await App.saveSession(toSave);
+      this._saving = false;
       const summary = this._buildSessionSummary(toSave, lastSession, sessionStartTime);
       App.state.session = App.state.activeDay = null;
       App.state.history = null;
       this._renderFinishScreen(summary, day);
-    } catch(e) { this._toast("Save failed"); }
+    } catch(e) {
+      this._saving = false;
+      if (setBtn) { setBtn.disabled = false; setBtn.innerHTML = "FINISH WORKOUT"; setBtn.style.opacity = ""; }
+      this._toast("Save failed — try again");
+    }
   },
 
   _buildSessionSummary(toSave, lastSession, startTime) {
