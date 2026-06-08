@@ -197,6 +197,8 @@ input[type=number] { -moz-appearance:textfield; }
 .sf-row { display:flex; align-items:center; gap:10px; padding:6px 12px; border-radius:8px; flex-shrink:0; }
 .sf-row-done { background:var(--card); opacity:0.5; }
 .sf-row-up { background:transparent; border:1px dashed var(--border); }
+/* Current set — override sf-row padding so big tiles are same width as the rows above/below */
+.sf-row-current { padding:0 !important; background:transparent; align-items:stretch; flex-direction:column; flex:1 1 auto; min-height:0; gap:0; }
 
 .sf-row-num { font-family:'Barlow Condensed',sans-serif; font-size:10px; font-weight:700; color:var(--muted); width:14px; text-align:center; flex-shrink:0; letter-spacing:1px; }
 .sf-row-num-cur { color:var(--yellow); font-size:12px; }
@@ -1246,10 +1248,10 @@ input[type=number] { -moz-appearance:textfield; }
 <body>
 <div id="app"></div>
 <!-- Increment ?v= on every deploy to bust cache -->
-<script src="js/config.js?v=20260606-19"></script>
-<script src="js/program.js?v=20260606-19"></script>
-<script src="js/app.js?v=20260606-19"></script>
-<script src="js/ui.js?v=20260606-19"></script>
+<script src="js/config.js?v=20260606-20"></script>
+<script src="js/program.js?v=20260606-20"></script>
+<script src="js/app.js?v=20260606-20"></script>
+<script src="js/ui.js?v=20260606-20"></script>
 <script>
   document.addEventListener("DOMContentLoaded", () => UI.init());
 </script>
