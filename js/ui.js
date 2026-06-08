@@ -60,6 +60,7 @@ const UI = {
         // Pre-render the picker as a hidden sibling so layout is computed before fade
         this._prefetchBackground();
         const pickerWrap = document.createElement("div");
+        pickerWrap.className = "picker-page";
         pickerWrap.style.opacity = "0";
         pickerWrap.style.position = "absolute";
         pickerWrap.style.inset = "0";
@@ -3380,7 +3381,6 @@ const UI = {
           <line x1="0" y1="${gBotPx}" x2="${W}" y2="${gBotPx}" stroke="rgba(61,255,160,.55)" stroke-width="0.8" stroke-dasharray="3 3"/>
           <line x1="0" y1="${ty0}" x2="${W}" y2="${ty1}" stroke="#5ba4ff" stroke-width="1" stroke-dasharray="4 3" opacity="0.5"/>
           <polyline points="${pts}" fill="none" stroke="#e8ff47" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-          ${data.length<=20?data.map((e,i)=>`<circle cx="${(i/(data.length-1))*W}" cy="${H-((e.w-mn)/rng)*H}" r="2.5" fill="#e8ff47"/>`).join(""):""}
         </svg>
         <div class="svg-y-labels"><span>${mx.toFixed(0)}</span><span>${((mx+mn)/2).toFixed(0)}</span><span>${mn.toFixed(0)}</span></div>
       </div>
