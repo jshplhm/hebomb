@@ -419,13 +419,15 @@ input[type=number] { -moz-appearance:textfield; }
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex: 1;
   min-width: 0;
+  height: 64px;
   background: linear-gradient(135deg, rgba(61,255,160,.12), rgba(61,255,160,.04));
   border: 1.5px solid rgba(61,255,160,.4);
   border-radius: 10px;
-  padding: 8px 12px;
+  padding: 0 10px;
+  box-sizing: border-box;
 }
 .sf-rest-pill.overtime {
   background: linear-gradient(135deg, rgba(255,107,53,.14), rgba(255,107,53,.05));
@@ -445,13 +447,13 @@ input[type=number] { -moz-appearance:textfield; }
 .sf-rest-pill.overtime .sf-rest-label { color: var(--orange); }
 .sf-rest-time {
   font-family: 'Barlow Condensed', sans-serif;
-  font-size: 38px; font-weight: 900; color: var(--text);
-  line-height: 0.9; letter-spacing: -2px;
+  font-size: 30px; font-weight: 900; color: var(--text);
+  line-height: 1; letter-spacing: -1.5px;
 }
 .sf-rest-pill.overtime .sf-rest-time { color: var(--orange); }
 .sf-rest-adj {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: 4px;
   flex-shrink: 0;
 }
@@ -460,8 +462,9 @@ input[type=number] { -moz-appearance:textfield; }
   border: 1px solid var(--border2);
   color: var(--sub);
   font-family: 'Barlow Condensed', sans-serif;
-  font-size: 11px; font-weight: 700; letter-spacing: 1px;
-  padding: 5px 12px;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.5px;
+  padding: 0 8px;
+  height: 28px;
   border-radius: 6px;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
@@ -1233,10 +1236,10 @@ input[type=number] { -moz-appearance:textfield; }
 <body>
 <div id="app"></div>
 <!-- Increment ?v= on every deploy to bust cache -->
-<script src="js/config.js?v=20260606-14"></script>
-<script src="js/program.js?v=20260606-14"></script>
-<script src="js/app.js?v=20260606-14"></script>
-<script src="js/ui.js?v=20260606-14"></script>
+<script src="js/config.js?v=20260606-15"></script>
+<script src="js/program.js?v=20260606-15"></script>
+<script src="js/app.js?v=20260606-15"></script>
+<script src="js/ui.js?v=20260606-15"></script>
 <script>
   document.addEventListener("DOMContentLoaded", () => UI.init());
 </script>
