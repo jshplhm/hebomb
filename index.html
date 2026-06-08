@@ -225,18 +225,20 @@ input[type=number] { -moz-appearance:textfield; }
 .sf-set-id { display:none; }
 .sf-target-row { display:none; }
 
-/* Big reps × weight — stacked vertically, each half fills 50% of the focus zone */
+/* Big reps × weight — stacked vertically, full width to match set rows */
 .sf-big-row { display:flex; flex-direction:column; align-items:stretch; gap:8px; padding:0 14px; flex:0 0 auto; }
 .sf-x { display:none; }
 .sf-field {
   height: 160px;
-  flex: 0 0 160px;
+  flex: 0 0 auto;
+  width: 100%;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 14px;
-  padding: 12px 14px 10px;
+  padding: 12px 20px 10px;
 }
 .sf-field-label {
   font-family:'Barlow Condensed',sans-serif; font-size:11px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:var(--muted);
@@ -259,8 +261,13 @@ input[type=number] { -moz-appearance:textfield; }
   text-align: left;
   white-space: nowrap;
   overflow: hidden;
+  text-overflow: clip;
   flex: 1 1 auto;
   min-width: 0;
+}
+.sf-big-num-compact {
+  font-size: 52px;
+  letter-spacing: -1px;
 }
 .sf-steppers {
   display: flex;
@@ -1124,8 +1131,11 @@ input[type=number] { -moz-appearance:textfield; }
 /* BW hero */
 .bwv2-hero { background:linear-gradient(135deg,rgba(232,255,71,.10),rgba(232,255,71,.02)); border:1px solid rgba(232,255,71,.35); border-radius:14px; padding:18px; margin-bottom:14px; position:relative; overflow:hidden; }
 .bwv2-hero::before { content:""; position:absolute; top:-30px; right:-30px; width:140px; height:140px; background:radial-gradient(circle,rgba(232,255,71,.18),transparent 60%); pointer-events:none; }
+.bwv2-hero-top { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:4px; }
 .bwv2-hero-lbl { font-family:'Barlow Condensed',sans-serif; font-size:10px; font-weight:700; letter-spacing:2.5px; text-transform:uppercase; color:var(--muted); margin-bottom:6px; position:relative; z-index:1; }
 .bwv2-hero-val { font-family:'Barlow Condensed',sans-serif; font-size:48px; font-weight:900; color:var(--text); line-height:0.95; letter-spacing:-1.5px; position:relative; z-index:1; }
+.bwv2-refresh { background:transparent; border:1px solid var(--border2); color:var(--muted); font-size:16px; width:32px; height:32px; border-radius:8px; cursor:pointer; display:flex; align-items:center; justify-content:center; -webkit-tap-highlight-color:transparent; transition:all 0.1s; position:relative; z-index:1; padding:0; }
+.bwv2-refresh:active { color:var(--yellow); border-color:var(--yellow); }
 .bwv2-hero-unit { font-size:18px; color:var(--sub); font-weight:700; margin-left:6px; letter-spacing:1px; }
 .bwv2-hero-meta { display:flex; gap:14px; padding-top:14px; margin-top:14px; border-top:1px dashed rgba(232,255,71,.2); font-family:'Barlow Condensed',sans-serif; position:relative; z-index:1; flex-wrap:wrap; }
 .bwv2-meta-pair { display:flex; flex-direction:column; gap:2px; }
@@ -1236,10 +1246,10 @@ input[type=number] { -moz-appearance:textfield; }
 <body>
 <div id="app"></div>
 <!-- Increment ?v= on every deploy to bust cache -->
-<script src="js/config.js?v=20260606-15"></script>
-<script src="js/program.js?v=20260606-15"></script>
-<script src="js/app.js?v=20260606-15"></script>
-<script src="js/ui.js?v=20260606-15"></script>
+<script src="js/config.js?v=20260606-17"></script>
+<script src="js/program.js?v=20260606-17"></script>
+<script src="js/app.js?v=20260606-17"></script>
+<script src="js/ui.js?v=20260606-17"></script>
 <script>
   document.addEventListener("DOMContentLoaded", () => UI.init());
 </script>
