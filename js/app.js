@@ -201,10 +201,21 @@ const App = {
         const r = await fetch(`${CONFIG.SHEETS_URL}?action=getBodyweight`);
         const data = await r.json();
         if (data.entries && data.entries.length) {
+          // Sheets serial → YYYY-MM-DD (days since Dec 30 1899, JS epoch = serial 25569)
+          const serialToYmd = (n) => {
+            const d = new Date((n - 25569) * 86400000);
+            return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}-${String(d.getUTCDate()).padStart(2,"0")}`;
+          };
+          const toYmd = (raw) => {
+            const s = String(raw || "").trim();
+            // If it looks like a plain integer serial (no dashes), convert it
+            if (/^\d{4,6}$/.test(s)) return serialToYmd(parseInt(s, 10));
+            return s.slice(0, 10);
+          };
           // Normalize: Sheets returns {date, weight_lbs} but local storage expects {date, w}
           const normalized = data.entries
             .map(e => ({
-              date: String(e.date || "").slice(0, 10),
+              date: toYmd(e.date),
               w: parseFloat(e.w ?? e.weight_lbs ?? e.weight) || 0
             }))
             .filter(e => e.w > 0 && /^\d{4}-\d{2}-\d{2}$/.test(e.date));
