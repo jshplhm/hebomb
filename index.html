@@ -206,8 +206,18 @@ input[type=number] { -moz-appearance:textfield; }
 .sf-row-unit { font-size:9px; color:var(--muted); font-weight:700; letter-spacing:1px; margin-left:3px; text-transform:uppercase; }
 .sf-row-check { color:var(--green); font-size:13px; flex-shrink:0; }
 
-/* Current set — grows to fill remaining space */
-.sf-row-current { background:transparent; padding:0; align-items:stretch; gap:0; flex-direction:column; flex:1 1 auto; min-height:0; }
+/* Current set label row — label + warmup toggle inline */
+.sf-current-set-label-row { display:flex; align-items:center; justify-content:space-between; padding:6px 14px 4px; flex-shrink:0; }
+
+.sf-warm-toggle {
+  background: transparent; border: 1px solid var(--border2); color: var(--muted);
+  font-family: 'Barlow Condensed', sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 1.5px;
+  text-transform: uppercase; padding: 3px 8px; border-radius: 6px; cursor: pointer;
+  -webkit-tap-highlight-color: transparent; transition: all 0.1s; flex-shrink: 0;
+  white-space: nowrap;
+}
+.sf-warm-toggle.active { border-color: var(--green); color: var(--green); background: rgba(61,255,160,.08); }
+.sf-warm-toggle:active { opacity: 0.7; }
 .sf-current-block { flex:1 1 auto; display:flex; flex-direction:column; min-height:0; justify-content:center; }
 .sf-current-block .sf-big-row { flex:0 0 auto; }
 
@@ -319,18 +329,8 @@ input[type=number] { -moz-appearance:textfield; }
 .sf-done-label { font-family:'Barlow Condensed',sans-serif; font-size:13px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:var(--muted); }
 .sf-done-check-pr + .sf-done-label { color:var(--yellow); }
 
-/* Current set — prominent SET N OF M label above the tiles */
-.sf-current-set-label {
-  font-family: 'Barlow Condensed', sans-serif;
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 3px;
-  text-transform: uppercase;
-  color: var(--yellow);
-  text-align: center;
-  padding: 6px 14px 4px;
-  flex-shrink: 0;
-}
+/* Current set label */
+.sf-current-set-label { font-family:'Barlow Condensed',sans-serif; font-size:13px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:var(--yellow); }
 
 /* Edit icon on done rows */
 .sf-row-edit {
@@ -346,6 +346,44 @@ input[type=number] { -moz-appearance:textfield; }
 
 /* Skip + Log action row */
 .sf-action-row { flex-shrink:0; display:flex; gap:8px; padding:12px 14px calc(var(--safe-bot) + 14px); background:var(--bg); border-top:1px solid var(--border); align-items:stretch; }
+
+/* Per-set skip × button on upcoming rows */
+.sf-set-skip {
+  background: transparent; border: none;
+  color: var(--muted); font-size: 14px;
+  width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  border-radius: 6px; flex-shrink: 0; opacity: 0.45;
+  transition: opacity 0.1s, color 0.1s;
+  padding: 0;
+}
+.sf-set-skip:active { opacity: 1; color: var(--red); }
+
+/* + Add set row at bottom of set list */
+.sf-add-set-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 14px; margin-top: 4px;
+  border: 1.5px dashed var(--border);
+  border-radius: 8px; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color 0.1s;
+}
+.sf-add-set-row:active { border-color: var(--yellow); }
+.sf-add-set-icon { font-size: 16px; color: var(--muted); font-weight: 300; line-height: 1; }
+.sf-add-set-lbl { font-family: 'Barlow Condensed', sans-serif; font-size: 12px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); }
+
+/* Add another set in done view */
+.sf-done-add-set {
+  background: transparent; border: 1.5px dashed var(--border2);
+  color: var(--muted); font-family: 'Barlow Condensed', sans-serif;
+  font-size: 12px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase;
+  padding: 8px 16px; border-radius: 8px; cursor: pointer; margin-top: 8px;
+  -webkit-tap-highlight-color: transparent; display: flex; align-items: center; gap: 6px;
+  transition: all 0.1s;
+}
+.sf-done-add-set:active { border-color: var(--yellow); color: var(--yellow); }
+.sf-done-add-set span { font-size: 16px; font-weight: 300; }
 .sf-skip-btn { background:transparent; border:1.5px solid var(--border2); color:var(--muted); font-family:'Barlow Condensed',sans-serif; font-size:13px; font-weight:700; letter-spacing:2px; text-transform:uppercase; padding:0 18px; border-radius:10px; cursor:pointer; -webkit-tap-highlight-color:transparent; flex-shrink:0; transition:all 0.12s; }
 .sf-skip-btn:active { border-color:var(--sub); color:var(--sub); }
 .sf-log-btn { flex:1; height:64px; background:var(--yellow); border:none; border-radius:10px; color:#0a0a0a; font-family:'Barlow Condensed',sans-serif; font-size:18px; font-weight:900; letter-spacing:2px; text-transform:uppercase; cursor:pointer; -webkit-tap-highlight-color:transparent; display:flex; align-items:center; justify-content:center; gap:8px; transition:opacity 0.1s, transform 0.08s; }
@@ -1195,10 +1233,10 @@ input[type=number] { -moz-appearance:textfield; }
 <body>
 <div id="app"></div>
 <!-- Increment ?v= on every deploy to bust cache -->
-<script src="js/config.js?v=20260606-13"></script>
-<script src="js/program.js?v=20260606-13"></script>
-<script src="js/app.js?v=20260606-13"></script>
-<script src="js/ui.js?v=20260606-13"></script>
+<script src="js/config.js?v=20260606-14"></script>
+<script src="js/program.js?v=20260606-14"></script>
+<script src="js/app.js?v=20260606-14"></script>
+<script src="js/ui.js?v=20260606-14"></script>
 <script>
   document.addEventListener("DOMContentLoaded", () => UI.init());
 </script>
