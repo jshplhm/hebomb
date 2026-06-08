@@ -70,7 +70,18 @@ const UI = {
   _prefetchBackground() {
     if (!App.state.bwLog) {
       App.getBodyweightLog()
-        .then(log => { App.state.bwLog = this._bwMergeWithShadow(log); })
+        .then(log => {
+          const merged = this._bwMergeWithShadow(log);
+          // Write normalized {date,w} format back to localStorage
+          try {
+            const normalized = merged.map(e => ({
+              date: e._ymd || String(e.date).slice(0,10),
+              w: parseFloat(e.w ?? e.weight_lbs ?? e.weight) || 0
+            })).filter(e => e.w > 0);
+            localStorage.setItem("hebomb_bw", JSON.stringify(normalized));
+          } catch(e) {}
+          App.state.bwLog = merged;
+        })
         .catch(() => { App.state.bwLog = this._bwMergeWithShadow([]); });
     }
     if (!App.state.stats) {
@@ -1074,6 +1085,9 @@ const UI = {
         const setLabel = isWarm
           ? "WARM-UP"
           : (wTot > 1 ? `SET ${wDone + 1} OF ${wTot}` : "SET 1");
+        // Use smaller font when reps value contains text (e.g. "15 min")
+        const rCompact = /[a-z]/i.test(String(rVal)) ? " sf-big-num-compact" : "";
+        const wCompact = /[a-z]/i.test(String(wVal)) ? " sf-big-num-compact" : "";
         return `<div class="sf-row sf-row-current">
           <div class="sf-current-block">
             <div class="sf-current-set-label-row">
@@ -1083,7 +1097,7 @@ const UI = {
               <div class="sf-field">
                 <span class="sf-field-label">REPS</span>
                 <div class="sf-field-row">
-                  <span class="sf-big-num" id="sf-reps">${rVal}</span>
+                  <span class="sf-big-num${rCompact}" id="sf-reps">${rVal}</span>
                   <div class="sf-steppers">
                     <button class="sf-step-btn" onclick="UI._focusStep('reps',-1)">−</button>
                     <button class="sf-step-btn" onclick="UI._focusStep('reps',1)">+</button>
@@ -1093,7 +1107,7 @@ const UI = {
               <div class="sf-field">
                 <span class="sf-field-label">LBS</span>
                 <div class="sf-field-row">
-                  <span class="sf-big-num" id="sf-weight">${wVal}</span>
+                  <span class="sf-big-num${wCompact}" id="sf-weight">${wVal}</span>
                   <div class="sf-steppers">
                     <button class="sf-step-btn" onclick="UI._focusStep('weight',-1)">−</button>
                     <button class="sf-step-btn" onclick="UI._focusStep('weight',1)">+</button>
@@ -2646,125 +2660,194 @@ const UI = {
     const t = this._lastFinishDayTitle;
     if (!s) return;
 
-    // Draw a styled summary card onto an offscreen canvas, then share as image
     const dpr = window.devicePixelRatio || 2;
-    const W = 375, H = 500;
+    const W = 390, H = 560;
     const cv = document.createElement("canvas");
     cv.width = W * dpr; cv.height = H * dpr;
-    cv.style.width = W + "px"; cv.style.height = H + "px";
     const ctx = cv.getContext("2d");
     ctx.scale(dpr, dpr);
 
-    // Background
+    const pad = 24;
+
+    // ── Background ──────────────────────────────────────────
     ctx.fillStyle = "#0a0a0a";
     ctx.fillRect(0, 0, W, H);
-
-    // Yellow accent gradient
-    const grd = ctx.createRadialGradient(W/2, 40, 0, W/2, 40, 260);
-    grd.addColorStop(0, "rgba(232,255,71,0.12)");
-    grd.addColorStop(1, "rgba(232,255,71,0)");
+    // Green glow top-left (workout complete feel)
+    const grd = ctx.createRadialGradient(60, 60, 0, 60, 60, 220);
+    grd.addColorStop(0, "rgba(61,255,160,0.12)");
+    grd.addColorStop(1, "rgba(61,255,160,0)");
     ctx.fillStyle = grd;
     ctx.fillRect(0, 0, W, H);
 
-    // WORKOUT COMPLETE pill
+    // ── "WORKOUT COMPLETE" pill ──────────────────────────────
     ctx.fillStyle = "rgba(61,255,160,0.15)";
-    this._roundRect(ctx, 22, 24, 160, 22, 6);
+    this._roundRect(ctx, pad, 26, 180, 24, 7);
     ctx.fill();
     ctx.fillStyle = "#3DFFA0";
-    ctx.font = "700 9px 'Barlow Condensed', Arial";
-    ctx.letterSpacing = "2px";
-    ctx.fillText("● WORKOUT COMPLETE", 30, 39);
+    ctx.font = "700 10px Arial";
+    ctx.letterSpacing = "1.5px";
+    ctx.fillText("● WORKOUT COMPLETE", pad + 8, 42);
 
-    // Day title
+    // ── Day title (big) ──────────────────────────────────────
     ctx.fillStyle = "#ffffff";
-    ctx.font = "900 38px 'Barlow Condensed', Arial";
-    ctx.fillText(t.toUpperCase(), 22, 90);
+    ctx.font = "900 40px Arial";
+    ctx.letterSpacing = "-1px";
+    // Shrink font if title is long
+    const titleFit = (text, maxW) => {
+      let sz = 40;
+      ctx.font = `900 ${sz}px Arial`;
+      while (ctx.measureText(text).width > maxW && sz > 22) {
+        sz -= 2;
+        ctx.font = `900 ${sz}px Arial`;
+      }
+    };
+    titleFit(t.toUpperCase(), W - 2*pad);
+    ctx.fillText(t.toUpperCase(), pad, 100);
 
-    // Headline
+    // ── Duration + time meta ─────────────────────────────────
+    const meta = [s.durationStr, s.timeStr].filter(Boolean).join("  ·  ");
+    ctx.fillStyle = "#555";
+    ctx.font = "400 14px Arial";
+    ctx.letterSpacing = "0";
+    ctx.fillText(meta, pad, 122);
+
+    // ── Headline ─────────────────────────────────────────────
     const hl = s.headline.main.replace(/<[^>]+>/g, "").replace(/\n/g, " ");
     ctx.fillStyle = "#E8FF47";
-    ctx.font = "700 18px 'Barlow Condensed', Arial";
-    this._wrapText(ctx, hl, 22, 120, W - 44, 22);
+    ctx.font = "700 20px Arial";
+    ctx.letterSpacing = "0";
+    let hlY = 152;
+    this._wrapText(ctx, hl, pad, hlY, W - 2*pad, 26);
+    // Estimate how many lines hl takes
+    const hlLines = Math.ceil(ctx.measureText(hl).width / (W - 2*pad - 20)) || 1;
+    let statsY = hlY + hlLines * 26 + 18;
 
-    // Stats bar
+    // ── Stats row (2 cards side by side) ────────────────────
     const vol = Math.round(s.totalVolume).toLocaleString();
-    const sets = `${s.totalSets} / ${s.workingSetCount}`;
+    const setsStr = `${s.totalSets} / ${s.workingSetCount}`;
+    const cardW = (W - 2*pad - 12) / 2;
+    const cardH = 84;
 
+    // Volume card
     ctx.fillStyle = "#161616";
-    this._roundRect(ctx, 22, 155, W/2 - 27, 76, 10);
+    this._roundRect(ctx, pad, statsY, cardW, cardH, 12);
     ctx.fill();
+    ctx.fillStyle = "#666";
+    ctx.font = "700 9px Arial";
+    ctx.letterSpacing = "1.5px";
+    ctx.fillText("VOLUME MOVED", pad + 14, statsY + 20);
+    // Volume number — big, then small "lbs" on baseline
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "900 32px Arial";
+    ctx.letterSpacing = "-0.5px";
+    ctx.fillText(vol, pad + 14, statsY + 62);
+    const volNumW = ctx.measureText(vol).width;
+    ctx.fillStyle = "#666";
+    ctx.font = "700 12px Arial";
+    ctx.letterSpacing = "0";
+    ctx.fillText("lbs", pad + 14 + volNumW + 4, statsY + 58);
+
+    // Sets card
+    const c2x = pad + cardW + 12;
     ctx.fillStyle = "#161616";
-    this._roundRect(ctx, W/2 + 5, 155, W/2 - 27, 76, 10);
+    this._roundRect(ctx, c2x, statsY, cardW, cardH, 12);
     ctx.fill();
-
-    ctx.fillStyle = "#888";
-    ctx.font = "700 9px 'Barlow Condensed', Arial";
-    ctx.fillText("VOLUME MOVED", 34, 175);
+    ctx.fillStyle = "#666";
+    ctx.font = "700 9px Arial";
+    ctx.letterSpacing = "1.5px";
+    ctx.fillText("WORKING SETS", c2x + 14, statsY + 20);
     ctx.fillStyle = "#ffffff";
-    ctx.font = "900 28px 'Barlow Condensed', Arial";
-    ctx.fillText(vol, 34, 210);
-    ctx.fillStyle = "#888";
-    ctx.font = "700 9px 'Barlow Condensed', Arial";
-    ctx.fillText("lbs", 34 + ctx.measureText(vol).width + 4, 210);
+    ctx.font = "900 32px Arial";
+    ctx.letterSpacing = "-0.5px";
+    ctx.fillText(setsStr, c2x + 14, statsY + 62);
+    const setsFull = s.totalSets === s.workingSetCount;
+    if (setsFull) {
+      ctx.fillStyle = "#3DFFA0";
+      ctx.font = "700 10px Arial";
+      ctx.letterSpacing = "1px";
+      ctx.fillText("FULL CLEAR", c2x + 14, statsY + 78);
+    }
 
-    ctx.fillStyle = "#888";
-    ctx.font = "700 9px 'Barlow Condensed', Arial";
-    ctx.fillText("WORKING SETS", W/2 + 17, 175);
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "900 28px 'Barlow Condensed', Arial";
-    ctx.fillText(sets, W/2 + 17, 210);
-
-    // Compare rows
-    let y = 255;
+    // ── Compare rows ──────────────────────────────────────────
+    const cmpTop = statsY + cardH + 18;
     if (s.compare.length) {
+      const rows = s.compare.slice(0, 6);
+      const tblH = rows.length * 38 + 28;
       ctx.fillStyle = "#161616";
-      this._roundRect(ctx, 22, y - 10, W - 44, s.compare.length * 36 + 32, 10);
+      this._roundRect(ctx, pad, cmpTop, W - 2*pad, tblH, 12);
       ctx.fill();
 
-      ctx.fillStyle = "#666";
-      ctx.font = "700 9px 'Barlow Condensed', Arial";
-      ctx.fillText("BASELINES LOCKED", 34, y + 8);
-      y += 22;
+      ctx.fillStyle = "#555";
+      ctx.font = "700 9px Arial";
+      ctx.letterSpacing = "1.5px";
+      ctx.fillText("BASELINES LOCKED", pad + 14, cmpTop + 18);
 
-      s.compare.slice(0, 5).forEach(c => {
-        ctx.fillStyle = "#ccc";
-        ctx.font = "600 13px 'Barlow Condensed', Arial";
-        ctx.fillText(c.name, 34, y + 14);
-        ctx.fillStyle = "#fff";
-        ctx.font = "700 13px 'Barlow Condensed', Arial";
-        ctx.fillText(c.cur, W - 44 - ctx.measureText(c.cur).width - (c.delta ? 48 : 6), y + 14);
-        if (c.delta) {
-          ctx.fillStyle = c.deltaKind === "up" ? "#3DFFA0" : c.deltaKind === "down" ? "#FF4848" : "#888";
-          ctx.font = "700 11px 'Barlow Condensed', Arial";
-          ctx.fillText(c.delta, W - 44, y + 14);
+      rows.forEach((c, i) => {
+        const ry = cmpTop + 30 + i * 38;
+        // separator
+        if (i > 0) {
+          ctx.fillStyle = "rgba(255,255,255,0.05)";
+          ctx.fillRect(pad + 14, ry - 6, W - 2*pad - 28, 0.5);
         }
-        y += 36;
+        // Name
+        ctx.fillStyle = "#aaa";
+        ctx.font = "400 15px Arial";
+        ctx.letterSpacing = "0";
+        ctx.fillText(c.name, pad + 14, ry + 14);
+        // Value
+        ctx.fillStyle = "#fff";
+        ctx.font = "700 15px Arial";
+        const valX = W - pad - 14 - (c.delta ? 46 : 0) - ctx.measureText(c.cur).width;
+        ctx.fillText(c.cur, valX, ry + 14);
+        // Delta badge
+        if (c.delta) {
+          const badgeColor = c.deltaKind === "up" ? "#3DFFA0" : c.deltaKind === "down" ? "#FF4848" : "#666";
+          ctx.fillStyle = badgeColor + "22";
+          this._roundRect(ctx, W - pad - 14 - 40, ry + 2, 40, 18, 4);
+          ctx.fill();
+          ctx.fillStyle = badgeColor;
+          ctx.font = "700 10px Arial";
+          ctx.letterSpacing = "0.5px";
+          const dw = ctx.measureText(c.delta).width;
+          ctx.fillText(c.delta, W - pad - 14 - 20 - dw/2, ry + 14);
+        } else {
+          // NEW badge
+          ctx.fillStyle = "rgba(61,255,160,0.15)";
+          this._roundRect(ctx, W - pad - 14 - 38, ry + 2, 38, 18, 4);
+          ctx.fill();
+          ctx.fillStyle = "#3DFFA0";
+          ctx.font = "700 9px Arial";
+          ctx.letterSpacing = "1px";
+          ctx.fillText("NEW", W - pad - 14 - 26, ry + 14);
+        }
       });
     }
 
-    // Branding footer
-    ctx.fillStyle = "rgba(255,255,255,0.12)";
-    ctx.fillRect(22, H - 40, W - 44, 0.5);
-    ctx.fillStyle = "#555";
-    ctx.font = "600 11px 'Barlow Condensed', Arial";
-    ctx.fillText("Hebomb Training", 22, H - 18);
+    // ── Branding footer ───────────────────────────────────────
+    ctx.fillStyle = "rgba(255,255,255,0.08)";
+    ctx.fillRect(pad, H - 40, W - 2*pad, 0.5);
+    ctx.fillStyle = "#444";
+    ctx.font = "400 12px Arial";
+    ctx.letterSpacing = "0";
+    ctx.fillText("Hebomb Training", pad, H - 16);
     ctx.fillStyle = "#E8FF47";
-    ctx.fillText("●", W - 36, H - 18);
+    ctx.beginPath();
+    ctx.arc(W - pad - 6, H - 21, 5, 0, Math.PI * 2);
+    ctx.fill();
 
-    // Convert to blob and share or download
+    // ── Share (image only, no text metadata) ──────────────────
     cv.toBlob(async (blob) => {
       const file = new File([blob], "workout.png", { type: "image/png" });
       if (navigator.share && navigator.canShare?.({ files: [file] })) {
         try {
-          await navigator.share({ files: [file], title: `${t} — Workout Complete` });
-        } catch(e) { /* user cancelled */ }
+          await navigator.share({ files: [file] });
+        } catch(e) { /* cancelled */ }
       } else {
-        // Fallback: trigger download
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url; a.download = "workout.png"; a.click();
         setTimeout(() => URL.revokeObjectURL(url), 2000);
-        this._toast("Saved to downloads");
+        this._toast("Saved");
       }
     }, "image/png");
   },
@@ -2938,6 +3021,16 @@ const UI = {
       } catch {
         raw = this._bwMergeWithShadow([]);
       }
+      // Normalize to {date, w} and write back to localStorage so future loads
+      // always have the right field name regardless of which source populated it.
+      // This fixes the Sheets → localStorage format mismatch in app.js.
+      try {
+        const normalized = raw.map(e => ({
+          date: e._ymd || String(e.date).slice(0,10),
+          w: parseFloat(e.w ?? e.weight_lbs ?? e.weight) || 0
+        })).filter(e => e.w > 0);
+        localStorage.setItem("hebomb_bw", JSON.stringify(normalized));
+      } catch(e) {}
       App.state.bwLog = raw;
     }
 
@@ -3036,8 +3129,13 @@ const UI = {
     return `
       <!-- HERO -->
       <div class="bwv2-hero">
-        <div class="bwv2-hero-lbl">Current weight</div>
-        <div class="bwv2-hero-val">${latest ? latest.w : "—"}<span class="bwv2-hero-unit">lbs</span></div>
+        <div class="bwv2-hero-top">
+          <div>
+            <div class="bwv2-hero-lbl">Current weight</div>
+            <div class="bwv2-hero-val">${latest ? latest.w : "—"}<span class="bwv2-hero-unit">lbs</span></div>
+          </div>
+          <button class="bwv2-refresh" onclick="App.state.bwLog=null;UI._setTab('body')" title="Refresh data">↻</button>
+        </div>
         <div class="bwv2-hero-meta">
           <div class="bwv2-meta-pair">
             <span class="lbl">Goal</span>
@@ -3183,15 +3281,13 @@ const UI = {
     this._bwRange = r;
     const el = document.getElementById("bw-chart");
     if (el && App.state.bwLog) {
-      // bwLog may be raw (from server) or already processed (from _bodyTab cache).
-      // Normalize dates to _ymd using the same serial-conversion logic.
       const sheetSerialToYmd = (n) => {
         const d = new Date((n - 25569) * 86400000);
         return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}-${String(d.getUTCDate()).padStart(2,"0")}`;
       };
       const sorted = (App.state.bwLog||[])
         .map(e => {
-          if (e._ymd) return e; // already normalized
+          if (e._ymd) return e;
           let ymd = String(e.date).slice(0,10);
           if (/^\d{4,6}$/.test(ymd.trim()) && !ymd.includes("-")) ymd = sheetSerialToYmd(parseInt(e.date,10));
           return { ...e, _ymd: ymd };
@@ -3200,7 +3296,6 @@ const UI = {
         .sort((a,b)=>a._ymd<b._ymd?-1:a._ymd>b._ymd?1:0);
       el.innerHTML = this._bwChart(sorted, r);
     }
-    // Fix: class is bwv2-range-btn in the rendered HTML
     document.querySelectorAll(".bwv2-range-btn").forEach(b => {
       const btnRange = parseInt(b.getAttribute("data-range") ?? "-1");
       b.classList.toggle("active", btnRange === r);
@@ -3208,15 +3303,25 @@ const UI = {
   },
 
   _bwChart(entries, range) {
-    const data=range>0?entries.slice(-range):entries;
-    if(data.length<2)return"";
+    if (!entries.length) return "";
+    // Filter by calendar days (not entry count)
+    let data;
+    if (range > 0) {
+      const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - range);
+      const cutoffYmd = cutoff.toISOString().slice(0,10);
+      data = entries.filter(e => (e._ymd || String(e.date).slice(0,10)) >= cutoffYmd);
+    } else {
+      data = entries;
+    }
+    if (data.length < 2) return `<div class="loading-text muted" style="padding:16px 0">Not enough data for this range.</div>`;
     const ws=data.map(e=>e.w),mn=Math.min(...ws)-2,mx=Math.max(...ws)+2,rng=mx-mn||1;
     const gl=CONFIG.GOAL_LB_LOW,gh=CONFIG.GOAL_LB_HIGH,W=320,H=100;
-    const pts=data.map((e,i)=>`${(i/(data.length-1))*W},${H-((e.w-mn)/rng)*H}`).join(" ");
+    const pad=3;
+    const pts=data.map((e,i)=>`${(i/(data.length-1))*W},${pad+((H-2*pad)*(1-(e.w-mn)/rng))}`).join(" ");
     const n=data.length,sx=data.reduce((s,_,i)=>s+i,0),sy=data.reduce((s,e)=>s+e.w,0);
     const sxy=data.reduce((s,e,i)=>s+i*e.w,0),sx2=data.reduce((s,_,i)=>s+i*i,0);
     const sl=(n*sxy-sx*sy)/(n*sx2-sx*sx||1),ic=(sy-sl*sx)/n;
-    const ty0=H-((ic-mn)/rng)*H,ty1=H-(((sl*(n-1)+ic)-mn)/rng)*H;
+    const ty0=pad+((H-2*pad)*(1-(ic-mn)/rng)),ty1=pad+((H-2*pad)*(1-((sl*(n-1)+ic)-mn)/rng));
     // Net delta for this range — first to last weight in the selected window
     const first = data[0]?.w, last = data[data.length-1]?.w;
     const delta = (first != null && last != null) ? (last - first) : null;
@@ -3259,13 +3364,14 @@ const UI = {
       const data=(vh[l.id]||[]).slice().reverse().map(d=>({date:d.date,orm:ep(d.weight,d.reps)}));
       if(data.length<3)return`<div class="chart-block"><div class="chart-title">${l.name} — Est. 1RM</div><div class="loading-text muted">Log ${Math.max(0,3-data.length)} more session${3-data.length!==1?"s":""} to see trend.</div></div>`;
       const orms=data.map(d=>d.orm),mn=Math.min(...orms)-10,mx=Math.max(...orms)+10,rng=mx-mn||1,W=320,H=80;
-      const pts=data.map((d,i)=>`${(i/(data.length-1))*W},${H-((d.orm-mn)/rng)*H}`).join(" ");
+      const pad=4; // vertical padding so stroke doesn't clip at edges
+      const pts=data.map((d,i)=>`${(i/(data.length-1))*W},${pad+((H-2*pad)*(1-(d.orm-mn)/rng))}`).join(" ");
       const gain=orms[orms.length-1]-orms[0];
       return`<div class="chart-block">
         <div class="chart-title-row"><span class="chart-title">${l.name} — Est. 1RM</span><span class="orm-badge" style="color:${l.c}">${orms[orms.length-1]} lbs</span></div>
         <div class="svg-chart-wrap">
-          <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="svg-chart">
-            <polyline points="${pts}" fill="none" stroke="${l.c}" stroke-width="2" stroke-linecap="round"/>
+          <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="svg-chart" style="overflow:hidden">
+            <polyline points="${pts}" fill="none" stroke="${l.c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
           <div class="svg-y-labels"><span>${mx}</span><span>${Math.round((mx+mn)/2)}</span><span>${mn}</span></div>
         </div>
@@ -3287,7 +3393,8 @@ const UI = {
     }).filter(Boolean);
     if(rd.length<3)return`<div class="recomp-explainer">Squat 1RM ÷ Bodyweight — rises as you recomp.</div><div class="loading-text muted">Need ${Math.max(0,3-rd.length)} more session${3-rd.length!==1?"s":""}.</div>`;
     const vals=rd.map(d=>parseFloat(d.ratio)),mn=Math.min(...vals)-.05,mx=Math.max(...vals)+.05,rng=mx-mn||1,W=320,H=80;
-    const pts=rd.map((d,i)=>`${(i/(rd.length-1))*W},${H-((parseFloat(d.ratio)-mn)/rng)*H}`).join(" ");
+    const pad=4;
+    const pts=rd.map((d,i)=>`${(i/(rd.length-1))*W},${pad+((H-2*pad)*(1-(parseFloat(d.ratio)-mn)/rng))}`).join(" ");
     const gain=(rd[rd.length-1].ratio-rd[0].ratio).toFixed(2);
     return`<div class="recomp-explainer">Squat 1RM ÷ Bodyweight. Best single metric for recomp progress.</div>
       <div class="chart-block">
