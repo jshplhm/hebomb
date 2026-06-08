@@ -811,7 +811,9 @@ const UI = {
         this.root.innerHTML = `<div class="init-loading workout-start-loading">
           <div class="init-loading-inner">
             <div class="init-loading-headline">${headline}</div>
-            <div id="countdown-num" class="workout-countdown${isGo ? " workout-countdown-go" : ""}">${isGo ? "GO" : n}</div>
+            <div class="workout-countdown-slot">
+              <div id="countdown-num" class="workout-countdown${isGo ? " workout-countdown-go" : ""}">${isGo ? "GO" : n}</div>
+            </div>
             <div id="countdown-fill" class="workout-countdown-fill"${isGo ? ' style="opacity:0"' : ""}><div class="workout-countdown-fill-bar"></div></div>
           </div>
         </div>`;
