@@ -53,16 +53,34 @@ const UI = {
         App.fetchHistory().then(({sessions}) => { App.state.history = sessions; }).catch(() => { App.state.history = []; }),
         new Promise(r => setTimeout(r, 2000))
       ]);
-      // Fade out the splash before rendering the picker
+      // Fade out the splash. Render the picker FIRST (hidden), then fade,
+      // then show — this prevents the "jump into place" reflow flash.
       const splash = this.root.querySelector(".init-loading");
       if (splash) {
-        splash.style.transition = "opacity 0.4s ease";
+        // Pre-render the picker as a hidden sibling so layout is computed before fade
+        this._prefetchBackground();
+        const pickerWrap = document.createElement("div");
+        pickerWrap.style.opacity = "0";
+        pickerWrap.style.position = "absolute";
+        pickerWrap.style.inset = "0";
+        this.root.appendChild(pickerWrap);
+        this._renderPickerInto(pickerWrap, getCurrentWeek(), WEEKS[getCurrentWeek()]||{},
+          (WEEKS[getCurrentWeek()]||{}).phaseId || "strength",
+          new Date().getHours() < 12 ? "Morning" : new Date().getHours() < 17 ? "Afternoon" : "Evening");
+        this._nav();
+        // Now fade the splash out and reveal the already-laid-out picker
+        splash.style.transition = "opacity 0.35s ease";
         splash.style.opacity = "0";
-        await new Promise(r => setTimeout(r, 400));
+        await new Promise(r => setTimeout(r, 350));
+        this.root.innerHTML = "";
+        pickerWrap.style.opacity = "";
+        pickerWrap.style.position = "";
+        pickerWrap.style.inset = "";
+        this.root.appendChild(pickerWrap);
+        return; // render() already called implicitly via _renderPickerInto + _nav
       }
     }
 
-    // Fire the rest of the prefetches in the background (non-blocking)
     this._prefetchBackground();
     this.render();
   },
@@ -772,13 +790,30 @@ const UI = {
 
     const renderCountdown = (n) => {
       const isGo = n === 0;
-      this.root.innerHTML = `<div class="init-loading workout-start-loading">
-        <div class="init-loading-inner">
-          <div class="init-loading-headline">${headline}</div>
-          <div class="workout-countdown ${isGo ? "workout-countdown-go" : ""}">${isGo ? "GO" : n}</div>
-          ${!isGo ? `<div class="workout-countdown-fill"><div class="workout-countdown-fill-bar"></div></div>` : ""}
-        </div>
-      </div>`;
+      const numEl = document.getElementById("countdown-num");
+      const fillEl = document.getElementById("countdown-fill");
+      if (numEl) {
+        // Update in-place — headline stays fixed, only the number changes
+        numEl.className = `workout-countdown ${isGo ? "workout-countdown-go" : ""}`;
+        numEl.textContent = isGo ? "GO" : String(n);
+        if (fillEl) {
+          if (isGo) { fillEl.style.display = "none"; }
+          else {
+            fillEl.style.display = "";
+            // Restart drain animation by replacing the fill bar
+            fillEl.innerHTML = `<div class="workout-countdown-fill-bar"></div>`;
+          }
+        }
+      } else {
+        // First render
+        this.root.innerHTML = `<div class="init-loading workout-start-loading">
+          <div class="init-loading-inner">
+            <div class="init-loading-headline">${headline}</div>
+            <div id="countdown-num" class="workout-countdown${isGo ? " workout-countdown-go" : ""}">${isGo ? "GO" : n}</div>
+            <div id="countdown-fill" class="workout-countdown-fill"${isGo ? ' style="display:none"' : ""}><div class="workout-countdown-fill-bar"></div></div>
+          </div>
+        </div>`;
+      }
     };
 
     renderCountdown(3);
