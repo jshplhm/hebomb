@@ -190,7 +190,7 @@ const App = {
   },
 
   _localSaveBW(log) {
-    log.sort((a,b) => a.date.localeCompare(b.date));
+    log.sort((a,b) => String(a.date).localeCompare(String(b.date)));
     localStorage.setItem(this._localBWKey(), JSON.stringify(log));
   },
 
@@ -200,10 +200,17 @@ const App = {
       try {
         const r = await fetch(`${CONFIG.SHEETS_URL}?action=getBodyweight`);
         const data = await r.json();
-        if (data.entries) {
-          // Sync back to localStorage so offline works
-          this._localSaveBW(data.entries);
-          return data.entries;
+        if (data.entries && data.entries.length) {
+          // Normalize: Sheets returns {date, weight_lbs} but local storage expects {date, w}
+          const normalized = data.entries
+            .map(e => ({
+              date: String(e.date || "").slice(0, 10),
+              w: parseFloat(e.w ?? e.weight_lbs ?? e.weight) || 0
+            }))
+            .filter(e => e.w > 0 && /^\d{4}-\d{2}-\d{2}$/.test(e.date));
+          // Sync normalized form back to localStorage so offline works
+          this._localSaveBW(normalized);
+          return normalized;
         }
       } catch(e) { /* fall through to local */ }
     }
