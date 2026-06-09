@@ -14,6 +14,14 @@ const UI = {
     this._bwRange      = 30;
     this._statsTab     = "body";
 
+    // Check for an interrupted session before anything else — no loading screen needed
+    const interrupted = this._loadPersistedSession();
+    if (interrupted) {
+      this._prefetchBackground();
+      this._resumeInterruptedSession(interrupted);
+      return;
+    }
+
     // Show a minimal loading state while the critical first fetch runs.
     // This is fast (~200–400ms) and means the picker renders correctly on
     // the first paint rather than showing wrong data that later corrects.
@@ -106,6 +114,81 @@ const UI = {
     if (!App.state.stats) {
       App.fetchStats().then(stats => { App.state.stats = stats; }).catch(()=>{});
     }
+  },
+
+  // ── SESSION PERSISTENCE — survives iOS PWA background termination ──────────
+  _SESSION_KEY: "hebomb_active_session",
+
+  _persistSession() {
+    const s = App.state.session;
+    if (!s) return;
+    try {
+      localStorage.setItem(this._SESSION_KEY, JSON.stringify({
+        session: s,
+        activeDay: App.state.activeDay,
+        activeExIdx: this._activeExIdx,
+        startTime: this._sessionStartTime,
+        savedAt: Date.now()
+      }));
+    } catch(e) {}
+  },
+
+  _loadPersistedSession() {
+    try {
+      const raw = localStorage.getItem(this._SESSION_KEY);
+      if (!raw) return null;
+      const data = JSON.parse(raw);
+      // Only restore if saved within the last 4 hours (not a stale abandoned session)
+      if (!data?.session || Date.now() - data.savedAt > 4 * 3600 * 1000) {
+        localStorage.removeItem(this._SESSION_KEY);
+        return null;
+      }
+      return data;
+    } catch(e) { return null; }
+  },
+
+  _clearPersistedSession() {
+    localStorage.removeItem(this._SESSION_KEY);
+  },
+
+  _resumeInterruptedSession(data) {
+    // Show resume prompt — quick tap to continue or dismiss
+    const mins = Math.round((Date.now() - data.startTime) / 60000);
+    const setsLogged = data.session.exercises.reduce((n, ex) =>
+      n + ex.sets.filter(s => s.logged).length, 0);
+
+    this.root.innerHTML = `<div class="resume-screen">
+      <div class="resume-inner">
+        <div class="resume-eyebrow">Workout in progress</div>
+        <div class="resume-title">${data.session.dayTitle || "Workout"}</div>
+        <div class="resume-meta">${mins} min · ${setsLogged} sets logged</div>
+        <button class="resume-cta" onclick="UI._doResume()">Resume workout →</button>
+        <button class="resume-discard" onclick="UI._discardResume()">Discard and start fresh</button>
+      </div>
+    </div>`;
+    this._pendingResume = data;
+  },
+
+  _doResume() {
+    const data = this._pendingResume;
+    if (!data) return;
+    this._pendingResume = null;
+    App.state.session   = data.session;
+    App.state.activeDay = data.activeDay;
+    App.state.lastSession = null;
+    this._activeExIdx     = data.activeExIdx ?? 0;
+    this._sessionStartTime = data.startTime;
+    App.state.view = "session";
+    this.root.innerHTML = "";
+    document.getElementById("bottom-nav")?.remove();
+    this.renderSession();
+  },
+
+  _discardResume() {
+    this._clearPersistedSession();
+    this._pendingResume = null;
+    this._prefetchBackground();
+    this.render();
   },
 
   _prefetchAll() {
@@ -214,8 +297,40 @@ const UI = {
       });
     }
 
-    // Week rhythm — last 7 days
-    const weekCells = this._buildWeekRhythm(history, lastDone);
+    // Week calendar — Sun-Sat grid, current + last week
+    const rhythm = this._buildWeekRhythm(history, lastDone);
+
+    const renderWeekRow = (days, label) => `
+      <div class="cal-week-row">
+        <div class="cal-week-lbl">${label}</div>
+        ${days.map(d => {
+          const hasSess = !!d.s;
+          const sessLabel = hasSess
+            ? (d.s.dayTitle ? this._shortDayLabel(d.s.dayTitle) : "✓")
+            : "";
+          const cls = d.isToday ? "cal-day today" : hasSess ? "cal-day done" : d.isFuture ? "cal-day future" : "cal-day";
+          const onclick = hasSess
+            ? `onclick="UI.nav('history');UI._highlightHistDate('${d.ymd}')"`
+            : d.isToday ? `onclick="UI._previewDay('${heroId}')"` : "";
+          return `<div class="${cls}" ${onclick}>
+            <span class="cal-dow">${d.dow}</span>
+            <span class="cal-dot">${hasSess ? "●" : d.isToday ? "○" : "·"}</span>
+            <span class="cal-lbl">${hasSess ? sessLabel : d.isToday ? "today" : ""}</span>
+          </div>`;
+        }).join("")}
+      </div>`;
+
+    const calHTML = `
+      <div class="land-cal" id="land-week-strip" onclick="">
+        <div class="cal-header">
+          <div class="cal-dow-labels"><span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span></div>
+        </div>
+        <div class="cal-weeks">
+          ${renderWeekRow(rhythm.lastWeek, "LAST")}
+          ${renderWeekRow(rhythm.thisWeek, "THIS")}
+        </div>
+        <button class="cal-history-link" onclick="UI.nav('history')">Full history →</button>
+      </div>`;
 
     // Streak — consecutive weeks with at least 1 session
     const streak = this._calcStreak(history);
@@ -239,15 +354,8 @@ const UI = {
           </div>
         </div>
 
-        <!-- week rhythm — updates in-place when history loads -->
-        <div class="land-week" id="land-week-strip">
-          ${weekCells.map(c => `
-            <div class="land-week-cell ${c.cls}">
-              <div class="dow">${c.dow}</div>
-              <div class="dot">${c.dotChar}</div>
-              <div class="lbl">${c.label}</div>
-            </div>`).join("")}
-        </div>
+        <!-- two-week Sun-Sat calendar — tappable to history -->
+        ${calHTML}
 
         <!-- hero card — updates in-place when history loads -->
         <button class="land-today-hero${!history.length?" land-hero-loading":""}" id="land-hero-card" onclick="UI._previewDay('${heroId}')">
@@ -304,41 +412,50 @@ const UI = {
 
   // Build last-7-days week rhythm cells based on history
   _buildWeekRhythm(history, lastDone) {
-    const cells = [];
     const today = new Date();
     today.setHours(12,0,0,0);
     const todayYmd = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-${String(today.getDate()).padStart(2,"0")}`;
-    const dowLabels = ["S","M","T","W","T","F","S"];
-    // Build a map of date -> session
+
+    // Build a map of date → session
     const byDate = {};
     (history||[]).forEach(s => {
       const d = String(s.date).slice(0,10);
       if (!byDate[d]) byDate[d] = s;
     });
-    // Start from monday of this week if possible. Actually simpler: last 6 days + today.
-    for (let i = -6; i <= 0; i++) {
-      const dt = new Date(today);
-      dt.setDate(dt.getDate() + i);
-      const ymd = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,"0")}-${String(dt.getDate()).padStart(2,"0")}`;
-      const dow = dowLabels[dt.getDay()];
-      const s = byDate[ymd];
-      const isToday = ymd === todayYmd;
-      let cls, label, dotChar = "·";
-      if (s) {
-        cls = "done";
-        dotChar = "✓";
-        const day = PROGRAM[s.dayId];
-        label = day ? this._shortDayLabel(day.title) : (s.dayTitle ? this._shortDayLabel(s.dayTitle) : "Done");
-      } else if (isToday) {
-        cls = "today";
-        label = "Today";
-      } else {
-        cls = "rest";
-        label = "—";
+
+    const formatYmd = (dt) =>
+      `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,"0")}-${String(dt.getDate()).padStart(2,"0")}`;
+
+    // Build a 7-day row starting from Sunday of a given week
+    const buildWeek = (sundayDate) => {
+      const days = [];
+      for (let i = 0; i < 7; i++) {
+        const dt = new Date(sundayDate);
+        dt.setDate(dt.getDate() + i);
+        dt.setHours(12,0,0,0);
+        const ymd = formatYmd(dt);
+        const s = byDate[ymd];
+        const isToday = ymd === todayYmd;
+        const isFuture = dt > today && !isToday;
+        days.push({ ymd, dow: ["S","M","T","W","T","F","S"][dt.getDay()], s, isToday, isFuture });
       }
-      cells.push({ dow, cls, dotChar, label });
-    }
-    return cells;
+      return days;
+    };
+
+    // Get Sunday of current week
+    const currSunday = new Date(today);
+    currSunday.setDate(today.getDate() - today.getDay());
+    currSunday.setHours(12,0,0,0);
+
+    // Last week's Sunday
+    const lastSunday = new Date(currSunday);
+    lastSunday.setDate(currSunday.getDate() - 7);
+
+    return {
+      thisWeek: buildWeek(currSunday),
+      lastWeek: buildWeek(lastSunday),
+      byDate
+    };
   },
 
   _shortDayLabel(title) {
@@ -1127,6 +1244,12 @@ const UI = {
         // Use smaller font when reps value contains text (e.g. "15 min")
         const rCompact = /[a-z]/i.test(String(rVal)) ? " sf-big-num-compact" : "";
         const wCompact = /[a-z]/i.test(String(wVal)) ? " sf-big-num-compact" : "";
+        // Contextual field labels
+        const exName = ex.name.toLowerCase();
+        const isPlank = exName.includes("plank") || exName.includes("pushup") || exName.includes("push-up") || exName.includes("circuit");
+        const isFinisher = ex.isFinisher || exName.includes("finisher") || exName.includes("walk");
+        const label1 = isFinisher ? "TIME" : isPlank ? "SECS" : "REPS";
+        const label2 = isFinisher ? "INCLINE %" : isPlank ? "PUSHUPS" : "LBS";
         return `<div class="sf-row sf-row-current">
           <div class="sf-current-block">
             <div class="sf-current-set-label-row">
@@ -1134,7 +1257,7 @@ const UI = {
             </div>
             <div class="sf-big-row">
               <div class="sf-field">
-                <span class="sf-field-label">REPS</span>
+                <span class="sf-field-label">${label1}</span>
                 <div class="sf-field-row">
                   <span class="sf-big-num${rCompact}" id="sf-reps">${rVal}</span>
                   <div class="sf-steppers">
@@ -1144,7 +1267,7 @@ const UI = {
                 </div>
               </div>
               <div class="sf-field">
-                <span class="sf-field-label">LBS</span>
+                <span class="sf-field-label">${label2}${isFinisher ? "" : ""}</span>
                 <div class="sf-field-row">
                   <span class="sf-big-num${wCompact}" id="sf-weight">${wVal}</span>
                   <div class="sf-steppers">
@@ -1309,7 +1432,7 @@ const UI = {
     if (exDone) {
       // Jump to next incomplete exercise
       const next = App.state.session.exercises.findIndex((ex,i)=>i>ei&&!ex.sets.filter(s=>!s.excluded).every(s=>s.logged));
-      if (next >= 0) this._goTo(next);
+      if (next >= 0) { this._persistSession(); this._goTo(next); }
     } else {
       this._confirmFinish();
     }
@@ -1642,6 +1765,7 @@ const UI = {
     this._updateHeader();
 
     if (s.logged) {
+      this._persistSession(); // survive iOS background kill
       this._flashSaved();
       const allDone = ex.sets.filter(s=>!s.excluded).every(s=>s.logged);
       if (!allDone) {
@@ -1779,65 +1903,76 @@ const UI = {
 
   _startRest(sec) {
     this._stopRest();
-    this._restTarget  = Date.now() + sec*1000;
-    this._restTotal   = sec;
+    this._restStartAt = Date.now();
     this._restStarted = true;
     this._restOver    = false;
+    this._restTarget  = Date.now() + sec * 1000; // still track target for color coding
+    this._restTotal   = sec;
 
-    // Swap action row into rest mode: hide SKIP button, show rest pill
-    const skipBtn = document.getElementById("sf-skip-btn");
     const pill    = document.getElementById("sf-rest-pill");
     const progBar = document.getElementById("rest-progress-bar");
-    if (skipBtn) skipBtn.style.display = "none";
     if (pill)    pill.style.display = "flex";
     if (progBar) progBar.classList.add("active");
 
     const tick = () => {
-      const raw  = (this._restTarget - Date.now()) / 1000;
-      const rem  = Math.ceil(raw);
-      const timeEl = document.getElementById("rest-banner-time");
+      const elapsed = (Date.now() - this._restStartAt) / 1000;
+      const rem = this._restTotal - elapsed;
+      const timeEl  = document.getElementById("rest-banner-time");
       const labelEl = document.getElementById("rest-banner-label");
-      const fillEl = document.getElementById("rest-progress-fill");
-      const pillEl = document.getElementById("sf-rest-pill");
-
+      const fillEl  = document.getElementById("rest-progress-fill");
+      const pillEl  = document.getElementById("sf-rest-pill");
       if (!timeEl) return;
 
+      // Format as M:SS.s (tenths)
+      const abs = Math.floor(elapsed);
+      const m   = Math.floor(abs / 60);
+      const s   = abs % 60;
+      const tenths = Math.floor((elapsed % 1) * 10);
+      timeEl.textContent = `${m}:${String(s).padStart(2,"0")}.${tenths}`;
+
+      // Color: green while under target, orange once over, red after 2× target
       if (rem > 0) {
-        const pct = Math.max(0, Math.min(1, raw / this._restTotal));
-        timeEl.textContent = this._fmtTime(rem);
         if (labelEl) labelEl.textContent = "REST";
-        if (fillEl) fillEl.style.width = `${pct * 100}%`;
-        if (pillEl) pillEl.classList.remove("overtime");
+        if (pillEl)  { pillEl.classList.remove("overtime"); pillEl.classList.remove("overlong"); }
+        // Progress bar fills as elapsed approaches target
+        const pct = Math.min(1, elapsed / this._restTotal);
+        if (fillEl) { fillEl.style.width = `${pct*100}%`; fillEl.style.background = "var(--green)"; }
         const pb = document.getElementById("rest-progress-bar");
-        if (pb) pb.classList.remove("overtime");
+        if (pb)  { pb.classList.remove("overtime"); }
       } else {
         if (!this._restOver) {
           this._restOver = true;
           if (navigator.vibrate) navigator.vibrate([150,80,150]);
         }
-        const over = Math.abs(Math.floor(raw));
-        timeEl.textContent = `+${this._fmtTime(over)}`;
-        if (labelEl) labelEl.textContent = "OVER";
-        if (fillEl) fillEl.style.width = "100%";
-        if (pillEl) pillEl.classList.add("overtime");
+        const over = elapsed - this._restTotal;
+        const isLong = over > this._restTotal; // 2× target
+        if (labelEl) labelEl.textContent = isLong ? "LONG REST" : "OVER TARGET";
+        if (pillEl) {
+          pillEl.classList.toggle("overtime", !isLong);
+          pillEl.classList.toggle("overlong", isLong);
+        }
+        // Bar stays full, color shifts
+        if (fillEl) {
+          fillEl.style.width = "100%";
+          fillEl.style.background = isLong ? "var(--red)" : "var(--orange)";
+        }
         const pb = document.getElementById("rest-progress-bar");
         if (pb) pb.classList.add("overtime");
       }
     };
     tick();
-    this._restTimer = setInterval(tick, 200);
+    this._restTimer = setInterval(tick, 100);
   },
 
   _stopRest() {
     if (this._restTimer) { clearInterval(this._restTimer); this._restTimer = null; }
     this._restStarted = false;
     this._restOver    = false;
-    const skipBtn = document.getElementById("sf-skip-btn");
+    this._restStartAt = null;
     const pill    = document.getElementById("sf-rest-pill");
     const progBar = document.getElementById("rest-progress-bar");
-    if (skipBtn) skipBtn.style.display = "";
-    if (pill)    { pill.style.display = "none"; pill.classList.remove("overtime"); }
-    if (progBar) { progBar.classList.remove("active"); progBar.classList.remove("overtime"); }
+    if (pill)    { pill.style.display = "none"; pill.classList.remove("overtime","overlong"); }
+    if (progBar) { progBar.classList.remove("active","overtime"); }
   },
 
   _adjRest(d) {
@@ -1910,96 +2045,45 @@ const UI = {
     if (!el) return;
     const exs = App.state.session?.exercises || [];
     const ei  = this._activeExIdx;
-    const editing = this._drawerEditing;
-
-    // V2 toolbar
-    const editBar = `<div class="drawer-toolbar">
-        <div class="prev-tool-segment">
-          <button class="prev-tool-btn${!editing?" active":""}" onclick="UI._setDrawerEdit(false)">View</button>
-          <button class="prev-tool-btn${editing?" active":""}" onclick="UI._setDrawerEdit(true)">Edit</button>
-        </div>
-        ${editing ? `<button class="prev-tool-add" onclick="UI._openAddEx(false);UI._closeDrawer()">
-          <svg width="11" height="11" viewBox="0 0 11 11" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"><path d="M5.5 1v9M1 5.5h9"/></svg>
-          Add
-        </button>` : ""}
-      </div>`;
 
     const rows = exs.map((ex, i) => {
       const wDone = ex.sets.filter(s=>!s.isWarmup&&s.logged).length;
       const wTot  = ex.sets.filter(s=>!s.isWarmup&&!s.excluded).length;
       const isCur = i === ei;
       const allDone = wDone === wTot && wTot > 0;
-      const curCls = isCur ? " current" : "";
       const finisherCls = ex.isFinisher ? " ex-row-finisher" : "";
-      const hereLabel = isCur ? `<span class="ex-row-here">← YOU'RE HERE</span>` : "";
 
-      // Build meta: progress + maybe a target
-      let metaParts = [];
+      let metaHtml = "";
       if (ex.isFinisher) {
-        metaParts.push(ex.sets[0]?.reps || "Finisher");
+        metaHtml = `<span class="drw-meta-blue">${ex.sets[0]?.reps || "Finisher"}</span>`;
+      } else if (allDone) {
+        metaHtml = `<span class="drw-meta-done">All done ✓</span>`;
       } else {
-        if (allDone) metaParts.push(`<span class="meta-done">All done ✓</span>`);
-        else metaParts.push(`${wDone}/${wTot} done`);
-        // Show next-set target if exercise in progress
         const next = ex.sets.find(s=>!s.logged&&!s.excluded&&!s.isWarmup);
-        if (next && next.weight) metaParts.push(`Next: ${next.reps}×${next.weight}`);
-      }
-      const metaHTML = metaParts.filter(Boolean).map((p,idx)=>
-        idx>0 ? `<span class="dot-sep">·</span>${p}` : p
-      ).join(" ");
-
-      // VIEW mode — tap to jump
-      if (!editing) {
-        const progBadge = ex.isFinisher
-          ? `<div class="ex-row-finbadge">FINISHER</div>`
-          : allDone
-            ? `<div class="ex-row-sets-static" style="border-color:rgba(61,255,160,.3);background:rgba(61,255,160,.05);"><span class="val" style="color:var(--green)">✓</span><span class="lbl" style="color:var(--green)">done</span></div>`
-            : `<div class="ex-row-sets-static"><span class="val">${wDone}<span style="color:var(--muted);font-size:12px">/${wTot}</span></span><span class="lbl">${wTot===1?"set":"sets"}</span></div>`;
-        return `<div class="ex-row-v2 drawer-row${curCls}${finisherCls}" onclick="UI._goTo(${i});UI._closeDrawer()">
-          <div class="ex-row-main">
-            <div class="ex-row-name">${ex.name}${hereLabel}</div>
-            <div class="ex-row-meta">${metaHTML}</div>
-          </div>
-          ${progBadge}
-        </div>`;
+        const nextStr = next?.weight ? `Next: ${next.reps}×${next.weight}` : "";
+        metaHtml = `<span>${wDone}/${wTot} done${nextStr ? ` · ${nextStr}` : ""}</span>`;
       }
 
-      // EDIT mode — grip + set chip + swipe-to-delete
-      const undoneWorking = ex.sets.filter(s=>!s.isWarmup&&!s.excluded&&!s.logged).length;
-      const setChip = ex.isFinisher
-        ? `<div class="ex-row-finbadge">FINISHER</div>`
-        : `<div class="set-chip" role="group" aria-label="Set count">
-            <button class="set-chip-btn" onclick="event.stopPropagation();UI._sessionAdjustSets(${i},-1)" ${undoneWorking<=0?"disabled":""} aria-label="Fewer sets">−</button>
-            <span class="set-chip-val">${wTot}<small>${wTot===1?"set":"sets"}</small></span>
-            <button class="set-chip-btn" onclick="event.stopPropagation();UI._sessionAdjustSets(${i},1)" ${wTot>=8?"disabled":""} aria-label="More sets">+</button>
-          </div>`;
+      const youHere = isCur ? `<span class="drw-here">← now</span>` : "";
+      const border = isCur ? " drw-row-current" : "";
 
-      return `<div class="ex-row-v2 editing drawer-row${curCls}${finisherCls}" data-didx="${i}">
-          <div class="ex-grip" data-dragidx="${i}">
-            <span></span><span></span><span></span>
-          </div>
-          <div class="ex-row-main">
-            <div class="ex-row-name">${ex.name}</div>
-            <div class="ex-row-meta">${metaHTML}</div>
-          </div>
-          ${setChip}
-          <button class="ex-row-trash" onclick="UI._removeEx(${i})" aria-label="Delete">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M2 3.5h10M5 3.5V2.2c0-.7.5-1.2 1.2-1.2h1.6c.7 0 1.2.5 1.2 1.2V3.5M3.5 3.5L4 12c0 .8.7 1.5 1.5 1.5h3c.8 0 1.5-.7 1.5-1.5l.5-8.5M6 6.5v4M8 6.5v4"/></svg>
-          </button>
-        </div>`;
+      return `<div class="drw-row${border}${finisherCls}" onclick="UI._goTo(${i});UI._closeDrawer()">
+        <div class="drw-row-main">
+          <div class="drw-name">${ex.isFinisher ? "🚶 " : ""}${ex.name}${youHere}</div>
+          <div class="drw-meta">${metaHtml}</div>
+        </div>
+        <button class="drw-del" onclick="event.stopPropagation();UI._removeEx(${i})" aria-label="Remove">✕</button>
+      </div>`;
     }).join("");
 
-    el.innerHTML = editBar + rows;
+    const toolbar = `<div class="drw-toolbar">
+      <button class="drw-add-btn" onclick="UI._openAddEx(false);UI._closeDrawer()">
+        <svg width="10" height="10" viewBox="0 0 10 10" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"><path d="M5 1v8M1 5h8"/></svg>
+        Exercise
+      </button>
+    </div>`;
 
-    // Attach drag listeners imperatively for drawer grips
-    if (editing) {
-      el.querySelectorAll(".ex-grip[data-dragidx]").forEach(grip => {
-        const idx = parseInt(grip.getAttribute("data-dragidx"), 10);
-        grip.addEventListener("touchstart", (e) => {
-          this._drwDragStart(e, idx);
-        }, { passive: false });
-      });
-    }
+    el.innerHTML = toolbar + rows;
 
     // Update day name
     const dn = document.getElementById("drawer-day-name");
@@ -2210,6 +2294,7 @@ const UI = {
     this._updateFocusView();
     this._updateHeader();
     this._updateQueue();
+    this._updateDrawer();
   },
 
   _swapEx(ei) {
@@ -2219,45 +2304,112 @@ const UI = {
 
   _openAddEx(isSwap) {
     this._closeSheet();
-    const day = PROGRAM[App.state.activeDay];
-    const groups = {
-      "Upper — Push":["push_acc"],"Upper — Pull":["pull_acc"],
-      "Biceps":["curl_acc"],"Delts":["latraise_acc"],
-      "Core":["core_upper","core_lower","sideplank_acc"],
-      "Lower — Quad":["leg_acc"],"Lower — Hamstring":["hamstring_acc"],
-      "Calves":["calf_acc"],"Olympic":["snatch_acc","jerk_acc"],
-      "Squat":["squat_fri_acc"],"Deadlift":["rdl_fri_acc"]
+    // Comprehensive exercise library — grouped by category
+    const LIBRARY = {
+      "Chest — Push": [
+        "Bench Press","Incline Bench Press","Decline Bench Press","Close-Grip Bench Press",
+        "Dumbbell Press","Incline Dumbbell Press","Decline Dumbbell Press",
+        "Cable Fly","Pec Deck Fly","Dumbbell Fly","Incline Dumbbell Fly",
+        "Push-Up","Wide Push-Up","Diamond Push-Up","Archer Push-Up","Deficit Push-Up",
+        "Chest Dip","Landmine Press","Machine Chest Press","Smith Machine Press"
+      ],
+      "Back — Pull": [
+        "Pull-Up","Chin-Up","Weighted Pull-Up","Band-Assisted Pull-Up",
+        "Lat Pulldown","Wide-Grip Pulldown","Reverse-Grip Pulldown","Single-Arm Pulldown",
+        "Barbell Row","Pendlay Row","Dumbbell Row","Cable Row","Seated Cable Row",
+        "T-Bar Row","Chest-Supported Row","Machine Row","Inverted Row",
+        "Straight-Arm Pulldown","Face Pull","Rear Delt Fly","Meadows Row"
+      ],
+      "Shoulders": [
+        "Overhead Press","Seated DB Shoulder Press","Arnold Press","Z-Press",
+        "Lateral Raise","Cable Lateral Raise","Machine Lateral Raise",
+        "Front Raise","Cable Front Raise","Plate Front Raise",
+        "Rear Delt Fly","Reverse Pec Deck","Cable Rear Delt Fly",
+        "Upright Row","High Pull","Shrug","Trap-3 Raise","Face Pull"
+      ],
+      "Biceps": [
+        "Barbell Curl","EZ-Bar Curl","Dumbbell Curl","Hammer Curl",
+        "Incline Dumbbell Curl","Preacher Curl","Machine Curl",
+        "Cable Curl","Rope Hammer Curl","Cross-Body Curl",
+        "Concentration Curl","Spider Curl","Zottman Curl","Reverse Curl"
+      ],
+      "Triceps": [
+        "Tricep Pushdown","Rope Pushdown","Overhead Tricep Extension",
+        "Skull Crusher","Close-Grip Bench Press","Tricep Dip","Bench Dip",
+        "Cable Overhead Extension","DB Kickback","JM Press","Diamond Push-Up"
+      ],
+      "Forearms": [
+        "Wrist Curl","Reverse Wrist Curl","Hammer Curl",
+        "Farmer's Walk","Plate Pinch","Bar Hang","Towel Pull-Up"
+      ],
+      "Quads — Legs": [
+        "Back Squat","Front Squat","Box Squat","Pause Squat","Goblet Squat",
+        "Bulgarian Split Squat","Hack Squat","Leg Press",
+        "Lunges","Walking Lunges","Reverse Lunges","Lateral Lunges",
+        "Step-Up","Sissy Squat","Spanish Squat","Leg Extension"
+      ],
+      "Hamstrings / Glutes": [
+        "Romanian Deadlift","Stiff-Leg Deadlift","Nordic Curl",
+        "Leg Curl","Seated Leg Curl","Swiss Ball Leg Curl",
+        "Hip Thrust","Barbell Glute Bridge","Single-Leg Hip Thrust",
+        "Good Morning","Sumo Deadlift","Trap Bar Deadlift",
+        "Cable Pull-Through","Glute-Ham Raise","Single-Leg RDL"
+      ],
+      "Calves": [
+        "Standing Calf Raise","Seated Calf Raise","Leg Press Calf Raise",
+        "Single-Leg Calf Raise","Donkey Calf Raise","Jump Rope"
+      ],
+      "Core — Abs": [
+        "Crunch","Decline Crunch","Cable Crunch","Machine Crunch",
+        "Hanging Knee Raise","Hanging Leg Raise","Dragon Flag",
+        "Ab Wheel Rollout","L-Sit","V-Up","Hollow Body Hold",
+        "Sit-Up","Weighted Sit-Up","Dead Bug","Plank",
+        "Side Plank","Pallof Press","Woodchop","Landmine Rotation"
+      ],
+      "Core — Planks / Circuits": [
+        "Plank","Side Plank","RKC Plank","Long-Lever Plank",
+        "Plank → Pushup Circuit","Bear Crawl","Mountain Climber",
+        "Plank Up-Down","Plank with Shoulder Tap","Stir the Pot"
+      ],
+      "Olympic / Power": [
+        "Power Clean","Hang Clean","Clean & Jerk","Split Jerk","Push Jerk",
+        "Snatch","Hang Snatch","Power Snatch","Overhead Squat",
+        "Push Press","Jerk","Clean Pull","Snatch Pull",
+        "Muscle Snatch","High Pull","Medicine Ball Slam","Box Jump","Broad Jump"
+      ],
+      "Deadlift Variants": [
+        "Conventional Deadlift","Sumo Deadlift","Romanian Deadlift",
+        "Stiff-Leg Deadlift","Trap Bar Deadlift","Deficit Deadlift",
+        "Rack Pull","Block Pull","Single-Leg Deadlift","Snatch-Grip Deadlift"
+      ],
+      "Cardio / Finishers": [
+        "Incline Walk Finisher","Rowing Machine","Ski Erg","Assault Bike",
+        "Sled Push","Sled Pull","Farmer's Walk","Battle Ropes",
+        "Jump Rope","Box Jump","Burpee","KB Swing","Clean Complex"
+      ]
     };
-    const exMap = {};
-    Object.entries(groups).forEach(([g,keys]) => {
-      keys.forEach(k => (ACC_POOLS[k]||[]).forEach(ex => {
-        if (!exMap[ex.name]) exMap[ex.name] = {...ex, group:g};
-      }));
-    });
-    Object.values(MAIN_LIFTS||{}).forEach(ex => {
-      if (!exMap[ex.name]) exMap[ex.name] = {...ex, group:"Main Lifts"};
-    });
-    const all = Object.values(exMap).sort((a,b)=>a.name.localeCompare(b.name));
-    const byGroup = {};
-    all.forEach(e => (byGroup[e.group]=byGroup[e.group]||[]).push(e));
-    const listHTML = Object.entries(byGroup).map(([g,exs]) => `
-      <div class="sheet-group-label">${g}</div>
-      ${exs.map(ex=>`<div class="sheet-item" onclick="UI._pickEx('${ex.id}','${ex.name.replace(/'/g,"\\'")}',${ex.baseline||0})">
-        <div><div class="sheet-item-name">${ex.name}</div>${ex.baseline?`<div class="sheet-item-meta">Baseline ${ex.baseline} lbs</div>`:""}</div>
-        <span class="sheet-item-add">+</span>
-      </div>`).join("")}`).join("");
 
-    // Full-screen overlay instead of bottom sheet
+    const listHTML = Object.entries(LIBRARY).map(([group, exercises]) => `
+      <div class="sheet-group-label">${group}</div>
+      ${exercises.map(name => {
+        const id = name.toLowerCase().replace(/[^a-z0-9]+/g,"_");
+        return `<div class="sheet-item" onclick="UI._pickEx('${id}','${name.replace(/'/g,"\\'")}',0)">
+          <div class="sheet-item-name">${name}</div>
+          <span class="sheet-item-add">+</span>
+        </div>`;
+      }).join("")}`).join("");
+
     const overlay = document.createElement("div");
     overlay.id = "sess-sheet";
     overlay.className = "ex-picker-fullscreen";
     overlay.innerHTML = `
       <div class="ex-picker-head">
         <button class="ex-picker-back" onclick="UI._closePicker()">✕</button>
-        <span class="ex-picker-title">${isSwap?"Swap Exercise":"Add Exercise"}</span>
+        <span class="ex-picker-title">${isSwap ? "Swap Exercise" : "Add Exercise"}</span>
       </div>
       <div class="ex-picker-search">
-        <input type="search" placeholder="Search exercises…" id="ex-search" autocomplete="off" autocorrect="off"
+        <input type="search" placeholder="Search ${Object.values(LIBRARY).flat().length} exercises…"
+          id="ex-search" autocomplete="off" autocorrect="off" spellcheck="false"
           oninput="
             const q=this.value.toLowerCase();
             document.querySelectorAll('#sess-sheet .sheet-item').forEach(el=>{
@@ -2272,7 +2424,13 @@ const UI = {
       <div class="ex-picker-list">${listHTML}</div>
     `;
     document.body.appendChild(overlay);
-    setTimeout(()=>document.getElementById("ex-search")?.focus(), 200);
+    // Auto-focus with short delay to ensure keyboard appears
+    setTimeout(() => {
+      const inp = document.getElementById("ex-search");
+      if (inp) { inp.focus(); inp.click(); }
+    }, 80);
+    this._draftAddOpen = true;
+    this._swappingEi = isSwap ? this._activeExIdx : undefined;
   },
 
   _pickEx(id, name, baseline) {
@@ -2353,6 +2511,7 @@ const UI = {
   _discard() {
     this._closeSheet();
     this._stopRest();
+    this._clearPersistedSession();
     App.state.session = App.state.activeDay = null;
     this.nav("picker");
   },
@@ -2393,6 +2552,7 @@ const UI = {
       App.state.session = App.state.activeDay = null;
       App.state.history = null;
       this._saving = false;
+      this._clearPersistedSession(); // session complete — clean up
       this._renderFinishScreen(summary, day);
 
       // Kick off the background save — show error only if it truly fails
@@ -3149,19 +3309,22 @@ const UI = {
       const delta = prev ? parseFloat((e.w - prev.w).toFixed(1)) : null;
       let deltaHTML = "";
       if (delta !== null) {
+        const sign = delta > 0 ? "+" : "";
+        const formatted = `${sign}${Math.abs(delta) < 0.05 ? "0.0" : delta.toFixed(1)}`;
         if (Math.abs(delta) < 0.05) {
           deltaHTML = `<span class="bwv2-delta flat">=</span>`;
-        } else if (delta < 0) {
-          deltaHTML = `<span class="bwv2-delta down">${delta}</span>`;
+        } else if (delta > 0) {
+          // Weight went UP — green (gaining, which may be your goal, or just factual)
+          deltaHTML = `<span class="bwv2-delta up">${formatted}</span>`;
         } else {
-          deltaHTML = `<span class="bwv2-delta up">+${delta}</span>`;
+          // Weight went DOWN — red (losing)
+          deltaHTML = `<span class="bwv2-delta down">${formatted}</span>`;
         }
       }
       return `<div class="bwv2-hist-row">
         <span class="bwv2-hist-date">${this._dateExact(e._ymd)}</span>
         <span class="bwv2-hist-val">${e.w}<span class="bwv2-hist-unit">lbs</span></span>
         ${deltaHTML}
-        <button class="bwv2-hist-del" onclick="App.deleteBodyweight('${e.date}').then(()=>{App.state.bwLog=null;UI._setTab('body')})" aria-label="Delete">✕</button>
       </div>`;
     }).join("") || `<div class="loading-text muted" style="padding:12px 14px">No entries yet</div>`;
 
@@ -3501,6 +3664,117 @@ const UI = {
     this._renderHistoryContent();
   },
 
+  _highlightHistDate(ymd) {
+    // Called when tapping a calendar day on the picker — jump to history and scroll to that date
+    this._histHighlightDate = ymd;
+    // If history is already showing, scroll to the relevant card
+    setTimeout(() => {
+      const card = document.querySelector(`[data-ymd="${ymd}"]`);
+      if (card) {
+        card.scrollIntoView({ behavior: "smooth", block: "start" });
+        card.classList.add("histv2-card-highlight");
+        setTimeout(() => card.classList.remove("histv2-card-highlight"), 2000);
+      }
+    }, 150);
+  },
+
+  _buildHistoryMonthCal(sessions, highlightDate) {
+    // Build a month calendar showing workout dots
+    const byDate = {};
+    sessions.forEach(s => {
+      const d = String(s.date).slice(0,10);
+      if (!byDate[d]) byDate[d] = [];
+      byDate[d].push(s);
+    });
+
+    const today = new Date(); today.setHours(12,0,0,0);
+    const todayYmd = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-${String(today.getDate()).padStart(2,"0")}`;
+
+    // Build last 8 weeks (most recent first)
+    const weeks = [];
+    // Find most recent Sunday
+    const endDate = new Date(today);
+    endDate.setDate(endDate.getDate() - endDate.getDay() + 6); // Saturday of this week
+    endDate.setHours(12,0,0,0);
+
+    for (let w = 0; w < 8; w++) {
+      const weekDays = [];
+      const sat = new Date(endDate);
+      sat.setDate(endDate.getDate() - w * 7);
+      const sun = new Date(sat);
+      sun.setDate(sat.getDate() - 6);
+
+      for (let i = 0; i < 7; i++) {
+        const dt = new Date(sun);
+        dt.setDate(sun.getDate() + i);
+        dt.setHours(12,0,0,0);
+        const ymd = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,"0")}-${String(dt.getDate()).padStart(2,"0")}`;
+        const sess = byDate[ymd] || [];
+        const isToday = ymd === todayYmd;
+        const isFuture = dt > today && !isToday;
+        const isHighlight = ymd === highlightDate;
+        weekDays.push({ ymd, date: dt.getDate(), dow: ["S","M","T","W","T","F","S"][dt.getDay()], sess, isToday, isFuture, isHighlight });
+      }
+
+      // Week label: show month if Sunday of this week crosses a month boundary
+      const sunYmd = `${sun.getFullYear()}-${String(sun.getMonth()+1).padStart(2,"0")}-${String(sun.getDate()).padStart(2,"0")}`;
+      const monthLabel = w === 0 || sun.getDate() <= 7
+        ? sun.toLocaleDateString("en-US", { month: "short" })
+        : "";
+
+      weeks.push({ weekDays, monthLabel, sunYmd });
+    }
+
+    const dayLabels = `<div class="hcal-dow-row">${["S","M","T","W","T","F","S"].map(d=>`<span>${d}</span>`).join("")}</div>`;
+
+    const weekRows = weeks.reverse().map(({ weekDays, monthLabel }) => `
+      <div class="hcal-week-row">
+        <span class="hcal-month-lbl">${monthLabel}</span>
+        <div class="hcal-days">
+          ${weekDays.map(d => {
+            const hasSess = d.sess.length > 0;
+            let cls = "hcal-day";
+            if (d.isFuture) cls += " future";
+            else if (d.isToday) cls += " today";
+            else if (hasSess) cls += " workout";
+            if (d.isHighlight) cls += " highlight";
+            const onclick = hasSess
+              ? `onclick="UI._toggleHistDateSessions('${d.ymd}')"`
+              : "";
+            return `<div class="${cls}" ${onclick} data-hcalymd="${d.ymd}">
+              ${d.date}
+              ${hasSess ? `<span class="hcal-dot"></span>` : ""}
+            </div>`;
+          }).join("")}
+        </div>
+      </div>`).join("");
+
+    return `<div class="hcal-wrap">
+      ${dayLabels}
+      <div class="hcal-weeks">${weekRows}</div>
+    </div>`;
+  },
+
+  _toggleHistDateSessions(ymd) {
+    // Scroll to / expand the session card for this date
+    const card = document.querySelector(`.histv2-card[data-ymd="${ymd}"]`);
+    if (card) {
+      card.scrollIntoView({ behavior: "smooth", block: "start" });
+      // Also expand it
+      const idx = card.getAttribute("data-idx");
+      if (idx) {
+        const exp = document.getElementById(`hist-exp-${idx}`);
+        if (exp && !exp.classList.contains("open")) this._toggleHistRow(parseInt(idx,10));
+      }
+      card.classList.add("histv2-card-highlight");
+      setTimeout(() => card.classList.remove("histv2-card-highlight"), 2500);
+    }
+    // Also highlight the calendar day
+    document.querySelectorAll(".hcal-day.highlight").forEach(el => el.classList.remove("highlight"));
+    const calDay = document.querySelector(`.hcal-day[data-hcalymd="${ymd}"]`);
+    if (calDay) calDay.classList.add("highlight");
+  },
+
   _renderHistoryContent() {
     const el = document.getElementById("hist-content");
     if (!el) return;
@@ -3578,6 +3852,9 @@ const UI = {
       curGroup.sessions.push({ s, idx });
     });
 
+    // Month calendar at top
+    const calHTML = this._buildHistoryMonthCal(sorted, this._histHighlightDate || null);
+
     // Build HTML
     const html = groups.map(g => {
       const sessionCards = g.sessions.map(({ s, idx }) => {
@@ -3629,7 +3906,7 @@ const UI = {
           </div>`;
         }).join("");
 
-        return `<div class="histv2-card" data-idx="${idx}">
+        return `<div class="histv2-card" data-idx="${idx}" data-ymd="${ymd}">
           <div class="histv2-card-head" onclick="UI._toggleHistRow(${idx})">
             <div class="histv2-card-l">
               <div class="histv2-day-top">
@@ -3653,7 +3930,7 @@ const UI = {
         ${sessionCards}`;
     }).join("");
 
-    el.innerHTML = html;
+    el.innerHTML = calHTML + html;
   },
 
   _toggleHistRow(idx) {
