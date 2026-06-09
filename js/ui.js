@@ -1079,11 +1079,7 @@ const UI = {
         <div class="sf-rest-pill" id="sf-rest-pill" style="display:none">
           <div class="sf-rest-time-block">
             <span class="sf-rest-label" id="rest-banner-label">REST</span>
-            <span class="sf-rest-time" id="rest-banner-time">1:30</span>
-          </div>
-          <div class="sf-rest-adj">
-            <button onclick="UI._adjRest(-30)">−30s</button>
-            <button onclick="UI._adjRest(30)">+30s</button>
+            <span class="sf-rest-time" id="rest-banner-time">0:00.00</span>
           </div>
         </div>
         <button class="sf-log-btn" id="sess-save-btn" onclick="UI._tapCurrentSetDone()">
@@ -1923,35 +1919,33 @@ const UI = {
       const pillEl  = document.getElementById("sf-rest-pill");
       if (!timeEl) return;
 
-      // Format as M:SS.s (tenths)
+      // Format as M:SS.cc (hundredths)
       const abs = Math.floor(elapsed);
       const m   = Math.floor(abs / 60);
       const s   = abs % 60;
-      const tenths = Math.floor((elapsed % 1) * 10);
-      timeEl.textContent = `${m}:${String(s).padStart(2,"0")}.${tenths}`;
+      const hundredths = Math.floor((elapsed % 1) * 100);
+      timeEl.textContent = `${m}:${String(s).padStart(2,"0")}.${String(hundredths).padStart(2,"0")}`;
 
-      // Color: green while under target, orange once over, red after 2× target
+      // Color: green under target, orange over target, red only after 2min past target
       if (rem > 0) {
         if (labelEl) labelEl.textContent = "REST";
-        if (pillEl)  { pillEl.classList.remove("overtime"); pillEl.classList.remove("overlong"); }
-        // Progress bar fills as elapsed approaches target
+        if (pillEl)  { pillEl.classList.remove("overtime","overlong"); }
         const pct = Math.min(1, elapsed / this._restTotal);
         if (fillEl) { fillEl.style.width = `${pct*100}%`; fillEl.style.background = "var(--green)"; }
         const pb = document.getElementById("rest-progress-bar");
-        if (pb)  { pb.classList.remove("overtime"); }
+        if (pb) pb.classList.remove("overtime");
       } else {
         if (!this._restOver) {
           this._restOver = true;
           if (navigator.vibrate) navigator.vibrate([150,80,150]);
         }
         const over = elapsed - this._restTotal;
-        const isLong = over > this._restTotal; // 2× target
+        const isLong = over > 120; // red only after 2 full minutes past target
         if (labelEl) labelEl.textContent = isLong ? "LONG REST" : "OVER TARGET";
         if (pillEl) {
           pillEl.classList.toggle("overtime", !isLong);
           pillEl.classList.toggle("overlong", isLong);
         }
-        // Bar stays full, color shifts
         if (fillEl) {
           fillEl.style.width = "100%";
           fillEl.style.background = isLong ? "var(--red)" : "var(--orange)";
@@ -1961,7 +1955,7 @@ const UI = {
       }
     };
     tick();
-    this._restTimer = setInterval(tick, 100);
+    this._restTimer = setInterval(tick, 10);
   },
 
   _stopRest() {
@@ -2067,7 +2061,10 @@ const UI = {
       const youHere = isCur ? `<span class="drw-here">← now</span>` : "";
       const border = isCur ? " drw-row-current" : "";
 
-      return `<div class="drw-row${border}${finisherCls}" onclick="UI._goTo(${i});UI._closeDrawer()">
+      return `<div class="drw-row${border}${finisherCls}" data-didx="${i}" onclick="UI._goTo(${i});UI._closeDrawer()">
+        <div class="drw-grip" data-dragidx="${i}">
+          <span></span><span></span><span></span>
+        </div>
         <div class="drw-row-main">
           <div class="drw-name">${ex.isFinisher ? "🚶 " : ""}${ex.name}${youHere}</div>
           <div class="drw-meta">${metaHtml}</div>
@@ -2084,6 +2081,15 @@ const UI = {
     </div>`;
 
     el.innerHTML = toolbar + rows;
+
+    // Attach imperative touchstart (passive:false) for drag grips
+    el.querySelectorAll(".drw-grip[data-dragidx]").forEach(grip => {
+      const idx = parseInt(grip.getAttribute("data-dragidx"), 10);
+      grip.addEventListener("touchstart", (e) => {
+        e.stopPropagation();
+        this._drwDragStart(e, idx);
+      }, { passive: false });
+    });
 
     // Update day name
     const dn = document.getElementById("drawer-day-name");
@@ -2141,35 +2147,75 @@ const UI = {
     e.stopPropagation?.();
     const t = e.touches?.[0]; if (!t) return;
     e.preventDefault?.();
-    const wrapEl = document.querySelector(`.ex-swipe-wrap[data-didx="${idx}"]`);
-    if (!wrapEl) return;
-    const rect = wrapEl.getBoundingClientRect();
-    const rowH = rect.height + 6;
-    this._drwDrag = { idx, startY: t.clientY, currentIdx: idx, rowH, wrapEl };
-    wrapEl.classList.add("dragging");
+    const rowEl = document.querySelector(`#drawer-ex-list .drw-row[data-didx="${idx}"]`);
+    if (!rowEl) return;
+    const rect = rowEl.getBoundingClientRect();
+    const rowH = rect.height + 4;
+    const siblings = Array.from(document.querySelectorAll("#drawer-ex-list .drw-row[data-didx]"))
+      .filter(el => el !== rowEl);
+
+    this._drwDrag = {
+      idx, startY: t.clientY, currentIdx: idx, rowH, rowEl, siblings,
+      pendingDy: 0, pendingIdx: idx, raf: null
+    };
+    rowEl.style.zIndex = "10";
+    rowEl.style.boxShadow = "0 6px 20px rgba(0,0,0,.5)";
+    rowEl.style.opacity = "0.95";
+    rowEl.style.willChange = "transform";
+    rowEl.style.transform = "translate3d(0,0,0)";
+    siblings.forEach(sib => {
+      sib.style.willChange = "transform";
+      sib.style.transition = "transform 0.16s cubic-bezier(.2,.7,.3,1)";
+      sib.style.transform = "translate3d(0,0,0)";
+    });
     if (navigator.vibrate) navigator.vibrate(15);
+
+    const applyFrame = () => {
+      if (!this._drwDrag) return;
+      this._drwDrag.raf = null;
+      const { pendingDy, pendingIdx } = this._drwDrag;
+      this._drwDrag.rowEl.style.transform = `translate3d(0,${pendingDy}px,0)`;
+      if (pendingIdx !== this._drwDrag.currentIdx) {
+        const fromIdx = this._drwDrag.idx;
+        const toIdx = pendingIdx;
+        this._drwDrag.siblings.forEach(sib => {
+          const sIdx = parseInt(sib.getAttribute("data-didx"), 10);
+          let shift = 0;
+          if (fromIdx < toIdx) {
+            if (sIdx > fromIdx && sIdx <= toIdx) shift = -rowH;
+          } else if (fromIdx > toIdx) {
+            if (sIdx >= toIdx && sIdx < fromIdx) shift = rowH;
+          }
+          sib.style.transform = shift ? `translate3d(0,${shift}px,0)` : "translate3d(0,0,0)";
+        });
+        this._drwDrag.currentIdx = pendingIdx;
+        if (navigator.vibrate) navigator.vibrate(6);
+      }
+    };
 
     const onMove = (ev) => {
       const tt = ev.touches?.[0]; if (!tt) return;
       ev.preventDefault();
+      if (!this._drwDrag) return;
       const dy = tt.clientY - this._drwDrag.startY;
-      this._drwDrag.wrapEl.style.transform = `translateY(${dy}px)`;
       const exs = App.state.session?.exercises || [];
       const newIdx = Math.max(0, Math.min(exs.length-1,
         this._drwDrag.idx + Math.round(dy / this._drwDrag.rowH)));
-      this._drwDrag.currentIdx = newIdx;
+      this._drwDrag.pendingDy = dy;
+      this._drwDrag.pendingIdx = newIdx;
+      if (!this._drwDrag.raf) this._drwDrag.raf = requestAnimationFrame(applyFrame);
     };
     const onEnd = () => {
       document.removeEventListener("touchmove", onMove);
       document.removeEventListener("touchend", onEnd);
       if (!this._drwDrag) return;
-      const { idx: from, currentIdx: to } = this._drwDrag;
-      this._drwDrag.wrapEl.classList.remove("dragging");
-      this._drwDrag.wrapEl.style.transform = "";
+      if (this._drwDrag.raf) cancelAnimationFrame(this._drwDrag.raf);
+      const { idx: from, currentIdx: to, rowEl: el, siblings: sibs } = this._drwDrag;
+      el.style.transform = ""; el.style.zIndex = ""; el.style.boxShadow = "";
+      el.style.opacity = ""; el.style.willChange = "";
+      sibs.forEach(s => { s.style.transition = ""; s.style.transform = ""; s.style.willChange = ""; });
       this._drwDrag = null;
-      if (from !== to) {
-        this._sessionMove(from, to - from);
-      }
+      if (from !== to) this._sessionMove(from, to - from);
     };
     document.addEventListener("touchmove", onMove, { passive: false });
     document.addEventListener("touchend", onEnd);
@@ -3648,11 +3694,12 @@ const UI = {
           <div class="histv2-sum-loading">Loading…</div>
         </div>
       </div>
+      <div class="hist-cal-sticky" id="hist-cal-sticky">
+        <div id="hist-cal-content"><div class="loading-text muted" style="padding:8px 14px;font-size:11px">Loading calendar…</div></div>
+      </div>
       <div id="hist-content" class="histv2-body"><div class="loading-text">Loading…</div></div>`;
     this.root.appendChild(wrap);
 
-    // Use cached history if available — renders instantly.
-    // Only fetch if cache is empty (first load or after a save that cleared it).
     if (!App.state.history) {
       try {
         const { sessions } = await App.fetchHistory();
@@ -3697,7 +3744,7 @@ const UI = {
     endDate.setDate(endDate.getDate() - endDate.getDay() + 6); // Saturday of this week
     endDate.setHours(12,0,0,0);
 
-    for (let w = 0; w < 8; w++) {
+    for (let w = 0; w < 5; w++) {
       const weekDays = [];
       const sat = new Date(endDate);
       sat.setDate(endDate.getDate() - w * 7);
@@ -3852,10 +3899,11 @@ const UI = {
       curGroup.sessions.push({ s, idx });
     });
 
-    // Month calendar at top
-    const calHTML = this._buildHistoryMonthCal(sorted, this._histHighlightDate || null);
+    // Calendar in sticky container (5 weeks shown, scrollable within)
+    const calEl = document.getElementById("hist-cal-content");
+    if (calEl) calEl.innerHTML = this._buildHistoryMonthCal(sorted, this._histHighlightDate || null);
 
-    // Build HTML
+    // Session list below
     const html = groups.map(g => {
       const sessionCards = g.sessions.map(({ s, idx }) => {
         // Volume + set count — count any non-warmup set with reps or weight,
@@ -3930,7 +3978,7 @@ const UI = {
         ${sessionCards}`;
     }).join("");
 
-    el.innerHTML = calHTML + html;
+    el.innerHTML = html;
   },
 
   _toggleHistRow(idx) {
