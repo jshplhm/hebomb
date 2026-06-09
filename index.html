@@ -32,7 +32,42 @@
   --nav-h:   64px;
   --safe-bot: env(safe-area-inset-bottom, 20px);
   --safe-top: env(safe-area-inset-top, 44px);
+
+  /* Monochromatic text system — everything is white/grey unless it's a CTA or status */
+  --accent-cta:    #e8ff47;   /* CTA buttons only */
+  --accent-active: #ffffff;   /* active/current state */
+  --accent-dim:    #4a5262;   /* very muted */
 }
+
+/* Global monochromatic overrides — coloured text only on deliberate exceptions */
+.green, .val.green, .drw-meta-done, .land-meta-pair .val.green,
+.bwv2-hero-meta .val.green, .meta-done { color: var(--text) !important; }
+.orange, .val.orange { color: var(--sub) !important; }
+.orm-badge { color: var(--text) !important; }
+
+/* Numbers: always full white */
+.sf-big-num, .workout-countdown, .sf-rest-time,
+.histv2-stat-mini .v, .finv2-stat-val, .bwv2-hero-val,
+.finv2-day-name, .land-name { color: var(--text); }
+
+/* Labels: muted grey */
+.sf-field-label, .rest-banner-label, .sf-rest-label,
+.land-greet, .land-meta-pair .lbl,
+.finv2-stat-lbl { color: var(--muted); }
+
+/* SET N OF M label — white, not yellow */
+.sf-current-set-label { color: var(--text); letter-spacing: 2px; }
+
+/* Dots on week calendar — white for done, not yellow */
+.cal-day.done .cal-dot { background: var(--text); color: var(--bg); }
+.cal-day.today .cal-dot { border-color: var(--text); color: var(--text); }
+
+/* Picker hero card next-up eyebrow */
+.land-today-eyebrow { color: var(--sub); }
+.land-today-eyebrow .pulse { background: var(--text); }
+
+/* Nav active state stays yellow as primary affordance */
+.nav-btn.active { color: var(--yellow); }
 
 html { background:var(--bg); color:var(--text); font-family:'Barlow',sans-serif; font-size:16px; -webkit-text-size-adjust:100%; }
 body { background:var(--bg); overscroll-behavior:none; -webkit-font-smoothing:antialiased; position:relative; }
@@ -498,8 +533,9 @@ input[type=number] { -moz-appearance:textfield; }
 .sf-rest-pill.overlong .sf-rest-time { color: var(--red); }
 .sf-rest-time {
   font-family: 'Barlow Condensed', sans-serif;
-  font-size: 30px; font-weight: 900; color: var(--text);
-  line-height: 1; letter-spacing: -1.5px;
+  font-size: 26px; font-weight: 900; color: var(--text);
+  line-height: 1; letter-spacing: -0.5px;
+  font-variant-numeric: tabular-nums;
 }
 .sf-rest-pill.overtime .sf-rest-time { color: var(--orange); }
 .sf-rest-adj {
@@ -554,6 +590,9 @@ input[type=number] { -moz-appearance:textfield; }
 .drw-add-btn { display:flex; align-items:center; gap:6px; background:transparent; border:1px dashed var(--border2); color:var(--yellow); font-family:'Barlow Condensed',sans-serif; font-size:11px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; padding:7px 12px; border-radius:8px; cursor:pointer; -webkit-tap-highlight-color:transparent; }
 .drw-add-btn:active { background:rgba(232,255,71,.05); }
 .drw-row { display:flex; align-items:center; gap:10px; padding:11px 14px; margin:4px 10px 0; border-radius:8px; background:var(--card); border:1px solid var(--border); cursor:pointer; -webkit-tap-highlight-color:transparent; transition:background 0.08s; }
+.drw-grip { display:flex; flex-direction:column; gap:3px; padding:4px 6px 4px 0; cursor:grab; flex-shrink:0; }
+.drw-grip span { display:block; width:18px; height:1.5px; background:var(--border2); border-radius:2px; }
+.drw-grip:active { cursor:grabbing; }
 .drw-row:active { background:var(--lift); }
 .drw-row-current { border-color:rgba(232,255,71,.35); background:rgba(232,255,71,.04); }
 .drw-row-current:active { background:rgba(232,255,71,.08); }
@@ -1262,6 +1301,11 @@ input[type=number] { -moz-appearance:textfield; }
 
 /* ── HISTORY V2 ── */
 .hist-page { overflow-y:auto; -webkit-overflow-scrolling:touch; display:flex; flex-direction:column; padding-left:0; padding-right:0; }
+.hist-cal-sticky { position:sticky; top:0; z-index:100; background:var(--bg); border-bottom:1px solid var(--border); overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+.hist-cal-sticky::-webkit-scrollbar { display:none; }
+/* Show future days on Train calendar as muted (not invisible) */
+.cal-day.future .cal-dot { background:#1c1c1c; color:var(--muted); opacity:0.5; }
+.cal-day.future .cal-lbl { color:var(--muted); opacity:0.4; }
 .histv2-top { position:sticky; top:0; z-index:50; background:var(--bg); padding:6px 16px 0; border-bottom:1px solid var(--border); flex-shrink:0; }
 .histv2-eyebrow { font-family:'Barlow Condensed',sans-serif; font-size:10px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:var(--muted); margin-bottom:4px; }
 .histv2-title { font-family:'Barlow Condensed',sans-serif; font-size:30px; font-weight:900; color:var(--text); letter-spacing:-0.5px; line-height:1; text-transform:uppercase; margin-bottom:8px; }
@@ -1322,10 +1366,10 @@ input[type=number] { -moz-appearance:textfield; }
 <body>
 <div id="app"></div>
 <!-- Increment ?v= on every deploy to bust cache -->
-<script src="js/config.js?v=20260606-25"></script>
-<script src="js/program.js?v=20260606-25"></script>
-<script src="js/app.js?v=20260606-25"></script>
-<script src="js/ui.js?v=20260606-25"></script>
+<script src="js/config.js?v=20260606-26"></script>
+<script src="js/program.js?v=20260606-26"></script>
+<script src="js/app.js?v=20260606-26"></script>
+<script src="js/ui.js?v=20260606-26"></script>
 <script>
   document.addEventListener("DOMContentLoaded", () => UI.init());
 </script>
