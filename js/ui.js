@@ -541,7 +541,7 @@ const UI = {
           id: "cardio_finisher",
           name: "Incline Walk Finisher",
           isFinisher: true,
-          sets: [{ reps: "15 min", weight: 0, note: "12% incline · 3.0–3.5 mph" }]
+          sets: [{ reps: "15 min", weight: 12, speed: 3.0 }]
         });
       }
       this._draftEditing = false;
@@ -1012,8 +1012,8 @@ const UI = {
         isFinisher: true,
         sets: [{
           reps: "15 min",
-          weight: 0,
-          note: "12% incline · 3.0–3.5 mph"
+          weight: 12,
+          speed: 3.0,
         }]
       });
     }
@@ -1237,15 +1237,28 @@ const UI = {
         const setLabel = isWarm
           ? "WARM-UP"
           : (wTot > 1 ? `SET ${wDone + 1} OF ${wTot}` : "SET 1");
-        // Use smaller font when reps value contains text (e.g. "15 min")
         const rCompact = /[a-z]/i.test(String(rVal)) ? " sf-big-num-compact" : "";
         const wCompact = /[a-z]/i.test(String(wVal)) ? " sf-big-num-compact" : "";
-        // Contextual field labels
         const exName = ex.name.toLowerCase();
         const isPlank = exName.includes("plank") || exName.includes("pushup") || exName.includes("push-up") || exName.includes("circuit");
-        const isFinisher = ex.isFinisher || exName.includes("finisher") || exName.includes("walk");
-        const label1 = isFinisher ? "TIME" : isPlank ? "SECS" : "REPS";
-        const label2 = isFinisher ? "INCLINE %" : isPlank ? "PUSHUPS" : "LBS";
+        const isFinisherEx = ex.isFinisher || exName.includes("finisher") || exName.includes("walk");
+        const label1 = isFinisherEx ? "TIME" : isPlank ? "SECS" : "REPS";
+        const label2 = isFinisherEx ? "INCLINE %" : isPlank ? "PUSHUPS" : "LBS";
+
+        // Three-tile layout for finisher exercises; two tiles for everything else
+        const speedVal = (s.claimed?.speed ?? s.speed ?? 3.0).toFixed(1);
+        const extraTile = isFinisherEx ? `
+              <div class="sf-field">
+                <span class="sf-field-label">SPEED MPH</span>
+                <div class="sf-field-row">
+                  <span class="sf-big-num sf-big-num-compact" id="sf-speed">${speedVal}</span>
+                  <div class="sf-steppers">
+                    <button class="sf-step-btn" onclick="UI._focusStep('speed',-1)">−</button>
+                    <button class="sf-step-btn" onclick="UI._focusStep('speed',1)">+</button>
+                  </div>
+                </div>
+              </div>` : "";
+
         return `<div class="sf-row sf-row-current">
           <div class="sf-current-block">
             <div class="sf-current-set-label-row">
@@ -1263,7 +1276,7 @@ const UI = {
                 </div>
               </div>
               <div class="sf-field">
-                <span class="sf-field-label">${label2}${isFinisher ? "" : ""}</span>
+                <span class="sf-field-label">${label2}</span>
                 <div class="sf-field-row">
                   <span class="sf-big-num${wCompact}" id="sf-weight">${wVal}</span>
                   <div class="sf-steppers">
@@ -1272,6 +1285,7 @@ const UI = {
                   </div>
                 </div>
               </div>
+              ${extraTile}
             </div>
           </div>
         </div>`;
@@ -1392,12 +1406,16 @@ const UI = {
     const si = this._focusSi;
     if (si === undefined || si < 0) return;
     this._step(ei, si, field, dir);
-    // Reflect in big numbers
     const s = App.state.session?.exercises?.[ei]?.sets?.[si];
     if (!s) return;
-    const id = field === "reps" ? "sf-reps" : "sf-weight";
-    const el = document.getElementById(id);
-    if (el) el.textContent = s.claimed?.[field] ?? (field==="reps"?s.reps:s.weight);
+    if (field === "speed") {
+      const el = document.getElementById("sf-speed");
+      if (el) el.textContent = (s.claimed?.speed ?? 3.0).toFixed(1);
+    } else {
+      const id = field === "reps" ? "sf-reps" : "sf-weight";
+      const el = document.getElementById(id);
+      if (el) el.textContent = s.claimed?.[field] ?? (field==="reps"?s.reps:s.weight);
+    }
   },
 
   // Horizontal exercise queue pill strip
@@ -1703,16 +1721,34 @@ const UI = {
     const s = App.state.session?.exercises?.[ei]?.sets?.[si];
     if (!s) return;
     if (!s.claimed) s.claimed = {};
+    const ex = App.state.session.exercises[ei];
+    const isFinisher = ex.isFinisher || ex.name.toLowerCase().includes("finisher") || ex.name.toLowerCase().includes("walk");
     const curr = s.claimed[field] !== undefined ? s.claimed[field]
-                 : this._ghostVals(ei,si)[field];
-    const step = field==="weight" ? this._wtStep(curr) : 1;
-    const next = Math.max(0, curr + dir*step);
-    s.claimed[field] = next;
-    const id = field==="reps" ? `rv-${ei}-${si}` : `wv-${ei}-${si}`;
-    const el = document.getElementById(id);
-    if (el) { el.textContent = next; el.classList.remove("ghost"); }
-    // Cascade ghosts to subsequent undone non-warmup sets
-    this._refreshGhosts(ei, si+1);
+                 : (field === "speed" ? (s.speed ?? 3.0)
+                 : this._ghostVals(ei,si)[field]);
+    let step;
+    if (field === "speed") step = 0.1;
+    else if (field === "weight" && isFinisher) step = 0.5; // incline in 0.5% steps
+    else step = field === "weight" ? this._wtStep(curr) : 1;
+    const raw = curr + dir * step;
+    const next = field === "speed" || (field === "weight" && isFinisher)
+      ? Math.round(raw * 10) / 10  // 1 decimal for speed/incline
+      : Math.max(0, raw);
+    s.claimed[field] = Math.max(0, next);
+    // Update DOM
+    if (field === "speed") {
+      const el = document.getElementById("sf-speed");
+      if (el) el.textContent = s.claimed.speed.toFixed(1);
+    } else {
+      const id = field==="reps" ? `rv-${ei}-${si}` : `wv-${ei}-${si}`;
+      const el = document.getElementById(id);
+      if (el) { el.textContent = next; el.classList.remove("ghost"); }
+      // Also update big-num display if this is the active focus field
+      const bigId = field === "reps" ? "sf-reps" : "sf-weight";
+      const big = document.getElementById(bigId);
+      if (big) big.textContent = s.claimed[field];
+      this._refreshGhosts(ei, si+1);
+    }
   },
 
   _refreshGhosts(ei, fromSi) {
@@ -1915,7 +1951,6 @@ const UI = {
       const rem = this._restTotal - elapsed;
       const timeEl  = document.getElementById("rest-banner-time");
       const labelEl = document.getElementById("rest-banner-label");
-      const fillEl  = document.getElementById("rest-progress-fill");
       const pillEl  = document.getElementById("sf-rest-pill");
       if (!timeEl) return;
 
@@ -1926,32 +1961,23 @@ const UI = {
       const hundredths = Math.floor((elapsed % 1) * 100);
       timeEl.textContent = `${m}:${String(s).padStart(2,"0")}.${String(hundredths).padStart(2,"0")}`;
 
-      // Color: green under target, orange over target, red only after 2min past target
       if (rem > 0) {
+        // Under target — green
         if (labelEl) labelEl.textContent = "REST";
-        if (pillEl)  { pillEl.classList.remove("overtime","overlong"); }
-        const pct = Math.min(1, elapsed / this._restTotal);
-        if (fillEl) { fillEl.style.width = `${pct*100}%`; fillEl.style.background = "var(--green)"; }
-        const pb = document.getElementById("rest-progress-bar");
-        if (pb) pb.classList.remove("overtime");
+        if (pillEl)  pillEl.classList.remove("overtime","overlong");
       } else {
         if (!this._restOver) {
           this._restOver = true;
           if (navigator.vibrate) navigator.vibrate([150,80,150]);
         }
         const over = elapsed - this._restTotal;
-        const isLong = over > 120; // red only after 2 full minutes past target
+        // Orange until 2 full minutes past target, then red
+        const isLong = over > 120;
         if (labelEl) labelEl.textContent = isLong ? "LONG REST" : "OVER TARGET";
         if (pillEl) {
           pillEl.classList.toggle("overtime", !isLong);
           pillEl.classList.toggle("overlong", isLong);
         }
-        if (fillEl) {
-          fillEl.style.width = "100%";
-          fillEl.style.background = isLong ? "var(--red)" : "var(--orange)";
-        }
-        const pb = document.getElementById("rest-progress-bar");
-        if (pb) pb.classList.add("overtime");
       }
     };
     tick();
@@ -2150,7 +2176,7 @@ const UI = {
     const rowEl = document.querySelector(`#drawer-ex-list .drw-row[data-didx="${idx}"]`);
     if (!rowEl) return;
     const rect = rowEl.getBoundingClientRect();
-    const rowH = rect.height + 4;
+    const rowH = rect.height + 6; // match preview gap
     const siblings = Array.from(document.querySelectorAll("#drawer-ex-list .drw-row[data-didx]"))
       .filter(el => el !== rowEl);
 
@@ -2159,7 +2185,7 @@ const UI = {
       pendingDy: 0, pendingIdx: idx, raf: null
     };
     rowEl.style.zIndex = "10";
-    rowEl.style.boxShadow = "0 6px 20px rgba(0,0,0,.5)";
+    rowEl.style.boxShadow = "0 8px 24px rgba(0,0,0,.5)";
     rowEl.style.opacity = "0.95";
     rowEl.style.willChange = "transform";
     rowEl.style.transform = "translate3d(0,0,0)";
