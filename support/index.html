@@ -6,34 +6,36 @@
 <meta name="description" content="Help and contact for the Hebomb app.">
 <meta name="color-scheme" content="light dark">
 <title>Help: Hebomb</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%23111'/><circle cx='16' cy='16' r='5' fill='%2334d17a'/></svg>">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1024 1024'%3E%3Crect width='1024' height='1024' rx='224' fill='%23050B06'/%3E%3Cg fill='%23007D03'%3E%3Crect x='133' y='482' width='148' height='59' rx='20'/%3E%3Crect x='743' y='482' width='148' height='59' rx='20'/%3E%3Crect x='194' y='336' width='59' height='351' rx='26'/%3E%3Crect x='771' y='336' width='59' height='351' rx='26'/%3E%3C/g%3E%3Cg fill='%2300C805'%3E%3Crect x='272' y='272' width='89' height='481' rx='31'/%3E%3Crect x='664' y='272' width='89' height='481' rx='31'/%3E%3Crect x='346' y='482' width='333' height='59'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800&display=swap">
 <style>
-:root { --bg: #f6f6f3; --ink: #15171a; --sub: #646b75; --line: #dcdcd6; --ok: #128a4c; }
+:root { --bg: #ffffff; --ink: #000000; --sub: #5f5f66; --line: #e5e5ea; --ok: #008a03; --cta: #00c805; --plate: #007d03; }
 @media (prefers-color-scheme: dark) {
-  :root { --bg: #0e1012; --ink: #eceef1; --sub: #8a93a3; --line: #262b33; --ok: #34d17a; }
+  :root { --bg: #000000; --ink: #ffffff; --sub: #98989f; --line: #2c2c2e; --ok: #00c805; }
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html { background: var(--bg); color: var(--ink); }
 body {
-  font: 17px/1.6 ui-sans-serif, system-ui, -apple-system, "Helvetica Neue", sans-serif;
-  display: flex; justify-content: center; padding: 28px 16px 56px;
+  font: 500 17px/1.6 "Nunito", ui-rounded, system-ui, -apple-system, sans-serif;
+  display: flex; justify-content: center; padding: 28px 20px 56px;
   -webkit-font-smoothing: antialiased;
 }
 main { width: 100%; max-width: 620px; }
-.name { font: 700 16px ui-monospace, "SF Mono", Menlo, Consolas, monospace; letter-spacing: 0.02em; color: var(--ink); text-decoration: none; }
-h1 { font-size: clamp(30px, 8vw, 42px); line-height: 1.1; letter-spacing: -0.02em; margin: 36px 0 10px; text-wrap: balance; }
-h2 { font-size: 20px; line-height: 1.3; margin: 34px 0 8px; }
+.name { display: inline-flex; align-items: center; gap: 9px; font-weight: 800; font-size: 19px; color: var(--ink); text-decoration: none; }
+.name svg { height: 20px; width: auto; }
+h1 { font-size: clamp(32px, 8vw, 44px); font-weight: 800; line-height: 1.1; letter-spacing: -0.02em; margin: 36px 0 10px; text-wrap: balance; }
+h2 { font-size: 21px; font-weight: 800; line-height: 1.3; margin: 34px 0 8px; }
 p, ul { margin-top: 10px; text-wrap: pretty; }
 ul { padding-left: 22px; }
 li { margin-top: 6px; }
 .lede { color: var(--sub); font-size: 19px; }
-a { color: var(--ok); }
+a { color: var(--ok); font-weight: 700; }
 footer { margin-top: 44px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 14px; color: var(--sub); }
 </style>
 </head>
 <body>
 <main>
-  <a class="name" href="/">hebomb</a>
+  <span class="name"><svg viewBox="0 0 820 520" aria-hidden="true"><g fill="var(--plate)"><rect x="0" y="228" width="160" height="64" rx="22"/><rect x="660" y="228" width="160" height="64" rx="22"/><rect x="66" y="70" width="64" height="380" rx="28"/><rect x="690" y="70" width="64" height="380" rx="28"/></g><g fill="var(--cta)"><rect x="150" y="0" width="96" height="520" rx="34"/><rect x="574" y="0" width="96" height="520" rx="34"/><rect x="230" y="228" width="360" height="64"/></g></svg> Hebomb</span>
 
   <h1>Help</h1>
   <p class="lede">A few answers, and a way to reach a person.</p>
@@ -43,6 +45,9 @@ footer { margin-top: 44px; padding-top: 16px; border-top: 1px solid var(--line);
 
   <h2>I paid for Pro and it is not on</h2>
   <p>Open Settings in Hebomb, tap Hebomb Pro, then Restore purchases. Use the same Apple Account you bought it with.</p>
+
+  <h2>How the free month works</h2>
+  <p>Hebomb Pro starts with a free month. You confirm it with your Apple Account, pay nothing for a month, and are charged the yearly price after that unless you cancel first. Hebomb reminds you three days before the first charge if notifications are on. Everything else in the app is free and stays free.</p>
 
   <h2>Cancelling a subscription or getting a refund</h2>
   <p>Subscriptions are managed by Apple. On your iPhone open Settings, tap your name, then Subscriptions. Refunds are handled by Apple at <a href="https://reportaproblem.apple.com">reportaproblem.apple.com</a>.</p>
