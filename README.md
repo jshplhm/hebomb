@@ -1,3 +1,3 @@
 # hebomb
 
-A website that does nothing, reliably.
+The website for Hebomb, the lifting app: hebomb.com.
