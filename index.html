@@ -54,15 +54,18 @@ tr:nth-child(2) td { padding-top: 16px; }
 .c { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%;
   color: var(--sub); font-size: 14px; font-weight: 800; line-height: 1; }
 .c.pro { background: var(--cta); color: #000; }
+.faq { display: grid; grid-template-columns: 1fr 1fr; gap: 28px 40px; margin-top: 26px; }
+.faq p { color: var(--sub); font-size: 16px; margin-top: 6px; }
 footer { margin-top: 64px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 14px; color: var(--sub); display: flex; gap: 18px; flex-wrap: wrap; }
 footer a { color: var(--sub); font-weight: 700; }
 @media (max-width: 760px) {
   .hero { grid-template-columns: 1fr; gap: 36px; padding-top: 36px; }
-  .three, .price { grid-template-columns: 1fr; }
+  .three, .price, .faq { grid-template-columns: 1fr; }
   .shots { grid-template-columns: 1fr; gap: 48px; }
   .phone { max-width: 250px; }
 }
 </style>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "Do I need an Apple Watch?", "acceptedAnswer": {"@type": "Answer", "text": "No. Everything works on the iPhone alone, including logging from the lock screen. If you have an Apple Watch you can also log from your wrist, and Hebomb records your heart rate while you train."}}, {"@type": "Question", "name": "What happens after my 12 workouts?", "acceptedAnswer": {"@type": "Answer", "text": "Logging, charts, and lock screen and watch logging stay free for good. Pro, the part that picks your workout and sets your weights, is $39.99 a year or $5.99 a month if you want to keep it. Nothing is charged unless you choose to subscribe."}}, {"@type": "Question", "name": "Do I need an account?", "acceptedAnswer": {"@type": "Answer", "text": "No. There is no sign-up, no email and no password. Open the app and start."}}, {"@type": "Question", "name": "Where is my data kept?", "acceptedAnswer": {"@type": "Answer", "text": "On your phone, and nowhere else. We never receive it. It is included in your usual iPhone backup, and you can save a backup file of your own from Settings whenever you like."}}, {"@type": "Question", "name": "I am new to lifting. Is it for me?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Your first workout is a short, light one that finds your starting point, and from then on Hebomb tells you which workout to do and what weight to use for each set. It is not medical advice, so check with a doctor before you start."}}, {"@type": "Question", "name": "Is there an Android version?", "acceptedAnswer": {"@type": "Answer", "text": "Not at the moment. Hebomb is for iPhone and Apple Watch."}}]}</script>
 </head>
 <body>
 <main>
@@ -124,6 +127,18 @@ footer a { color: var(--sub); font-weight: 700; }
         <tr><td>Heart rate line and zones, with Apple Watch</td><td></td><td><span class="c pro" aria-label="Pro">&#10003;</span></td></tr>
         <tr><td>Strength pound for pound</td><td></td><td><span class="c pro" aria-label="Pro">&#10003;</span></td></tr>
       </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Questions</h2>
+    <div class="faq">
+      <div><h3>Do I need an Apple Watch?</h3><p>No. Everything works on the iPhone alone, including logging from the lock screen. If you have an Apple Watch you can also log from your wrist, and Hebomb records your heart rate while you train.</p></div>
+      <div><h3>What happens after my 12 workouts?</h3><p>Logging, charts, and lock screen and watch logging stay free for good. Pro, the part that picks your workout and sets your weights, is $39.99 a year or $5.99 a month if you want to keep it. Nothing is charged unless you choose to subscribe.</p></div>
+      <div><h3>Do I need an account?</h3><p>No. There is no sign-up, no email and no password. Open the app and start.</p></div>
+      <div><h3>Where is my data kept?</h3><p>On your phone, and nowhere else. We never receive it. It is included in your usual iPhone backup, and you can save a backup file of your own from Settings whenever you like.</p></div>
+      <div><h3>I am new to lifting. Is it for me?</h3><p>Yes. Your first workout is a short, light one that finds your starting point, and from then on Hebomb tells you which workout to do and what weight to use for each set. It is not medical advice, so check with a doctor before you start.</p></div>
+      <div><h3>Is there an Android version?</h3><p>Not at the moment. Hebomb is for iPhone and Apple Watch.</p></div>
     </div>
   </section>
 
