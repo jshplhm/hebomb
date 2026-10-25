@@ -42,7 +42,7 @@ section { padding: 56px 0 0; }
 .three { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 26px; }
 .three div { background: var(--card); border-radius: 20px; padding: 22px; }
 .three p { color: var(--sub); margin-top: 6px; font-size: 16px; }
-.shots { display: grid; grid-template-columns: repeat(2, 1fr); gap: 40px; margin-top: 34px; justify-items: center; }
+.shots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 56px 32px; margin-top: 34px; justify-items: center; }
 .shots figure { display: flex; flex-direction: column; align-items: center; gap: 22px; width: 100%; }
 .shots figcaption { max-width: 20em; text-align: center; }
 .shots figcaption p { color: var(--sub); font-size: 16px; margin-top: 4px; }
@@ -62,14 +62,15 @@ tr:nth-child(2) td { padding-top: 16px; }
 .faq p { color: var(--sub); font-size: 16px; margin-top: 6px; }
 footer { margin-top: 64px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 14px; color: var(--sub); display: flex; gap: 18px; flex-wrap: wrap; }
 footer a { color: var(--sub); font-weight: 700; }
+@media (max-width: 1000px) and (min-width: 761px) { .shots { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 760px) {
   .hero { grid-template-columns: 1fr; gap: 36px; padding-top: 36px; }
-  .three, .price, .faq { grid-template-columns: 1fr; }
-  .shots { grid-template-columns: 1fr; gap: 48px; }
+  .three, .price, .faq, .shots { grid-template-columns: 1fr; }
+  .shots { gap: 48px; }
   .phone { max-width: 250px; }
 }
 </style>
-<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "Do I need an Apple Watch?", "acceptedAnswer": {"@type": "Answer", "text": "No. Everything works on the iPhone alone, including logging from the lock screen. If you have an Apple Watch you can also log from your wrist, and hebomb records your heart rate while you train."}}, {"@type": "Question", "name": "Is it really free?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Everyone who downloads hebomb during the launch gets all of it, Pro included, free for as long as they use the app. Nothing to sign up for and no card: it switches on by itself, and it comes back if you delete the app and download it again."}}, {"@type": "Question", "name": "Do I need an account?", "acceptedAnswer": {"@type": "Answer", "text": "No. There is no sign-up, no email and no password. Open the app and start."}}, {"@type": "Question", "name": "Where is my data kept?", "acceptedAnswer": {"@type": "Answer", "text": "On your phone, and nowhere else. We never receive it. It is included in your usual iPhone backup, and you can save a backup file of your own from Settings whenever you like."}}, {"@type": "Question", "name": "I am new to lifting. Is it for me?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Your first workout is a short, light one that finds your starting point, and from then on hebomb tells you which workout to do and what weight to use for each set. It is not medical advice, so check with a doctor before you start."}}, {"@type": "Question", "name": "Is there an Android version?", "acceptedAnswer": {"@type": "Answer", "text": "Not at the moment. hebomb is for iPhone and Apple Watch."}}]}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "Do I need an Apple Watch?", "acceptedAnswer": {"@type": "Answer", "text": "No. Everything works on the iPhone alone, including logging from the lock screen. If you have an Apple Watch you can also log from your wrist, and hebomb records your heart rate while you train."}}, {"@type": "Question", "name": "Is it really free?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Everyone who downloads hebomb during the launch gets all of it, Pro included, free for as long as they use the app. Nothing to sign up for and no card: it switches on by itself, and it comes back if you delete the app and download it again."}}, {"@type": "Question", "name": "Do I need an account?", "acceptedAnswer": {"@type": "Answer", "text": "No. There is no sign-up, no email and no password. Open the app and start."}}, {"@type": "Question", "name": "Where is my data kept?", "acceptedAnswer": {"@type": "Answer", "text": "On your phone, and nowhere else. We never receive it. It is included in your usual iPhone backup, and you can save a backup file of your own from Settings whenever you like."}}, {"@type": "Question", "name": "I am new to lifting. Is it for me?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Setup asks how long you have been lifting, and beginners start light on lifts that are easy to learn. Your first workout finds your starting point, every lift has a guide showing how to do it, and from then on hebomb tells you which workout to do and what weight to use for each set. It is not medical advice, so check with a doctor before you start."}}, {"@type": "Question", "name": "Is there an Android version?", "acceptedAnswer": {"@type": "Answer", "text": "Not at the moment. hebomb is for iPhone and Apple Watch."}}]}</script>
 </head>
 <body>
 <main>
@@ -94,6 +95,9 @@ footer a { color: var(--sub); font-weight: 700; }
       <div><h3>It decides, you lift</h3><p>It suggests the workout whose muscles have rested longest, so you never stand in the gym wondering what to do.</p></div>
       <div><h3>The right weight, every set</h3><p>Targets come from what you have actually been lifting, and go up after a clean session. Each one says why.</p></div>
       <div><h3>One tap per set</h3><p>Log from the lock screen or your Apple Watch, with the rest timer already running. The phone stays in your pocket.</p></div>
+      <div><h3>Shows you how</h3><p>Every lift is a 3D figure you can turn and slow down, step by step, with the muscles it works.</p></div>
+      <div><h3>Starts where you are</h3><p>Setup asks how long you have been lifting. Beginners start light, and your first workout finds your starting weights.</p></div>
+      <div><h3>More than lifting</h3><p>Runs, rides, games and short mobility flows go on the same calendar, tracked by your Apple Watch if you wear one.</p></div>
     </div>
   </section>
 
@@ -101,11 +105,27 @@ footer a { color: var(--sub); font-weight: 700; }
     <div class="shots">
       <figure>
         <span class="phone" role="img" aria-label="A workout in progress, showing the target weight and reps for the set" style="background-image:url(img/workout.png)"></span>
-        <figcaption><h3>In the gym</h3><p>The set that is up, what to lift, and how long to rest.</p></figcaption>
+        <figcaption><h3>In the gym</h3><p>The set that is up and what to lift. Tap when it is done.</p></figcaption>
+      </figure>
+      <figure>
+        <span class="phone" role="img" aria-label="The rest timer, with the next set and a preview of the lift after this one" style="background-image:url(img/rest.png)"></span>
+        <figcaption><h3>Between sets</h3><p>The rest timer, your next set, and a look at the lift that comes after this one.</p></figcaption>
+      </figure>
+      <figure>
+        <span class="phone" role="img" aria-label="A 3D figure doing a bench press, with the step it is on" style="background-image:url(img/howto.png)"></span>
+        <figcaption><h3>How to do it</h3><p>Turn the figure to any angle, slow it down, and follow the steps.</p></figcaption>
+      </figure>
+      <figure>
+        <span class="phone" role="img" aria-label="A mobility flow, with a figure showing arm swings and a 30 second timer" style="background-image:url(img/mobility.png)"></span>
+        <figcaption><h3>Mobility</h3><p>Five flows of five to seven minutes, every move shown and timed.</p></figcaption>
       </figure>
       <figure>
         <span class="phone" role="img" aria-label="The Stats page, with one strength number charted over time" style="background-image:url(img/stats.png)"></span>
         <figcaption><h3>Afterwards</h3><p>One strength number and a chart for every lift, so you can see whether it is working.</p></figcaption>
+      </figure>
+      <figure>
+        <span class="phone" role="img" aria-label="The History page, a calendar of workouts with a run and its route below" style="background-image:url(img/history.png)"></span>
+        <figcaption><h3>Every workout</h3><p>Lifting, cardio and sport on one calendar, with the route of every run.</p></figcaption>
       </figure>
     </div>
   </section>
@@ -121,6 +141,8 @@ footer a { color: var(--sub); font-weight: 700; }
       <table>
         <tr><th>What is included</th><th class="pro">Yours</th></tr>
         <tr><td>Log lifting, cardio and sport</td><td><span class="c pro" aria-label="Included">&#10003;</span></td></tr>
+        <tr><td>A 3D guide for every lift</td><td><span class="c pro" aria-label="Included">&#10003;</span></td></tr>
+        <tr><td>Mobility flows</td><td><span class="c pro" aria-label="Included">&#10003;</span></td></tr>
         <tr><td>Charts for every lift</td><td><span class="c pro" aria-label="Included">&#10003;</span></td></tr>
         <tr><td>Lock screen and watch logging</td><td><span class="c pro" aria-label="Included">&#10003;</span></td></tr>
         <tr><td>Apple Health</td><td><span class="c pro" aria-label="Included">&#10003;</span></td></tr>
@@ -140,7 +162,7 @@ footer a { color: var(--sub); font-weight: 700; }
       <div><h3>Is it really free?</h3><p>Yes. Everyone who downloads hebomb during the launch gets all of it, Pro included, free for as long as they use the app. Nothing to sign up for and no card: it switches on by itself, and it comes back if you delete the app and download it again.</p></div>
       <div><h3>Do I need an account?</h3><p>No. There is no sign-up, no email and no password. Open the app and start.</p></div>
       <div><h3>Where is my data kept?</h3><p>On your phone, and nowhere else. We never receive it. It is included in your usual iPhone backup, and you can save a backup file of your own from Settings whenever you like.</p></div>
-      <div><h3>I am new to lifting. Is it for me?</h3><p>Yes. Your first workout is a short, light one that finds your starting point, and from then on hebomb tells you which workout to do and what weight to use for each set. It is not medical advice, so check with a doctor before you start.</p></div>
+      <div><h3>I am new to lifting. Is it for me?</h3><p>Yes. Setup asks how long you have been lifting, and beginners start light on lifts that are easy to learn. Your first workout finds your starting point, every lift has a guide showing how to do it, and from then on hebomb tells you which workout to do and what weight to use for each set. It is not medical advice, so check with a doctor before you start.</p></div>
       <div><h3>Is there an Android version?</h3><p>Not at the moment. hebomb is for iPhone and Apple Watch.</p></div>
     </div>
   </section>
