@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="color-scheme" content="light dark">
+<title>Your hebomb</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1024 1024'%3E%3Crect width='1024' height='1024' rx='224' fill='%23040A06'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800;900&display=swap">
+<style>
+/* The app's own colours (Theme.swift), light and dark. */
+:root { --bg: #ffffff; --card: #f0f0f3; --card2: #e4e4e9; --line: #e5e5ea; --text: #000000; --sub: #66666b; --muted: #6b6b70; --green: #007a03; --cta: #00c805; }
+@media (prefers-color-scheme: dark) { :root { --bg: #000000; --card: #1c1c1e; --card2: #2c2c2e; --line: #2c2c2e; --text: #ffffff; --sub: #98989f; --muted: #7c7c82; --green: #00c805; } }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { background: var(--bg); color: var(--text); }
+body { font: 600 16px/1.45 "Nunito", ui-rounded, system-ui, -apple-system, sans-serif; -webkit-font-smoothing: antialiased; }
+main { max-width: 1120px; margin: 0 auto; padding: 24px 16px 64px; }
+header { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; }
+.mark { display: inline-flex; align-items: center; gap: 9px; font-weight: 900; font-size: 19px; color: var(--text); text-decoration: none; }
+.mark svg { height: 19px; width: auto; }
+.who { color: var(--sub); font-size: 14px; font-weight: 700; }
+.who button { background: none; border: 0; color: var(--sub); font: inherit; text-decoration: underline; cursor: pointer; margin-left: 10px; }
+h1 { font-size: 40px; font-weight: 900; line-height: 1.05; letter-spacing: -0.02em; }
+h2 { font-size: 20px; font-weight: 800; margin-bottom: 10px; }
+.sub { color: var(--sub); }
+.hello { padding: 36px 0 8px; }
+.hello p { margin-top: 8px; font-size: 18px; }
+.week { display: grid; grid-template-columns: repeat(7, 44px); gap: 6px; margin-top: 22px; text-align: center; }
+.week span { font-size: 12px; font-weight: 800; color: var(--muted); }
+.week span.today { color: var(--text); }
+.dot { display: block; margin: 6px auto 0; width: 24px; height: 24px; border-radius: 50%; }
+.dot.l { background: var(--green); }
+.dot.c { border: 3px solid var(--green); }
+.dot.b { background: var(--green); box-shadow: 0 0 0 2px var(--bg), 0 0 0 4.5px var(--green); width: 20px; height: 20px; margin-top: 8px; }
+.dot.n { width: 6px; height: 6px; background: var(--card2); margin-top: 15px; margin-bottom: 9px; }
+.cols { display: grid; grid-template-columns: 1.35fr 1fr; gap: 28px; margin-top: 36px; align-items: start; }
+.card { background: var(--card); border-radius: 22px; padding: 18px 18px 14px; }
+.side { display: grid; gap: 28px; }
+.month { font-size: 15px; font-weight: 800; color: var(--sub); margin: 22px 0 8px; display: flex; justify-content: space-between; }
+.month:first-child { margin-top: 0; }
+details { border-top: 1px solid var(--line); }
+details:first-of-type { border-top: 0; }
+summary { list-style: none; display: grid; grid-template-columns: 54px 1fr auto; gap: 12px; align-items: center; padding: 12px 0; cursor: pointer; }
+summary::-webkit-details-marker { display: none; }
+.day { text-align: center; line-height: 1.1; }
+.day b { display: block; font-size: 20px; font-weight: 900; }
+.day small { font-size: 12px; color: var(--muted); font-weight: 800; }
+.title { font-weight: 800; font-size: 17px; }
+.line { color: var(--sub); font-size: 14px; }
+.line .up { color: var(--green); font-weight: 800; }
+.mins { color: var(--muted); font-size: 14px; font-weight: 700; white-space: nowrap; }
+.sets { padding: 0 0 14px 66px; display: grid; gap: 10px; }
+.lift b { font-weight: 800; }
+.lift div { color: var(--sub); font-size: 14px; font-variant-numeric: tabular-nums; }
+.lift .best { color: var(--green); font-weight: 800; }
+table { width: 100%; border-collapse: collapse; }
+td { padding: 9px 0; border-top: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+tr:first-child td { border-top: 0; }
+td:last-child { text-align: right; color: var(--sub); font-size: 14px; }
+td .big { font-weight: 800; color: var(--text); font-size: 16px; }
+.bw { display: flex; align-items: baseline; gap: 8px; }
+.bw b { font-size: 34px; font-weight: 900; }
+svg.chart { width: 100%; height: auto; display: block; margin-top: 8px; }
+.plan li { list-style: none; padding: 9px 0; border-top: 1px solid var(--line); display: flex; justify-content: space-between; gap: 10px; }
+.plan li:first-child { border-top: 0; }
+.plan li span { color: var(--sub); font-size: 14px; text-align: right; }
+.gate { max-width: 520px; padding: 70px 0 20px; }
+.gate p { font-size: 18px; margin-top: 12px; }
+.gate .fine { font-size: 14px; color: var(--muted); margin-top: 22px; }
+#apple-sign-in-button { margin-top: 28px; min-height: 44px; }
+.demo { display: inline-block; margin-top: 14px; color: var(--sub); font-size: 15px; }
+.note { background: var(--card); border-radius: 14px; padding: 10px 14px; color: var(--sub); font-size: 14px; margin-top: 18px; display: inline-block; }
+[hidden] { display: none !important; }
+@media (max-width: 860px) { .cols { grid-template-columns: 1fr; } h1 { font-size: 32px; } .sets { padding-left: 0; } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <a class="mark" href="/"><svg viewBox="0 0 644 380" aria-hidden="true"><g fill="#007d03"><rect x="0" y="158" width="118" height="64" rx="22"/><rect x="526" y="158" width="118" height="64" rx="22"/><rect x="44" y="30.4" width="58" height="319.2" rx="21"/><rect x="542" y="30.4" width="58" height="319.2" rx="21"/></g><g fill="#00c805"><rect x="158" y="158" width="328" height="64"/><rect x="112" y="0" width="92" height="380" rx="33"/><rect x="440" y="0" width="92" height="380" rx="33"/></g></svg> hebomb</a>
+    <div class="who" id="who" hidden></div>
+  </header>
+
+  <!-- Signed out -->
+  <section class="gate" id="gate" hidden>
+    <h1>Your training, on a big screen</h1>
+    <p class="sub">Sign in with the Apple Account your iPhone uses. hebomb reads the copy your phone keeps in your own iCloud. Nothing is stored anywhere else.</p>
+    <div id="apple-sign-in-button"></div>
+    <div id="apple-sign-out-button" hidden></div>
+    <a class="demo" href="?demo">See it with Ryan's sample week</a>
+    <p class="fine">Turn on Settings › Copy for the web in the app first. Only you can see your data.</p>
+  </section>
+
+  <!-- Not set up yet (no token) -->
+  <section class="gate" id="soon" hidden>
+    <h1>Coming soon</h1>
+    <p class="sub">Your hebomb history, stats and plan on a big screen, read from your own iCloud.</p>
+    <a class="demo" href="?demo">See it with Ryan's sample week</a>
+  </section>
+
+  <!-- Signed in -->
+  <section id="app" hidden>
+    <div class="hello">
+      <h1 id="hi">Your hebomb</h1>
+      <p class="sub" id="tally"></p>
+      <div class="week" id="week" role="img"></div>
+      <div class="note" id="demoNote" hidden>Sample data: Ryan's twelve weeks. <a href="./" style="color:inherit">Sign in</a> to see your own.</div>
+    </div>
+    <div class="cols">
+      <div>
+        <h2>History</h2>
+        <div class="card" id="history"></div>
+      </div>
+      <div class="side">
+        <div><h2>Bodyweight</h2><div class="card" id="bw"></div></div>
+        <div><h2>Best lifts</h2><div class="card"><table id="bests"></table></div></div>
+        <div><h2>Your plan</h2><div class="card"><ul class="plan" id="plan"></ul></div></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+// hebomb.com/me: a read-only view of what the phone copies to the person's own private iCloud (CloudMirror.swift in the
+// app). Zone "mirror", record type "Item": kind "session" (one workout) or "profile" (everything else), JSON in `json`.
+// Never writes. ?demo reads sample.json (Ryan) instead.
+var TOKEN = '';   // CloudKit Console > API Tokens (public by design; it only lets a signed-in person reach their own data)
+
+var $ = function (id) { return document.getElementById(id); };
+function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+var STRENGTH = ['Strength', 'Lifting', 'Strength training', 'Traditional strength training', 'Functional strength training'];
+function isLift(s) { return s.dayId !== 'sport' || STRENGTH.indexOf(s.title) >= 0; }
+function d(s) { return new Date(s + 'T12:00:00'); }
+function ymd(t) { return t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0'); }
+function num(w) { return (Math.round(w * 10) / 10).toString(); }
+function working(ex) { return (ex.sets || []).filter(function (s) { return s.logged !== false && !s.isWarmup && !s.skipped && (s.reps > 0 || s.weight > 0); }); }
+function topSet(ex) {
+  var w = working(ex); if (!w.length) return null;
+  return w.reduce(function (a, b) { return b.weight > a.weight || (b.weight === a.weight && b.reps > a.reps) ? b : a; });
+}
+function setText(ex, s, unit) {
+  if (ex.kind === 'finisher') return Math.round(s.reps) + (ex.name.toLowerCase().indexOf('plank') >= 0 ? 's' : '');
+  if (ex.kind === 'bodyweight' || !s.weight) return '× ' + Math.round(s.reps);
+  return num(s.weight) + ' × ' + Math.round(s.reps);
+}
+
+function show(rows) {
+  var profile = {}, sessions = [];
+  rows.forEach(function (r) {
+    try { var j = JSON.parse(r.json); if (r.kind === 'profile') profile = j; else if (r.kind === 'session') sessions.push(j); } catch (e) {}
+  });
+  sessions.sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : 0; });
+  var unit = profile.unit === 'kg' ? 'kg' : 'lbs';
+  $('gate').hidden = true; $('soon').hidden = true; $('app').hidden = false;
+  if (profile.name) $('hi').textContent = profile.name.split(' ')[0] + "'s hebomb";
+  var lifts = sessions.filter(isLift).length;
+  $('tally').textContent = lifts + ' lift' + (lifts === 1 ? '' : 's') + ', ' + (sessions.length - lifts) + ' activit' + (sessions.length - lifts === 1 ? 'y' : 'ies') +
+    (sessions.length ? ' since ' + d(sessions[sessions.length - 1].date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '');
+
+  // The last 7 days, the way Today marks them.
+  var byDay = {};
+  sessions.forEach(function (s) { var k = byDay[s.date] || { l: false, c: false }; if (isLift(s)) k.l = true; else k.c = true; byDay[s.date] = k; });
+  var week = $('week'), said = [];
+  for (var i = 6; i >= 0; i--) {
+    var t = new Date(); t.setDate(t.getDate() - i); var k = byDay[ymd(t)];
+    var col = el('div'), s = el('span', i === 0 ? 'today' : '', t.toLocaleDateString('en-US', { weekday: 'narrow' }));
+    var kind = !k ? 'n' : k.l && k.c ? 'b' : k.l ? 'l' : 'c';
+    col.appendChild(s); col.appendChild(el('i', 'dot ' + kind)); week.appendChild(col);
+    said.push(t.toLocaleDateString('en-US', { weekday: 'long' }) + ': ' + { n: 'rest', l: 'lifted', c: 'activity', b: 'lifted and activity' }[kind]);
+  }
+  week.setAttribute('aria-label', said.join(', '));
+
+  // History by month, newest first; a workout opens to its sets. Green = the heaviest it had been until then.
+  var best = {}, upOn = {};
+  sessions.slice().reverse().forEach(function (s) {
+    (s.exercises || []).forEach(function (ex) {
+      if (ex.kind !== 'lift') return; var t = topSet(ex); if (!t || !t.weight) return;
+      if (best[ex.id] != null && t.weight > best[ex.id]) upOn[s.id + '|' + ex.id] = t.weight - best[ex.id];
+      if (best[ex.id] == null || t.weight > best[ex.id]) best[ex.id] = t.weight;
+    });
+  });
+  var hist = $('history'), month = '';
+  sessions.slice(0, 200).forEach(function (s) {
+    var m = d(s.date).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    if (m !== month) { month = m; hist.appendChild(el('div', 'month', m)); }
+    var det = el('details'), sum = el('summary'), day = el('div', 'day');
+    day.appendChild(el('small', '', d(s.date).toLocaleDateString('en-US', { weekday: 'short' })));
+    day.appendChild(el('b', '', String(d(s.date).getDate())));
+    var mid = el('div'); mid.appendChild(el('div', 'title', s.title));
+    var exs = (s.exercises || []).filter(function (e) { return working(e).length; });
+    var ups = exs.filter(function (e) { return upOn[s.id + '|' + e.id]; });
+    var line = el('div', 'line');
+    if (ups.length) { var u = el('span', 'up', ups[0].name + ' +' + num(upOn[s.id + '|' + ups[0].id])); line.appendChild(u); line.appendChild(document.createTextNode(ups.length > 1 ? ' · ' + (ups.length - 1) + ' more up' : '')); }
+    else line.textContent = !isLift(s) ? 'Activity' : exs.length ? exs.length + ' lift' + (exs.length === 1 ? '' : 's') : '';
+    mid.appendChild(line);
+    sum.appendChild(day); sum.appendChild(mid); sum.appendChild(el('div', 'mins', s.duration ? Math.round(s.duration / 60) + ' min' : ''));
+    det.appendChild(sum);
+    if (exs.length && isLift(s)) {
+      var sets = el('div', 'sets');
+      exs.forEach(function (ex) {
+        var box = el('div', 'lift'); box.appendChild(el('b', '', ex.name));
+        var row = el('div'), t = topSet(ex), up = upOn[s.id + '|' + ex.id];
+        working(ex).forEach(function (st, n) {
+          var span = el('span', up && st === t ? 'best' : '', setText(ex, st, unit));
+          if (n) row.appendChild(document.createTextNode('   '));
+          row.appendChild(span);
+        });
+        box.appendChild(row); sets.appendChild(box);
+      });
+      det.appendChild(sets);
+    }
+    hist.appendChild(det);
+  });
+  if (!sessions.length) hist.appendChild(el('p', 'sub', 'No workouts in your iCloud copy yet.'));
+
+  // Bodyweight: the latest, and the last 90 days against the goal band.
+  var bwRows = (profile.bodyweight || []).slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+  var bw = $('bw');
+  if (bwRows.length) {
+    var last = bwRows[bwRows.length - 1], since = new Date(); since.setDate(since.getDate() - 90);
+    var pts = bwRows.filter(function (r) { return d(r.date) >= since; }); if (pts.length < 2) pts = bwRows.slice(-30);
+    var head = el('div', 'bw'); head.appendChild(el('b', '', num(last.w))); head.appendChild(el('span', 'sub', unit + ' · ' + d(last.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })));
+    bw.appendChild(head);
+    var lo = Math.min.apply(null, pts.map(function (r) { return r.w; }).concat(profile.goalLow || 1e9)) - 2;
+    var hi = Math.max.apply(null, pts.map(function (r) { return r.w; }).concat(profile.goalHigh || -1e9)) + 2;
+    var t0 = d(pts[0].date).getTime(), t1 = d(pts[pts.length - 1].date).getTime() || t0 + 1;
+    var X = function (r) { return 4 + (d(r.date).getTime() - t0) / Math.max(1, t1 - t0) * 352; }, Y = function (w) { return 8 + (hi - w) / (hi - lo) * 124; };
+    var ns = 'http://www.w3.org/2000/svg', svg = document.createElementNS(ns, 'svg');
+    svg.setAttribute('viewBox', '0 0 360 140'); svg.setAttribute('class', 'chart'); svg.setAttribute('role', 'img');
+    svg.setAttribute('aria-label', 'Bodyweight over the last ' + pts.length + ' weigh-ins, latest ' + num(last.w) + ' ' + unit);
+    if (profile.goalLow && profile.goalHigh) {
+      var band = document.createElementNS(ns, 'rect');
+      band.setAttribute('x', 0); band.setAttribute('width', 360); band.setAttribute('y', Y(profile.goalHigh)); band.setAttribute('height', Y(profile.goalLow) - Y(profile.goalHigh));
+      band.setAttribute('fill', 'var(--green)'); band.setAttribute('opacity', '0.12'); svg.appendChild(band);
+    }
+    var path = document.createElementNS(ns, 'polyline');
+    path.setAttribute('points', pts.map(function (r) { return X(r).toFixed(1) + ',' + Y(r.w).toFixed(1); }).join(' '));
+    path.setAttribute('fill', 'none'); path.setAttribute('stroke', 'var(--text)'); path.setAttribute('stroke-width', '2'); path.setAttribute('stroke-linejoin', 'round');
+    svg.appendChild(path); bw.appendChild(svg);
+    if (profile.goalLow && profile.goalHigh) bw.appendChild(el('p', 'line', 'Goal ' + num(profile.goalLow) + ' to ' + num(profile.goalHigh) + ' ' + unit + ' (green band)'));
+  } else bw.appendChild(el('p', 'sub', 'No weigh-ins yet.'));
+
+  // Best lifts: the heaviest working set of each lift, most recent first among the key lifts.
+  var rowsBest = {}, names = {};
+  sessions.forEach(function (s) {
+    (s.exercises || []).forEach(function (ex) {
+      if (ex.kind !== 'lift') return; var t = topSet(ex); if (!t || !t.weight) return; names[ex.id] = ex.name;
+      if (!rowsBest[ex.id] || t.weight > rowsBest[ex.id].w) rowsBest[ex.id] = { w: t.weight, r: t.reps, date: s.date };
+    });
+  });
+  var keys = (profile.keyLifts || []).filter(function (k) { return rowsBest[k]; });
+  var rest = Object.keys(rowsBest).filter(function (k) { return keys.indexOf(k) < 0; }).sort(function (a, b) { return rowsBest[b].w - rowsBest[a].w; });
+  keys.concat(rest).slice(0, 10).forEach(function (k) {
+    var tr = el('tr'), a = el('td', '', names[k]), b = el('td');
+    var big = el('span', 'big', num(rowsBest[k].w) + ' ' + unit); b.appendChild(big);
+    b.appendChild(document.createTextNode(' × ' + Math.round(rowsBest[k].r) + ' · ' + d(rowsBest[k].date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })));
+    tr.appendChild(a); tr.appendChild(b); $('bests').appendChild(tr);
+  });
+  if (!keys.concat(rest).length) $('bests').appendChild(el('tr')).appendChild(el('td', 'sub', 'No lifts yet.'));
+
+  // The plan: the workouts hebomb rotates through, with how many lifts each.
+  (profile.workouts || []).forEach(function (w) {
+    var li = el('li'); li.appendChild(el('b', '', w.title || w.name || 'Workout'));
+    var n = (w.lifts || w.exercises || []).length; li.appendChild(el('span', '', n ? n + ' lift' + (n === 1 ? '' : 's') : ''));
+    $('plan').appendChild(li);
+  });
+  if (!(profile.workouts || []).length) $('plan').appendChild(el('li', 'sub', 'hebomb picks as you go.'));
+}
+
+// Every record in the "mirror" zone, page by page.
+function fetchAll(db) {
+  var out = [];
+  function page(token) {
+    var zone = { zoneID: { zoneName: 'mirror' } }; if (token) zone.syncToken = token;
+    return db.fetchRecordZoneChanges([zone]).then(function (res) {
+      if (res.hasErrors) throw res.errors[0];
+      var z = res.zones[0];
+      (z.records || []).forEach(function (r) { if (!r.deleted && r.fields) out.push({ kind: r.fields.kind && r.fields.kind.value, json: r.fields.json && r.fields.json.value }); });
+      return z.moreComing ? page(z.syncToken) : out;
+    });
+  }
+  return page(null);
+}
+
+function signedIn(user, container) {
+  $('gate').hidden = true;
+  var who = $('who'); who.hidden = false; who.textContent = 'Signed in';
+  fetchAll(container.privateCloudDatabase).then(show).catch(function (e) {
+    var zoneMissing = e && (e.ckErrorCode === 'ZONE_NOT_FOUND' || /zone/i.test(e.reason || ''));
+    $('gate').hidden = false;
+    $('gate').querySelector('h1').textContent = zoneMissing ? 'Nothing copied yet' : "Couldn't read your iCloud";
+    $('gate').querySelector('p').textContent = zoneMissing ? 'Open hebomb on your iPhone, turn on Settings › Copy for the web, and log or open a workout. Then reload this page.' : String((e && (e.reason || e.message)) || e);
+  });
+}
+
+if (new URLSearchParams(location.search).has('demo')) {
+  fetch('sample.json').then(function (r) { return r.json(); }).then(function (rows) { show(rows); $('demoNote').hidden = false; });
+} else if (!TOKEN) {
+  $('soon').hidden = false;
+} else {
+  var s = document.createElement('script');
+  s.src = 'https://cdn.apple-cloudkit.com/ck/2/cloudkit.js';
+  s.onload = function () {
+    CloudKit.configure({ containers: [{ containerIdentifier: 'iCloud.com.hebomb.app', apiTokenAuth: { apiToken: TOKEN, persist: true }, environment: 'production' }] });
+    var c = CloudKit.getDefaultContainer();
+    (function wait() {
+      c.setUpAuth().then(function (user) {
+        if (user) { signedIn(user, c); c.whenUserSignsOut().then(function () { location.reload(); }); }
+        else { $('gate').hidden = false; c.whenUserSignsIn().then(function (u) { signedIn(u, c); }); }
+      });
+    })();
+  };
+  document.head.appendChild(s);
+}
+</script>
+</body>
+</html>
