@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="color-scheme" content="light">
+<meta name="description" content="A friend invited you to see each other's workout days on hebomb.">
+<meta property="og:title" content="Lift together on hebomb">
+<meta property="og:description" content="See each other's workout days. Tap to accept.">
+<meta property="og:image" content="https://hebomb.com/img/share.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<title>Lift together on hebomb</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1024 1024'%3E%3Crect width='1024' height='1024' rx='224' fill='%23040A06'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800&display=swap">
+<style>
+:root { --bg: #ffffff; --ink: #000000; --sub: #5f5f66; --muted: #8e8e93; --line: #e5e5ea; --card: #f5f5f7; --ok: #008a03; --cta: #00c805; --plate: #007d03; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { background: var(--bg); color: var(--ink); }
+body { font: 500 17px/1.5 "Nunito", ui-rounded, system-ui, -apple-system, sans-serif; -webkit-font-smoothing: antialiased; }
+main { width: 100%; max-width: 460px; margin: 0 auto; padding: 28px 20px 48px; min-height: 100svh; display: flex; flex-direction: column; }
+.name { display: inline-flex; align-items: center; gap: 9px; font-weight: 800; font-size: 19px; color: var(--ink); text-decoration: none; }
+.name svg { height: 19px; width: auto; }
+h1 { font-size: 34px; font-weight: 800; line-height: 1.1; letter-spacing: -0.02em; margin-top: 44px; text-wrap: balance; }
+.lede { color: var(--sub); font-size: 18px; margin-top: 12px; text-wrap: pretty; }
+.week { background: var(--card); border-radius: 22px; padding: 18px 16px 16px; margin-top: 28px; }
+.week .who { font-weight: 800; font-size: 15px; color: var(--sub); }
+.days { display: grid; grid-template-columns: repeat(7, 1fr); margin-top: 12px; text-align: center; }
+.days span { font-size: 12px; font-weight: 700; color: var(--muted); }
+.days span.today { color: var(--ink); font-weight: 800; }
+.days i { display: block; margin: 8px auto 0; width: 26px; height: 26px; border-radius: 50%; }
+.days i.l { background: var(--cta); }
+.days i.c { border: 3px solid var(--cta); }
+.days i.b { background: var(--cta); box-shadow: 0 0 0 2px var(--card), 0 0 0 4.5px var(--cta); width: 22px; height: 22px; margin-top: 10px; }
+.days i.n { width: 6px; height: 6px; background: #c7c7cc; margin-top: 18px; margin-bottom: 10px; }
+.go { display: flex; align-items: center; justify-content: center; min-height: 56px; border-radius: 999px; margin-top: 28px;
+  background: var(--cta); color: #000; font-weight: 800; font-size: 18px; text-decoration: none; }
+.get { display: flex; align-items: center; justify-content: center; min-height: 52px; border-radius: 999px; margin-top: 12px;
+  background: var(--card); color: var(--ink); font-weight: 800; font-size: 16px; text-decoration: none; }
+.small { font-size: 14px; color: var(--sub); margin-top: 14px; text-align: center; text-wrap: balance; }
+.foot { margin-top: auto; padding-top: 40px; font-size: 13px; color: var(--muted); text-align: center; }
+.foot a { color: var(--muted); font-weight: 700; }
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <a class="name" href="/"><svg viewBox="0 0 644 380" aria-hidden="true"><g fill="var(--plate)"><rect x="0" y="158" width="118" height="64" rx="22"/><rect x="526" y="158" width="118" height="64" rx="22"/><rect x="44" y="30.4" width="58" height="319.2" rx="21"/><rect x="542" y="30.4" width="58" height="319.2" rx="21"/></g><g fill="var(--cta)"><rect x="158" y="158" width="328" height="64"/><rect x="112" y="0" width="92" height="380" rx="33"/><rect x="440" y="0" width="92" height="380" rx="33"/></g></svg> hebomb</a>
+
+  <div id="invite" hidden>
+    <h1 id="title">Your friend invited you to lift together</h1>
+    <p class="lede">You'll see each other's workout days in hebomb. Nothing else is shared unless you choose to.</p>
+    <div class="week" id="week" hidden>
+      <div class="who" id="who">Their last 7 days</div>
+      <div class="days" id="days" role="img"></div>
+    </div>
+    <a class="go" id="accept" href="#">Accept invite</a>
+    <a class="get" id="get" href="/">No hebomb yet? Get it first</a>
+    <p class="small">Got hebomb from the button above? Come back here and tap Accept. This invite is for one person.</p>
+  </div>
+
+  <div id="broken" hidden>
+    <h1>This invite link isn't complete</h1>
+    <p class="lede">Ask your friend to send a new one from hebomb: Today, then the + next to Friends.</p>
+    <a class="get" href="/">What's hebomb?</a>
+  </div>
+
+  <p class="foot">hebomb picks your workout and moves you up when you're ready. <a href="/">More</a> · <a href="/privacy/">Privacy</a></p>
+</main>
+<script>
+// Everything about the invite rides in the link's # part, which the browser never sends to any server: the iCloud
+// invite (u), the sender's first name (n), their last 7 days (w: l lift, c cardio, b both, - rest) ending on e, and
+// where to get the app (a). Only Apple's own links are followed.
+(function () {
+  var p = new URLSearchParams(location.hash.slice(1));
+  var u = p.get('u') || '', a = p.get('a') || '', n = (p.get('n') || '').trim().slice(0, 30);
+  var w = (p.get('w') || '').replace(/[^lcb-]/g, '').slice(0, 7), e = p.get('e') || '';
+  if (!/^https:\/\/www\.icloud\.com\/share\/[A-Za-z0-9_#\-]+$/.test(u)) { document.getElementById('broken').hidden = false; return; }
+  document.getElementById('invite').hidden = false;
+  document.getElementById('accept').href = u;
+  if (/^https:\/\/(testflight\.apple\.com\/join\/|apps\.apple\.com\/)[A-Za-z0-9\/._\-]+$/.test(a)) document.getElementById('get').href = a;
+  if (n) {
+    document.getElementById('title').textContent = n + ' invited you to lift together';
+    document.getElementById('who').textContent = n + "'s last 7 days";
+    document.title = n + ' invited you to hebomb';
+  }
+  if (w.length === 7) {
+    var end = /^\d{4}-\d{2}-\d{2}$/.test(e) ? new Date(e + 'T12:00:00') : new Date();
+    var names = { l: 'lifted', c: 'cardio', b: 'lifted and cardio', '-': 'rest' };
+    var box = document.getElementById('days'), said = [];
+    for (var i = 0; i < 7; i++) {
+      var d = new Date(end); d.setDate(end.getDate() - (6 - i));
+      var col = document.createElement('div');
+      var s = document.createElement('span');
+      s.textContent = d.toLocaleDateString('en-US', { weekday: 'narrow' });
+      if (i === 6) s.className = 'today';
+      var dot = document.createElement('i');
+      dot.className = w[i] === '-' ? 'n' : w[i];
+      col.appendChild(s); col.appendChild(dot); box.appendChild(col);
+      said.push(d.toLocaleDateString('en-US', { weekday: 'long' }) + ' ' + names[w[i]]);
+    }
+    box.setAttribute('aria-label', said.join(', '));
+    document.getElementById('week').hidden = false;
+  }
+})();
+</script>
+</body>
+</html>
