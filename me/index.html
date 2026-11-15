@@ -742,6 +742,10 @@ function settingsTab() {
     var t = el('button', 'tog'); t.setAttribute('role', 'switch'); t.setAttribute('aria-checked', S.supersets ? 'true' : 'false'); t.setAttribute('aria-label', 'Supersets'); t.disabled = !canEdit;
     t.onclick = function () { sendSetting({ supersets: !S.supersets }); }; b.appendChild(t);
   });
+  if (S.topSets != null) row('Top set first', 'Big lifts start with as many as you can, then lighter sets so the last one still gets all its reps', function (b) {
+    var t = el('button', 'tog'); t.setAttribute('role', 'switch'); t.setAttribute('aria-checked', S.topSets ? 'true' : 'false'); t.setAttribute('aria-label', 'Top set first'); t.disabled = !canEdit;
+    t.onclick = function () { sendSetting({ topSets: !S.topSets }); }; b.appendChild(t);
+  });
   row('Activity', 'One weekly activity on a day off', function (b) {
     var has = S.activity && S.activity.length === 2;
     opts(b, [['none', 'When I feel like it'], ['weekly', 'Every week']], function (k) { return (k === 'weekly') === has; }, function (k) {
