@@ -89,7 +89,7 @@ svg.chart { width: 100%; height: auto; display: block; margin-top: 8px; }
     <div id="apple-sign-in-button"></div>
     <div id="apple-sign-out-button" hidden></div>
     <a class="demo" href="?demo">See it with Ryan's sample week</a>
-    <p class="fine">Turn on Settings › Copy for the web in the app first. Only you can see your data.</p>
+    <p class="fine">Open hebomb on your iPhone first: it copies your workouts to your iCloud on its own. Only you can see your data.</p>
   </section>
 
   <!-- Not set up yet (no token) -->
@@ -290,7 +290,7 @@ function signedIn(user, container) {
     var zoneMissing = e && (e.ckErrorCode === 'ZONE_NOT_FOUND' || /zone/i.test(e.reason || ''));
     $('gate').hidden = false;
     $('gate').querySelector('h1').textContent = zoneMissing ? 'Nothing copied yet' : "Couldn't read your iCloud";
-    $('gate').querySelector('p').textContent = zoneMissing ? 'Open hebomb on your iPhone, turn on Settings › Copy for the web, and log or open a workout. Then reload this page.' : String((e && (e.reason || e.message)) || e);
+    $('gate').querySelector('p').textContent = zoneMissing ? 'Open hebomb on your iPhone (build 293 or later) and wait a minute: it copies your workouts to your iCloud on its own. Then reload this page.' : String((e && (e.reason || e.message)) || e);
   });
 }
 
