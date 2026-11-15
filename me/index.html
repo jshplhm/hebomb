@@ -69,8 +69,8 @@ svg.chart { width: 100%; height: auto; display: block; margin-top: 8px; }
 .gate p { font-size: 18px; margin-top: 12px; }
 .gate .fine { font-size: 14px; color: var(--muted); margin-top: 22px; }
 #apple-sign-in-button { margin-top: 18px; min-height: 44px; }
-.qrwrap { margin-top: 28px; width: 252px; height: 252px; padding: 16px; background: #fff; border-radius: 24px; }
-.qrwrap img, .qrwrap canvas { display: block; width: 220px !important; height: 220px !important; }
+.qrwrap { margin-top: 28px; width: 300px; height: 300px; padding: 20px; background: #fff; border-radius: 24px; }
+.qrwrap svg { display: block; width: 260px; height: 260px; }
 .qrwrap.got { opacity: 0.25; transition: opacity .3s; }
 .linkish { background: none; border: 0; color: var(--sub); font: inherit; font-size: 15px; text-decoration: underline; cursor: pointer; margin-top: 18px; padding: 0; }
 .demo { display: inline-block; margin-top: 14px; color: var(--sub); font-size: 15px; }
@@ -305,18 +305,26 @@ function writeAuth(a) {
   try { localStorage.removeItem(KEY); sessionStorage.removeItem(KEY); (a.r ? localStorage : sessionStorage).setItem(KEY, JSON.stringify(a)); } catch (e) {}
 }
 function forget() { try { localStorage.removeItem(KEY); sessionStorage.removeItem(KEY); } catch (e) {} }
+// Short, all capitals, so the code is small and calm (QR's compact letter mode): base32.
+function b32(bytes) {
+  var A = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567', out = '', bits = 0, v = 0;
+  for (var i = 0; i < bytes.length; i++) { v = (v << 8) | bytes[i]; bits += 8; while (bits >= 5) { out += A[(v >>> (bits - 5)) & 31]; bits -= 5; } }
+  if (bits > 0) out += A[(v << (5 - bits)) & 31];
+  return out;
+}
 function deviceId() {
   try {
     var d = localStorage.getItem('hb.device');
-    if (!d) { d = Array.from(crypto.getRandomValues(new Uint8Array(12)), function (b) { return b.toString(16).padStart(2, '0'); }).join(''); localStorage.setItem('hb.device', d); }
+    if (!/^[A-Z2-7]{10}$/.test(d || '')) { d = b32(crypto.getRandomValues(new Uint8Array(6))); localStorage.setItem('hb.device', d); }
     return d;
-  } catch (e) { return 'tab' + Math.random().toString(16).slice(2, 14); }
+  } catch (e) { return b32(crypto.getRandomValues(new Uint8Array(6))); }
 }
-function deviceLabel() {
+// Two letters the phone turns into "Mac · Chrome" (WebLink.swift).
+function deviceCode() {
   var u = navigator.userAgent;
-  var os = /iPad/.test(u) ? 'iPad' : /Mac/.test(u) ? 'Mac' : /Windows/.test(u) ? 'Windows' : /CrOS/.test(u) ? 'Chromebook' : /Linux/.test(u) ? 'Linux' : 'Computer';
-  var br = /Edg\//.test(u) ? 'Edge' : /Firefox\//.test(u) ? 'Firefox' : /Chrome\//.test(u) ? 'Chrome' : /Safari\//.test(u) ? 'Safari' : 'browser';
-  return os + ' · ' + br;
+  var os = /iPad/.test(u) ? 'I' : /Mac/.test(u) ? 'M' : /Windows/.test(u) ? 'W' : /CrOS/.test(u) ? 'C' : /Linux/.test(u) ? 'L' : 'X';
+  var br = /Edg\//.test(u) ? 'E' : /Firefox\//.test(u) ? 'F' : /Chrome\//.test(u) ? 'C' : /Safari\//.test(u) ? 'S' : 'B';
+  return os + br;
 }
 function b64url(bytes) { return btoa(String.fromCharCode.apply(null, bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
 function unb64(s) { var b = atob(s), out = new Uint8Array(b.length); for (var i = 0; i < b.length; i++) out[i] = b.charCodeAt(i); return out; }
@@ -366,15 +374,18 @@ function showGate(title, text, keepQR) {
   newCode();
 }
 
-// A fresh code: one-time id and key, polled for in the public database. Renewed every 3 minutes while nobody scans.
+// A fresh code: a one-time id (80 bits) and AES-128 key, polled for in the public database. Renewed every 3 minutes.
+// Drawn by hand: round dots, soft corner eyes (Josh's pick, 2026-11-14).
 function newCode() {
   clearTimeout(pollTimer); clearTimeout(renewTimer);
-  var id = Array.from(crypto.getRandomValues(new Uint8Array(16)), function (b) { return b.toString(16).padStart(2, '0'); }).join('');
-  var key = crypto.getRandomValues(new Uint8Array(32));
-  var url = 'https://hebomb.com/link/#s=' + id + '&k=' + b64url(key) + '&d=' + deviceId() + '&m=' + encodeURIComponent(deviceLabel());
-  var box = $('qr'); box.innerHTML = ''; $('qrwrap').classList.remove('got'); $('qrwrap').hidden = false; $('qrNote').hidden = false;
-  new QRCode(box, { text: url, width: 220, height: 220, colorDark: '#000000', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
-  var started = Date.now();
+  var id = b32(crypto.getRandomValues(new Uint8Array(10)));
+  var key = crypto.getRandomValues(new Uint8Array(16));
+  var frag = id + '.' + b32(key) + '.' + deviceId() + '.' + deviceCode();
+  var qr = qrcode(0, 'H');
+  qr.addData('HTTPS://HEBOMB.COM/L', 'Alphanumeric'); qr.addData('#', 'Byte'); qr.addData(frag, 'Alphanumeric');
+  qr.make();
+  $('qr').innerHTML = drawCode(qr);
+  $('qrwrap').classList.remove('got'); $('qrwrap').hidden = false; $('qrNote').hidden = false;
   (function poll() {
     container.publicCloudDatabase.fetchRecords([id]).then(function (res) {
       var r = res.records && res.records[0];
@@ -383,7 +394,19 @@ function newCode() {
     }, function () { pollTimer = setTimeout(poll, 2500); });
   })();
   renewTimer = setTimeout(function () { if (!$('gate').hidden) newCode(); }, 3 * 60 * 1000);
-  void started;
+}
+function drawCode(qr) {
+  var n = qr.getModuleCount(), parts = [];
+  var eye = function (r, c) { return (r < 7 && c < 7) || (r < 7 && c >= n - 7) || (r >= n - 7 && c < 7); };
+  for (var r = 0; r < n; r++) for (var c = 0; c < n; c++)
+    if (qr.isDark(r, c) && !eye(r, c)) parts.push('<circle cx="' + (c + 0.5) + '" cy="' + (r + 0.5) + '" r="0.42"/>');
+  [[0, 0], [0, n - 7], [n - 7, 0]].forEach(function (p) {
+    var y = p[0], x = p[1];
+    parts.push('<rect x="' + x + '" y="' + y + '" width="7" height="7" rx="2.4"/>');
+    parts.push('<rect x="' + (x + 1) + '" y="' + (y + 1) + '" width="5" height="5" rx="1.6" fill="#fff"/>');
+    parts.push('<circle cx="' + (x + 3.5) + '" cy="' + (y + 3.5) + '" r="1.5"/>');
+  });
+  return '<svg viewBox="0 0 ' + n + ' ' + n + '" width="220" height="220" fill="#0a0a0a" shape-rendering="geometricPrecision">' + parts.join('') + '</svg>';
 }
 
 function open(boxB64, key) {
@@ -433,7 +456,7 @@ if (new URLSearchParams(location.search).has('demo')) {
       else { showGate(); container.whenUserSignsIn().then(function () { signedIn(); }); }
     }, function () { showGate(); });
   };
-  [['https://cdn.apple-cloudkit.com/ck/2/cloudkit.js'], ['https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js']].forEach(function (u) {
+  [['https://cdn.apple-cloudkit.com/ck/2/cloudkit.js'], ['https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js']].forEach(function (u) {
     var s = document.createElement('script'); s.src = u[0]; s.onload = ready; document.head.appendChild(s);
   });
 }
