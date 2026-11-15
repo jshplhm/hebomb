@@ -136,6 +136,28 @@ dialog.build::backdrop { background: rgba(0,0,0,.6); }
 @media (max-width: 1180px) { .board { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 @media (max-width: 700px) { .plan { padding: 14px 16px 40px; } .board { grid-template-columns: 1fr 1fr; } .col { min-height: 0; } }
 
+/* Settings tab */
+.setw { max-width: 860px; margin: 0 auto; padding: 18px 28px 64px; }
+.setw h1 { font-size: 34px; margin-bottom: 4px; }
+.sgroup { margin-top: 18px; }
+.srow { display: grid; grid-template-columns: 180px 1fr; gap: 16px; padding: 14px 0; border-top: 1px solid var(--line); align-items: start; }
+.srow:first-child { border-top: 0; }
+.srow > b { padding-top: 7px; }
+.srow small { display: block; color: var(--muted); font-size: 12px; font-weight: 700; margin-top: 2px; }
+.opts { display: flex; flex-wrap: wrap; gap: 6px; }
+.opt { background: var(--card2); border: 0; border-radius: 10px; padding: 8px 12px; color: var(--text); font: 800 14px "Nunito", ui-rounded, system-ui, sans-serif; cursor: pointer; }
+.opt[aria-pressed="true"] { background: var(--green); color: #000; }
+.opt:disabled { opacity: .5; cursor: default; }
+.numin { width: 64px; font: 800 15px "Nunito", ui-rounded, system-ui, sans-serif; background: var(--card2); border: 0; border-radius: 9px; padding: 7px 8px; color: var(--text); text-align: center; }
+.inline { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.wrow { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+.wrow:first-child { border-top: 0; }
+.tog { width: 46px; height: 28px; border-radius: 14px; border: 0; background: var(--card2); position: relative; cursor: pointer; flex: none; }
+.tog::after { content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; transition: left .15s; }
+.tog[aria-checked="true"] { background: var(--green); }
+.tog[aria-checked="true"]::after { left: 21px; }
+@media (max-width: 700px) { .setw { padding: 14px 16px 48px; } .srow { grid-template-columns: 1fr; gap: 8px; } }
+
 /* Lifts tab */
 .lifts { max-width: 1480px; margin: 0 auto; display: grid; grid-template-columns: 320px 1fr; min-height: calc(100vh - 57px); }
 .llist { border-right: 1px solid var(--line); overflow: auto; max-height: calc(100vh - 57px); position: sticky; top: 0; }
@@ -205,6 +227,7 @@ h1 { font-size: 40px; font-weight: 900; line-height: 1.05; letter-spacing: -0.02
     <button role="tab" aria-selected="false" data-tab="plan">Plan</button>
     <button role="tab" aria-selected="false" data-tab="lifts">Lifts</button>
     <button role="tab" aria-selected="false" data-tab="history">History</button>
+    <button role="tab" aria-selected="false" data-tab="settings">Settings</button>
   </nav>
   <div class="who" id="who" hidden></div>
 </header>
@@ -261,6 +284,12 @@ h1 { font-size: 40px; font-weight: 900; line-height: 1.05; letter-spacing: -0.02
     </div>
   </div>
   <div class="hist" id="history" hidden></div>
+  <div class="setw" id="settings" hidden>
+    <div class="lab">Your program</div><h1>Settings</h1>
+    <p class="sub" id="setNote">Everything hebomb plans from. A change here is made on your iPhone.</p>
+    <p class="status" id="setStatus"></p>
+    <div class="card sgroup" id="setBox"></div>
+  </div>
 </section>
 
 <dialog class="build" id="build" aria-label="Build a workout">
@@ -310,7 +339,7 @@ function read(rows) {
     try {
       var j = JSON.parse(r.json);
       if (r.kind === 'profile') m.profile = j; else if (r.kind === 'session') m.sessions.push(j);
-      else if (r.kind === 'week') m.week = j; else if (r.kind === 'edits') m.edits = j; else if (r.kind === 'stats') m.stats = j; else if (r.kind === 'library') m.library = j;
+      else if (r.kind === 'week') m.week = j; else if (r.kind === 'edits') m.edits = j; else if (r.kind === 'stats') m.stats = j; else if (r.kind === 'library') m.library = j; else if (r.kind === 'settings') m.settings = j;
     } catch (e) {}
   });
   m.sessions.sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : 0; });
@@ -359,7 +388,7 @@ function show(rows, demo) {
   if (demo && !weekInfo) weekInfo = sampleWeek(M);
   $('gatewrap').hidden = true; $('app').hidden = false; $('tabs').hidden = false;
   $('demoNote').hidden = !demo;
-  overview(); planTab(); liftsTab(); history();
+  overview(); planTab(); liftsTab(); history(); settingsTab();
 }
 
 // MARK: Overview
@@ -580,6 +609,120 @@ function planTitle(v) {
   return o ? o.t : v === 'cardio' ? 'Cardio or rest' : v === 'rest' ? 'Rest' : v === 'mobility' ? 'Mobility' : v.replace('sport:', '');
 }
 
+// MARK: Settings tab (op "settings", build 303): the rows of Your program and Settings › Training, changed in place.
+function sendSetting(obj) {
+  pending.push({ id: b32(crypto.getRandomValues(new Uint8Array(10))), op: 'settings', set: obj });
+  settingsTab(); coming();
+  sendPending().then(function () { quickWatch(Date.now()); }).catch(function (e) {
+    $('setStatus').textContent = 'Couldn’t send: ' + ((e && (e.reason || e.message)) || e); $('setStatus').className = 'status';
+  });
+}
+function settingsTab() {
+  var box = $('setBox'); box.innerHTML = '';
+  var S0 = M.settings, canEdit = !!me && !M.demo;
+  if (!S0) { box.appendChild(el('p', 'sub', M.demo ? 'Settings show here when you open your own hebomb.' : 'Update hebomb on your iPhone to change settings here.')); return; }
+  // What's waiting on the phone shows as already chosen
+  var made = {}; editLog.forEach(function (x) { made[x.replace(/!$/, '')] = 1; });
+  var S = JSON.parse(JSON.stringify(S0));
+  pending.forEach(function (p) { if (p.op === 'settings' && !made[p.id]) for (var k in p.set) {
+    if (k === 'workoutsOn') S.workouts.forEach(function (w) { if (p.set.workoutsOn[w.id] != null) w.on = p.set.workoutsOn[w.id]; });
+    else S[k] = p.set[k];
+  } });
+  function row(label, hint, body) { var r = el('div', 'srow'), l = el('b', '', label); if (hint) l.appendChild(el('small', '', hint)); r.appendChild(l); var b = el('div'); body(b); r.appendChild(b); box.appendChild(r); }
+  function opts(parent, list, isOn, pick) {
+    var o = el('div', 'opts');
+    list.forEach(function (x) { var b = el('button', 'opt', x[1]); b.setAttribute('aria-pressed', isOn(x[0]) ? 'true' : 'false'); b.disabled = !canEdit; b.onclick = function () { pick(x[0]); }; o.appendChild(b); });
+    parent.appendChild(o);
+  }
+  var gl = S.goalLabels || {};
+  row('Goal', S.goal === 'auto' ? 'From your weight: ' + (gl[S.goalNow] || '').toLowerCase() : null, function (b) {
+    var list = (S.canAuto ? [['auto', 'From my weight']] : []).concat(['muscle', 'lean', 'maintain', 'endurance'].map(function (g) { return [g, gl[g] || g]; }));
+    opts(b, list, function (v) { return S.goal === v; }, function (v) { if (v !== S.goal) sendSetting({ goal: v }); });
+  });
+  row('Goal weight', 'The green band on Bodyweight', function (b) {
+    var lo = el('input', 'numin'), hi = el('input', 'numin'); lo.type = hi.type = 'number'; lo.step = hi.step = '0.5';
+    lo.value = S.goalRange[0]; hi.value = S.goalRange[1]; lo.disabled = hi.disabled = !canEdit; lo.setAttribute('aria-label', 'Goal weight from'); hi.setAttribute('aria-label', 'Goal weight to');
+    var sv2 = el('button', 'btn', 'Save'); sv2.disabled = true;
+    function dirty() { sv2.disabled = !canEdit || (+lo.value === S.goalRange[0] && +hi.value === S.goalRange[1]) || !(+lo.value > 0 && +hi.value >= +lo.value); }
+    lo.oninput = hi.oninput = dirty;
+    sv2.onclick = function () { sendSetting({ goalRange: [+lo.value, +hi.value] }); };
+    var line = el('div', 'inline'); line.style.marginTop = '0'; line.appendChild(lo); line.appendChild(el('span', 'sub', 'to')); line.appendChild(hi); line.appendChild(el('span', 'sub', (M.stats && M.stats.unit) || M.unit)); line.appendChild(sv2); b.appendChild(line);
+  });
+  row('Lifting days', 'Reminders and the plan follow these', function (b) {
+    var names = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    opts(b, [2, 3, 4, 5, 6, 7, 1].map(function (n) { return [n, names[n - 1]]; }), function (n) { return S.days.indexOf(n) >= 0; }, function (n) {
+      var v = S.days.indexOf(n) >= 0 ? S.days.filter(function (x) { return x !== n; }) : S.days.concat([n]);
+      if (v.length) sendSetting({ days: v.sort() });
+    });
+  });
+  row('Where you lift', null, function (b) {
+    var pl = S.placeLabels || {};
+    opts(b, ['gym', 'home', 'dumbbells', 'none'].map(function (k) { return [k, pl[k] || k]; }), function (k) { return S.place === k; }, function (k) { if (k !== S.place) sendSetting({ place: k }); });
+  });
+  row('Lifts you do', 'hebomb only suggests these', function (b) {
+    var cl = S.comfortLabels || {};
+    opts(b, ['machines', 'dumbbells', 'barbell', 'pullups', 'kettlebells', 'olympic'].map(function (k) { return [k, cl[k] || k]; }), function (k) { return S.comfort.indexOf(k) >= 0; }, function (k) {
+      var v = S.comfort.indexOf(k) >= 0 ? S.comfort.filter(function (x) { return x !== k; }) : S.comfort.concat([k]);
+      if (v.length) sendSetting({ comfort: v });
+    });
+  });
+  row('Lift swaps', 'Variety: a smaller lift traded for a cousin now and then', function (b) {
+    opts(b, [['same', 'The same lifts every time'], ['some', 'Smaller lifts now and then'], ['often', 'Smaller lifts often']], function (k) { return S.swaps === k; }, function (k) { if (k !== S.swaps) sendSetting({ swaps: k }); });
+  });
+  row('Sets and reps', null, function (b) {
+    var own = S.sets && S.sets.length === 4, g = S.goalSets || [4, 8, 3, 12];
+    opts(b, [['goal', 'Picked for my goal (' + g[0] + ' × ' + g[1] + ')'], ['own', 'My own']], function (k) { return (k === 'own') === own; }, function (k) {
+      if (k === 'goal' && own) sendSetting({ sets: [] });
+      if (k === 'own' && !own) sendSetting({ sets: g.slice() });
+    });
+    if (own) {
+      var v = S.sets.slice(), ins = [];
+      var line = el('div', 'inline');
+      [['Big lifts', 0], ['Everything else', 2]].forEach(function (pair) {
+        line.appendChild(el('span', 'sub', pair[0]));
+        [pair[1], pair[1] + 1].forEach(function (i, j) {
+          var n = el('input', 'numin'); n.type = 'number'; n.min = 1; n.max = i % 2 ? 30 : 10; n.value = v[i]; n.disabled = !canEdit; n.setAttribute('aria-label', pair[0] + (j ? ' reps' : ' sets'));
+          ins[i] = n; line.appendChild(n); if (!j) line.appendChild(el('span', 'sub', '×'));
+        });
+      });
+      var save = el('button', 'btn', 'Save'); save.disabled = true;
+      ins.forEach(function (n) { n.oninput = function () { save.disabled = !canEdit || ins.every(function (x, i) { return +x.value === v[i]; }); }; });
+      save.onclick = function () { sendSetting({ sets: ins.map(function (x) { return +x.value; }) }); };
+      line.appendChild(save); b.appendChild(line);
+    }
+  });
+  row('Supersets', 'Pairs small lifts for opposite muscles to save time', function (b) {
+    var t = el('button', 'tog'); t.setAttribute('role', 'switch'); t.setAttribute('aria-checked', S.supersets ? 'true' : 'false'); t.setAttribute('aria-label', 'Supersets'); t.disabled = !canEdit;
+    t.onclick = function () { sendSetting({ supersets: !S.supersets }); }; b.appendChild(t);
+  });
+  row('Activity', 'One weekly activity on a day off', function (b) {
+    var has = S.activity && S.activity.length === 2;
+    opts(b, [['none', 'When I feel like it'], ['weekly', 'Every week']], function (k) { return (k === 'weekly') === has; }, function (k) {
+      if (k === 'none' && has) sendSetting({ activity: [] });
+      if (k === 'weekly' && !has) sendSetting({ activity: ['7', 'Run'] });
+    });
+    if (has) {
+      var line = el('div', 'inline'), name = el('select', 'btn'), day = el('select', 'btn');
+      ['Run', 'Walk', 'Bike', 'Swim', 'Yoga', 'Basketball', 'Pickleball', 'Tennis', 'Hike', 'Soccer', 'Climbing', 'Pilates', 'Mobility'].concat(S.activity[1]).filter(function (x, i, a) { return a.indexOf(x) === i; })
+        .forEach(function (a) { var o = el('option', '', a); o.value = a; if (a === S.activity[1]) o.selected = true; name.appendChild(o); });
+      ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].forEach(function (n, i) { var o = el('option', '', n + 's'); o.value = String(i + 1); if (String(i + 1) === String(S.activity[0])) o.selected = true; day.appendChild(o); });
+      name.disabled = day.disabled = !canEdit;
+      name.onchange = day.onchange = function () { sendSetting({ activity: [day.value, name.value] }); };
+      line.appendChild(name); line.appendChild(el('span', 'sub', 'on')); line.appendChild(day); b.appendChild(line);
+    }
+  });
+  row('Workouts', 'In the rotation hebomb picks from', function (b) {
+    var on = S.workouts.filter(function (w) { return w.on; }).length;
+    S.workouts.forEach(function (w) {
+      var r = el('div', 'wrow'); r.appendChild(el('span', '', w.t || 'Workout'));
+      var t = el('button', 'tog'); t.setAttribute('role', 'switch'); t.setAttribute('aria-checked', w.on ? 'true' : 'false'); t.setAttribute('aria-label', w.t);
+      t.disabled = !canEdit || (w.on && on === 1);
+      t.onclick = function () { var x = {}; x[w.id] = !w.on; sendSetting({ workoutsOn: x }); };
+      r.appendChild(t); b.appendChild(r);
+    });
+  });
+}
+
 // MARK: Lifts tab: every lift by estimated max (the app's own numbers when the phone sends them), one up close.
 var liftKey = null, liftDays = 182;
 function groupOf(name) {
@@ -721,10 +864,10 @@ function history() {
 $('tabs').addEventListener('click', function (e) {
   var b = e.target.closest('button'); if (!b) return;
   [].forEach.call($('tabs').children, function (x) { x.setAttribute('aria-selected', x === b ? 'true' : 'false'); });
-  ['overview', 'plan', 'lifts', 'history'].forEach(function (t) { $(t).hidden = b.dataset.tab !== t; });
+  ['overview', 'plan', 'lifts', 'history', 'settings'].forEach(function (t) { $(t).hidden = b.dataset.tab !== t; });
   try { sessionStorage.setItem('hb.tab', b.dataset.tab); } catch (e2) {}
 });
-try { var _t = sessionStorage.getItem('hb.tab'); if (_t === 'history' || _t === 'lifts' || _t === 'plan') { setTimeout(function () { var b = document.querySelector('[data-tab=' + _t + ']'); if (b) b.click(); }); } } catch (e) {}
+try { var _t = sessionStorage.getItem('hb.tab'); if (['history', 'lifts', 'plan', 'settings'].indexOf(_t) >= 0) { setTimeout(function () { var b = document.querySelector('[data-tab=' + _t + ']'); if (b) b.click(); }); } } catch (e) {}
 
 // The sample has no plan from a phone: a believable week from its workouts, for looking only.
 function sampleWeek(m) {
@@ -787,6 +930,7 @@ function coming() {
   else if (done.length) { st.textContent = '✓ Changed on your iPhone'; st.className = 'status ok'; }
   else st.textContent = canEdit ? 'Green outline = changed by you.' : '';
   if ($('planStatus')) { $('planStatus').textContent = st.textContent; $('planStatus').className = st.className; }
+  if ($('setStatus')) { $('setStatus').textContent = waiting.length || refused.length || done.length ? st.textContent : ''; $('setStatus').className = st.className; }
 }
 function change(day, value) {
   var id = b32(crypto.getRandomValues(new Uint8Array(10)));
@@ -801,7 +945,7 @@ function change(day, value) {
 function sendPending() {
   if (!authToken) return Promise.reject({ reason: 'no pass from your iPhone yet. Open hebomb on it, then reload' });
   if (me.key.usages && me.key.usages.indexOf('encrypt') < 0) return Promise.reject({ reason: 'this computer was opened before changes were possible. Sign out here and scan the code again' });
-  var body = JSON.stringify(pending.map(function (p) { return { id: p.id, op: p.op, day: p.day, value: p.value, wid: p.wid, title: p.title, lifts: p.lifts }; }));
+  var body = JSON.stringify(pending.map(function (p) { return { id: p.id, op: p.op, day: p.day, value: p.value, wid: p.wid, title: p.title, lifts: p.lifts, set: p.set }; }));
   var iv = crypto.getRandomValues(new Uint8Array(12));
   return crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, me.key, new TextEncoder().encode(body)).then(function (ct) {
     var all = new Uint8Array(12 + ct.byteLength); all.set(iv); all.set(new Uint8Array(ct), 12);
