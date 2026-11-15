@@ -65,6 +65,14 @@ svg.chart { width: 100%; height: auto; display: block; margin-top: 8px; }
 .plan li { list-style: none; padding: 9px 0; border-top: 1px solid var(--line); display: flex; justify-content: space-between; gap: 10px; }
 .plan li:first-child { border-top: 0; }
 .plan li span { color: var(--sub); font-size: 14px; text-align: right; }
+.coming li { list-style: none; display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+.coming li:first-child { border-top: 0; }
+.coming small { display: block; color: var(--muted); font-size: 12px; font-weight: 800; }
+.coming select { font: 700 15px "Nunito", ui-rounded, system-ui, sans-serif; color: var(--text); background: var(--card2); border: 0; border-radius: 10px; padding: 7px 10px; max-width: 210px; }
+.coming select.own { box-shadow: inset 0 0 0 2px var(--green); }
+.coming .done { color: var(--green); font-weight: 800; font-size: 15px; }
+.status { font-size: 14px; color: var(--sub); margin-top: 8px; min-height: 20px; }
+.status.ok { color: var(--green); font-weight: 800; }
 .gate { max-width: 520px; padding: 70px 0 20px; }
 .gate p { font-size: 18px; margin-top: 12px; }
 .gate .fine { font-size: 14px; color: var(--muted); margin-top: 22px; }
@@ -119,6 +127,7 @@ svg.chart { width: 100%; height: auto; display: block; margin-top: 8px; }
         <div class="card" id="history"></div>
       </div>
       <div class="side">
+        <div id="comingWrap" hidden><h2>Coming up</h2><div class="card"><ul class="coming" id="coming"></ul><p class="status" id="editStatus"></p></div></div>
         <div><h2>Bodyweight</h2><div class="card" id="bw"></div></div>
         <div><h2>Best lifts</h2><div class="card"><table id="bests"></table></div></div>
         <div><h2>Your plan</h2><div class="card"><ul class="plan" id="plan"></ul></div></div>
@@ -130,7 +139,7 @@ svg.chart { width: 100%; height: auto; display: block; margin-top: 8px; }
 <script>
 // hebomb.com/me: a read-only view of what the phone copies to the person's own private iCloud (CloudMirror.swift in the
 // app). Zone "mirror", record type "Item": kind "session" (one workout) or "profile" (everything else), JSON in `json`.
-// Never writes. ?demo reads sample.json (Ryan) instead.
+// Opened with the phone's code it can also change the coming week (build 300). ?demo reads sample.json (Ryan) instead.
 var TOKEN = '80fcb72906279f565c57b61945e9e156465ab2373467b2f09b524a82749e68c2';   // CloudKit Console > API Tokens (public by design; it only lets a signed-in person reach their own data)
 
 var $ = function (id) { return document.getElementById(id); };
@@ -151,10 +160,13 @@ function setText(ex, s, unit) {
   return num(s.weight) + ' × ' + Math.round(s.reps);
 }
 
+var weekInfo = null, editLog = [], authToken = null;
 function show(rows) {
-  var profile = {}, sessions = [];
+  var profile = {}, sessions = []; weekInfo = null; editLog = [];
   rows.forEach(function (r) {
-    try { var j = JSON.parse(r.json); if (r.kind === 'profile') profile = j; else if (r.kind === 'session') sessions.push(j); } catch (e) {}
+    try { var j = JSON.parse(r.json); if (r.kind === 'profile') profile = j; else if (r.kind === 'session') sessions.push(j);
+      else if (r.kind === 'week') weekInfo = j; else if (r.kind === 'edits') editLog = j; } catch (e) {}
+    if (r.kind === 'auth') authToken = r.json;
   });
   sessions.sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : 0; });
   var unit = profile.unit === 'kg' ? 'kg' : 'lbs';
@@ -267,6 +279,8 @@ function show(rows) {
   });
   if (!keys.concat(rest).length) $('bests').appendChild(el('tr')).appendChild(el('td', 'sub', 'No lifts yet.'));
 
+  showComing();
+
   // The plan: the workouts hebomb rotates through, with how many lifts each.
   (profile.workouts || []).forEach(function (w) {
     var li = el('li'); li.appendChild(el('b', '', w.title || w.name || 'Workout'));
@@ -275,6 +289,85 @@ function show(rows) {
   });
   if (!(profile.workouts || []).length) $('plan').appendChild(el('li', 'sub', 'hebomb picks as you go.'));
 }
+
+// MARK: Changing things from here (WebLink.checkEdits in the app, build 300)
+// The phone stays the only writer. A change is sealed with this computer's key into public record "E<slot>"; the open app
+// finds it within seconds, checks it, makes it, and sends a fresh copy whose "edits" row lists the change ids made ("id")
+// and refused ("id!"). Writing needs the web pass the phone puts in each copy ("auth"). Phone closed: it waits.
+var pending = [];   // [{id, op, day, value, label}]
+function dayLabel(ds, i) {
+  if (i === 0) return 'Today';
+  if (i === 1) return 'Tomorrow';
+  return d(ds).toLocaleDateString('en-US', { weekday: 'long' });
+}
+function showComing() {
+  var ul = $('coming'); ul.innerHTML = '';
+  if (!weekInfo || !me || !weekInfo.days) { $('comingWrap').hidden = true; return; }
+  $('comingWrap').hidden = false;
+  var made = {}; editLog.forEach(function (x) { if (x.slice(-1) === '!') made[x.slice(0, -1)] = 'no'; else made[x] = 'yes'; });
+  var waiting = pending.filter(function (p) { return !made[p.id]; });
+  var refused = pending.filter(function (p) { return made[p.id] === 'no'; });
+  var done = pending.filter(function (p) { return made[p.id] === 'yes'; });
+  pending = waiting;
+  weekInfo.days.forEach(function (day, i) {
+    var li = el('li'), left = el('div');
+    left.appendChild(el('b', '', dayLabel(day.d, i)));
+    left.appendChild(el('small', '', d(day.d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })));
+    li.appendChild(left);
+    if (day.done) { li.appendChild(el('span', 'done', '✓ ' + day.t)); ul.appendChild(li); return; }
+    var sel = el('select'); sel.setAttribute('aria-label', 'Workout for ' + dayLabel(day.d, i));
+    var wait = waiting.filter(function (p) { return p.day === day.d; }).pop();
+    var cur = wait ? (wait.value == null ? '__pick' : wait.value) : day.v;
+    var opts = (weekInfo.options || []).map(function (o) { return [o.id, o.t]; }).concat([['cardio', 'Cardio or rest'], ['rest', 'Rest'], ['mobility', 'Mobility']]);
+    if (!opts.some(function (o) { return o[0] === day.v; })) opts.unshift([day.v, day.t]);
+    if (day.own) opts.push(['__pick', "Back to hebomb's pick"]);
+    opts.forEach(function (o) { var op = el('option', '', o[1]); op.value = o[0]; if (o[0] === cur) op.selected = true; sel.appendChild(op); });
+    if (day.own || wait) sel.className = 'own';
+    sel.onchange = function () { change(day.d, sel.value === '__pick' ? null : sel.value, dayLabel(day.d, i) + ': ' + sel.options[sel.selectedIndex].text); };
+    li.appendChild(sel); ul.appendChild(li);
+  });
+  var st = $('editStatus'); st.className = 'status';
+  if (waiting.length) st.textContent = 'Sending to your iPhone… (hebomb needs to be open on it)';
+  else if (refused.length) st.textContent = 'Your iPhone didn’t make that change.';
+  else if (done.length) { st.textContent = '✓ Changed on your iPhone'; st.className = 'status ok'; }
+  else st.textContent = weekInfo.pro === false ? '' : 'Change a day here and it changes on your iPhone.';
+}
+function change(day, value, label) {
+  var id = b32(crypto.getRandomValues(new Uint8Array(10)));
+  pending = pending.filter(function (p) { return p.day !== day; });
+  pending.push({ id: id, op: 'plan', day: day, value: value, label: label });
+  showComing();
+  sendPending().then(function () { quickWatch(Date.now()); }).catch(function (e) {
+    $('editStatus').textContent = 'Couldn’t send: ' + ((e && (e.reason || e.message)) || e); $('editStatus').className = 'status';
+    console.log('hebomb edit failed', e);
+  });
+}
+function sendPending() {
+  if (!authToken) return Promise.reject({ reason: 'no pass from your iPhone yet. Open hebomb on it, then reload' });
+  if (me.key.usages && me.key.usages.indexOf('encrypt') < 0) return Promise.reject({ reason: 'this computer was opened before changes were possible. Sign out here and scan the code again' });
+  var body = JSON.stringify(pending.map(function (p) { return { id: p.id, op: p.op, day: p.day, value: p.value }; }));
+  var iv = crypto.getRandomValues(new Uint8Array(12));
+  return crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, me.key, new TextEncoder().encode(body)).then(function (ct) {
+    var all = new Uint8Array(12 + ct.byteLength); all.set(iv); all.set(new Uint8Array(ct), 12);
+    var b = ''; for (var i = 0; i < all.length; i++) b += String.fromCharCode(all[i]);
+    var url = API + 'public/records/modify?ckAPIToken=' + TOKEN + '&ckWebAuthToken=' + encodeURIComponent(authToken);
+    return fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ operations: [{ operationType: 'forceReplace',
+      record: { recordName: 'E' + me.slot, recordType: 'Link', fields: { box: { value: btoa(b) } } } }] }) });
+  }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); }).then(function (x) {
+    console.log('hebomb edit sent', x.ok, JSON.stringify(x.j).slice(0, 400));
+    if (x.j && x.j.ckWebAuthToken) authToken = x.j.ckWebAuthToken;
+    var rec = x.j && x.j.records && x.j.records[0];
+    if (!x.ok || !rec || rec.serverErrorCode) throw { reason: (rec && (rec.reason || rec.serverErrorCode)) || x.j.reason || x.j.serverErrorCode || 'iCloud said no' };
+  });
+}
+// After a change: look for the phone's fresh copy every 3 s for two minutes.
+function quickWatch(t0) {
+  if (!pending.length || Date.now() - t0 > 120000) return;
+  setTimeout(function () {
+    fetchCopy().then(function (c) { clearAll(); header(c.when); show(c.rows); quickWatch(t0); }).catch(function () { quickWatch(t0); });
+  }, 3000);
+}
+function clearAll() { $('history').innerHTML = ''; $('bests').innerHTML = ''; $('plan').innerHTML = ''; $('bw').innerHTML = ''; $('week').innerHTML = ''; }
 
 // MARK: Opening hebomb here (WebLink.swift in the app)
 // End to end, no sign-in (build 296). The QR hands the phone a one-time key; the phone answers with this computer's own
@@ -327,7 +420,7 @@ var me = null;   // {key: CryptoKey, slot, n, r, at}
 function loadMe() {
   try {
     var j = sessionStorage.getItem('hb.visit');
-    if (j) { var v = JSON.parse(j); return crypto.subtle.importKey('raw', unb64(v.k), 'AES-GCM', false, ['decrypt']).then(function (key) { v.key = key; return v; }); }
+    if (j) { var v = JSON.parse(j); return crypto.subtle.importKey('raw', unb64(v.k), 'AES-GCM', false, ['encrypt', 'decrypt']).then(function (key) { v.key = key; return v; }); }
   } catch (e) {}
   return idbDo('readonly', function (s) { return s.get('me'); }).catch(function () { return null; });
 }
@@ -386,7 +479,7 @@ function openWithPhone() {
   });
 }
 // A fresh copy now and then while the page is open, and on coming back to the tab.
-function refresh() { if (me && !document.hidden) { $('history').innerHTML = ''; $('bests').innerHTML = ''; $('plan').innerHTML = ''; $('bw').innerHTML = ''; $('week').innerHTML = ''; openWithPhone(); } }
+function refresh() { if (me && !document.hidden) { clearAll(); openWithPhone(); } }
 document.addEventListener('visibilitychange', function () { if (!document.hidden && me) refresh(); });
 
 function signOut() {
@@ -455,7 +548,7 @@ function openBox(boxB64, oneTime) {   // not "open": that name is window.open, w
   }).then(function (plain) {
     var p = JSON.parse(new TextDecoder().decode(plain));
     if (p.d !== deviceId() || !p.k || !p.s) throw new Error('not for this computer');
-    return crypto.subtle.importKey('raw', unb64(p.k), 'AES-GCM', false, ['decrypt']).then(function (key) { return keepMe(p, key); });
+    return crypto.subtle.importKey('raw', unb64(p.k), 'AES-GCM', false, ['encrypt', 'decrypt']).then(function (key) { return keepMe(p, key); });
   }).then(openWithPhone).catch(function () { showGate("That didn't work", 'Scan the new code to try again.'); });
 }
 
