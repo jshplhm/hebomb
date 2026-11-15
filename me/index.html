@@ -76,6 +76,40 @@ svg.chart { width: 100%; height: auto; display: block; }
 .coming .done { color: var(--green); font-weight: 800; }
 .status { font-size: 13px; color: var(--sub); margin-top: 10px; min-height: 18px; }
 .status.ok { color: var(--green); font-weight: 800; }
+.btn { background: var(--card2); color: var(--text); border: 0; border-radius: 10px; padding: 9px 14px; font: 800 14px "Nunito", ui-rounded, system-ui, sans-serif; cursor: pointer; }
+.btn.go { background: var(--green); color: #000; }
+.btn:disabled { opacity: .45; cursor: default; }
+.addrow { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+.linkbtn { background: none; border: 0; color: var(--green); font: 800 14px "Nunito", ui-rounded, system-ui, sans-serif; cursor: pointer; padding: 0; }
+
+/* Build a workout */
+dialog.build { margin: auto; border: 0; border-radius: 22px; background: var(--card); color: var(--text); width: min(980px, calc(100vw - 32px)); max-height: calc(100vh - 40px); padding: 0; }
+dialog.build::backdrop { background: rgba(0,0,0,.6); }
+.bhead { display: flex; align-items: center; gap: 12px; padding: 18px 22px; border-bottom: 1px solid var(--line); }
+.bhead input { flex: 1; min-width: 0; font: 900 24px "Nunito", ui-rounded, system-ui, sans-serif; background: none; border: 0; color: var(--text); outline: none; }
+.bhead input::placeholder { color: var(--muted); }
+.bbody { display: grid; grid-template-columns: 1fr 1fr; min-height: 0; height: min(560px, calc(100vh - 200px)); }
+.lib { border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
+.lib input { margin: 14px 18px 8px; padding: 10px 12px; border-radius: 10px; border: 0; background: var(--card2); color: var(--text); font: 700 15px "Nunito", ui-rounded, system-ui, sans-serif; outline: none; }
+.liblist { overflow: auto; padding: 0 18px 18px; }
+.liblist h5 { font-size: 12px; font-weight: 800; color: var(--sub); text-transform: uppercase; letter-spacing: .06em; margin: 14px 0 4px; }
+.liblist button { display: flex; justify-content: space-between; width: 100%; background: none; border: 0; border-top: 1px solid var(--line); color: var(--text); font: 700 15px "Nunito", ui-rounded, system-ui, sans-serif; padding: 8px 2px; cursor: pointer; text-align: left; }
+.liblist button:hover { color: var(--green); }
+.liblist button span { color: var(--green); font-weight: 900; }
+.liblist button.in { color: var(--muted); cursor: default; }
+.chosen { overflow: auto; padding: 14px 18px; }
+.chosen .lab { margin-bottom: 6px; }
+.pick { display: grid; grid-template-columns: 22px 1fr auto auto auto; gap: 8px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+.pick:first-of-type { border-top: 0; }
+.pick .n { color: var(--muted); font-weight: 800; text-align: right; }
+.pick button { background: none; border: 0; color: var(--sub); font: 800 13px "Nunito", ui-rounded, system-ui, sans-serif; cursor: pointer; padding: 4px 6px; border-radius: 7px; }
+.pick button:hover { background: var(--card2); color: var(--text); }
+.pick button.main { color: var(--green); }
+.pick button:disabled { visibility: hidden; }
+.bfoot { display: flex; align-items: center; gap: 10px; padding: 14px 22px; border-top: 1px solid var(--line); flex-wrap: wrap; }
+.bfoot select { font: 800 14px "Nunito", ui-rounded, system-ui, sans-serif; color: var(--text); background: var(--card2); border: 0; border-radius: 9px; padding: 8px 10px; }
+.bfoot .sp { flex: 1; }
+@media (max-width: 700px) { .bbody { grid-template-columns: 1fr; height: auto; } .lib { border-right: 0; border-bottom: 1px solid var(--line); max-height: 300px; } }
 
 /* History tab */
 .hist { max-width: 860px; margin: 0 auto; padding: 18px 28px 64px; }
@@ -157,12 +191,22 @@ h1 { font-size: 40px; font-weight: 900; line-height: 1.05; letter-spacing: -0.02
     <div class="card kpi hero"><div class="lab" id="kNextLab">Next up</div><div class="big" id="kNext" style="font-size:30px">–</div><div class="sub" id="kNextSub"></div></div>
     <div class="card chartc"><div class="head"><div class="lab">Strength score over time</div><div class="legend" id="legend"></div><div class="chips" id="range"><button data-d="90" aria-pressed="true">3M</button><button data-d="182" aria-pressed="false">6M</button><button data-d="365" aria-pressed="false">1Y</button></div></div>
       <div class="chartbox" id="chartbox"><svg class="chart" id="chart" role="img"></svg><div class="tip" id="tip" hidden></div></div></div>
-    <div class="card coming"><div class="head"><div class="lab">Coming up</div><span class="sub" style="font-size:13px" id="comingNote">Changes go to your iPhone</span></div><div id="coming" style="margin-top:6px"></div><p class="status" id="editStatus"></p></div>
+    <div class="card coming"><div class="head"><div class="lab">Coming up</div><span class="sub" style="font-size:13px" id="comingNote">Changes go to your iPhone</span></div><div id="coming" style="margin-top:6px"></div><div class="addrow" id="addrow" hidden><button class="btn go" id="newWorkout">＋ Build a workout</button><select class="btn" id="editWorkout" aria-label="Change one of your workouts"></select></div><p class="status" id="editStatus"></p></div>
     <div class="card muscles"><div class="lab">Days rested</div><div id="muscles" style="margin-top:8px"></div></div>
     <div class="card recent"><div class="lab">Recent</div><div class="rec" id="recent" style="margin-top:4px"></div></div>
   </div>
   <div class="hist" id="history" hidden></div>
 </section>
+
+<dialog class="build" id="build" aria-label="Build a workout">
+  <div class="bhead"><input id="bTitle" placeholder="Name it (Push day, Legs…)" maxlength="40"><button class="btn" id="bClose" aria-label="Close">✕</button></div>
+  <div class="bbody">
+    <div class="lib"><input id="bSearch" placeholder="Find a lift" aria-label="Find a lift"><div class="liblist" id="bLib"></div></div>
+    <div class="chosen"><div class="lab" id="bCount">Lifts</div><div id="bPicks"></div>
+      <p class="sub" style="font-size:13px;margin-top:12px">★ = a big lift: more sets and a warm-up. hebomb sets the weights, sets and reps from your goal, the same as on your iPhone.</p></div>
+  </div>
+  <div class="bfoot"><span class="sub">Put it on</span><select id="bDay" aria-label="Day to put it on"></select><span class="sp"></span><button class="btn" id="bCancel">Cancel</button><button class="btn go" id="bSave" disabled>Send to iPhone</button></div>
+</dialog>
 
 <script>
 // hebomb.com/me: the person's hebomb on a big screen (WebLink.swift in the app sends a sealed copy only this computer opens).
@@ -201,7 +245,7 @@ function read(rows) {
     try {
       var j = JSON.parse(r.json);
       if (r.kind === 'profile') m.profile = j; else if (r.kind === 'session') m.sessions.push(j);
-      else if (r.kind === 'week') m.week = j; else if (r.kind === 'edits') m.edits = j; else if (r.kind === 'stats') m.stats = j;
+      else if (r.kind === 'week') m.week = j; else if (r.kind === 'edits') m.edits = j; else if (r.kind === 'stats') m.stats = j; else if (r.kind === 'library') m.library = j;
     } catch (e) {}
   });
   m.sessions.sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : 0; });
@@ -511,7 +555,7 @@ function coming() {
     row.appendChild(left);
     if (day.done) { row.appendChild(el('span', 'done', '✓ ' + day.t)); box.appendChild(row); return; }
     var sel = el('select'); sel.setAttribute('aria-label', 'Plan for ' + dayLabel(day.d, i));
-    var wait = waiting.filter(function (p) { return p.day === day.d; }).pop();
+    var wait = waiting.filter(function (p) { return p.op === 'plan' && p.day === day.d; }).pop();
     var cur = wait ? (wait.value == null ? '__pick' : wait.value) : day.v;
     var opts = (weekInfo.options || []).map(function (o) { return [o.id, o.t]; }).concat([['cardio', 'Cardio or rest'], ['rest', 'Rest'], ['mobility', 'Mobility']]);
     if (!opts.some(function (o) { return o[0] === day.v; })) opts.unshift([day.v, day.t]);
@@ -522,6 +566,12 @@ function coming() {
     sel.onchange = function () { change(day.d, sel.value === '__pick' ? null : sel.value); };
     row.appendChild(sel); box.appendChild(row);
   });
+  $('addrow').hidden = !canEdit || !M.library;
+  if (canEdit && M.library) {
+    var ew = $('editWorkout'); ew.innerHTML = '';
+    var o0 = el('option', '', 'Change a workout…'); o0.value = ''; ew.appendChild(o0);
+    (M.profile.workouts || []).forEach(function (w) { var o = el('option', '', w.title || 'Workout'); o.value = w.id; ew.appendChild(o); });
+  }
   var st = $('editStatus'); st.className = 'status';
   if (waiting.length) st.textContent = 'Sending to your iPhone… (hebomb needs to be open on it)';
   else if (refused.length) st.textContent = 'Your iPhone didn’t make that change.';
@@ -530,7 +580,7 @@ function coming() {
 }
 function change(day, value) {
   var id = b32(crypto.getRandomValues(new Uint8Array(10)));
-  pending = pending.filter(function (p) { return p.day !== day; });
+  pending = pending.filter(function (p) { return p.op !== 'plan' || p.day !== day; });
   pending.push({ id: id, op: 'plan', day: day, value: value });
   coming();
   sendPending().then(function () { quickWatch(Date.now()); }).catch(function (e) {
@@ -541,7 +591,7 @@ function change(day, value) {
 function sendPending() {
   if (!authToken) return Promise.reject({ reason: 'no pass from your iPhone yet. Open hebomb on it, then reload' });
   if (me.key.usages && me.key.usages.indexOf('encrypt') < 0) return Promise.reject({ reason: 'this computer was opened before changes were possible. Sign out here and scan the code again' });
-  var body = JSON.stringify(pending.map(function (p) { return { id: p.id, op: p.op, day: p.day, value: p.value }; }));
+  var body = JSON.stringify(pending.map(function (p) { return { id: p.id, op: p.op, day: p.day, value: p.value, wid: p.wid, title: p.title, lifts: p.lifts }; }));
   var iv = crypto.getRandomValues(new Uint8Array(12));
   return crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, me.key, new TextEncoder().encode(body)).then(function (ct) {
     var all = new Uint8Array(12 + ct.byteLength); all.set(iv); all.set(new Uint8Array(ct), 12);
@@ -555,6 +605,82 @@ function sendPending() {
     if (!x.ok || !rec || rec.serverErrorCode) throw { reason: (rec && (rec.reason || rec.serverErrorCode)) || x.j.reason || x.j.serverErrorCode || 'iCloud said no' };
   });
 }
+// MARK: Build a workout (op "workout", build 302). The phone checks each lift against its library and history.
+var B = { wid: null, picks: [] };
+function openBuild(w) {
+  B = { wid: w ? w.id : null, picks: w ? (w.lifts || []).map(function (l) { return { name: l.name, main: !!l.main }; }) : [] };
+  $('bTitle').value = w ? (w.title || '') : '';
+  $('bSearch').value = '';
+  var ds = $('bDay'); ds.innerHTML = '';
+  var none = el('option', '', 'No day, just add it'); none.value = ''; ds.appendChild(none);
+  (weekInfo && weekInfo.days || []).forEach(function (day, i) { if (day.done) return; var o = el('option', '', dayLabel(day.d, i) + ' · now ' + day.t); o.value = day.d; ds.appendChild(o); });
+  $('bSave').textContent = w ? 'Save changes' : 'Send to iPhone';
+  drawLib(); drawPicks();
+  $('build').showModal();
+  setTimeout(function () { (w ? $('bSearch') : $('bTitle')).focus(); });
+}
+function drawLib() {
+  var q = $('bSearch').value.trim().toLowerCase(), box = $('bLib'); box.innerHTML = '';
+  var have = {}; B.picks.forEach(function (p) { have[p.name.toLowerCase()] = 1; });
+  var groups = (M.library || []).map(function (g) { return [g[0], g[1].slice()]; });
+  // Lifts they've logged that the library doesn't list
+  var lib = {}; groups.forEach(function (g) { g[1].forEach(function (n) { lib[n.toLowerCase()] = 1; }); });
+  var own = (M.stats.lifts || []).map(function (l) { return l.name; }).filter(function (n) { return !lib[n.toLowerCase()]; });
+  if (own.length) groups.unshift(['Yours', own]);
+  var shown = 0;
+  groups.forEach(function (g) {
+    var names = g[1].filter(function (n) { return !q || n.toLowerCase().indexOf(q) >= 0; });
+    if (!names.length) return;
+    box.appendChild(el('h5', '', g[0]));
+    names.forEach(function (n) {
+      var b = el('button'), inn = have[n.toLowerCase()];
+      b.appendChild(document.createTextNode(n)); b.appendChild(el('span', '', inn ? '✓' : '＋'));
+      if (inn) b.className = 'in';
+      b.onclick = function () { if (inn) return; B.picks.push({ name: n, main: B.picks.length === 0 }); drawLib(); drawPicks(); };
+      box.appendChild(b); shown++;
+    });
+  });
+  if (!shown) box.appendChild(el('p', 'sub', 'No lift by that name in hebomb.'));
+}
+function drawPicks() {
+  var box = $('bPicks'); box.innerHTML = '';
+  $('bCount').textContent = B.picks.length ? B.picks.length + ' lift' + (B.picks.length === 1 ? '' : 's') : 'Lifts';
+  if (!B.picks.length) box.appendChild(el('p', 'sub', 'Add lifts from the list. They run in this order.'));
+  B.picks.forEach(function (p, i) {
+    var row = el('div', 'pick');
+    row.appendChild(el('span', 'n', String(i + 1)));
+    row.appendChild(el('b', '', p.name));
+    var star = el('button', p.main ? 'main' : '', p.main ? '★' : '☆'); star.title = p.main ? 'Big lift' : 'Make it a big lift'; star.setAttribute('aria-label', star.title + ': ' + p.name);
+    star.onclick = function () { p.main = !p.main; drawPicks(); };
+    var upb = el('button', '', '↑'); upb.setAttribute('aria-label', 'Move ' + p.name + ' up'); upb.disabled = i === 0;
+    upb.onclick = function () { B.picks.splice(i - 1, 0, B.picks.splice(i, 1)[0]); drawPicks(); };
+    var rm = el('button', '', '✕'); rm.setAttribute('aria-label', 'Remove ' + p.name);
+    rm.onclick = function () { B.picks.splice(i, 1); drawLib(); drawPicks(); };
+    row.appendChild(star); row.appendChild(upb); row.appendChild(rm);
+    box.appendChild(row);
+  });
+  $('bSave').disabled = !B.picks.length || !$('bTitle').value.trim();
+}
+$('bTitle').addEventListener('input', drawPicks);
+$('bSearch').addEventListener('input', drawLib);
+$('bClose').onclick = $('bCancel').onclick = function () { $('build').close(); };
+$('newWorkout').onclick = function () { openBuild(null); };
+$('editWorkout').onchange = function () {
+  var id = this.value; this.value = '';
+  var w = (M.profile.workouts || []).filter(function (x) { return x.id === id; })[0];
+  if (w) openBuild(w);
+};
+$('bSave').onclick = function () {
+  var title = $('bTitle').value.trim(); if (!title || !B.picks.length) return;
+  var day = $('bDay').value || null;
+  pending.push({ id: b32(crypto.getRandomValues(new Uint8Array(10))), op: 'workout', wid: B.wid, title: title, lifts: B.picks, day: day });
+  $('build').close();
+  coming();
+  sendPending().then(function () { quickWatch(Date.now()); }).catch(function (e) {
+    $('editStatus').textContent = 'Couldn’t send: ' + ((e && (e.reason || e.message)) || e); $('editStatus').className = 'status';
+  });
+};
+
 // After a change: look for the phone's fresh copy every 3 s for two minutes.
 function quickWatch(t0) {
   if (!pending.length || Date.now() - t0 > 120000) return;
