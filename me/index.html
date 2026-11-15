@@ -9,35 +9,77 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1024 1024'%3E%3Crect width='1024' height='1024' rx='224' fill='%23040A06'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800;900&display=swap">
 <style>
-/* The app's own colours (Theme.swift), light and dark. */
-:root { --bg: #ffffff; --card: #f0f0f3; --card2: #e4e4e9; --line: #e5e5ea; --text: #000000; --sub: #66666b; --muted: #6b6b70; --green: #007a03; --cta: #00c805; }
-@media (prefers-color-scheme: dark) { :root { --bg: #000000; --card: #1c1c1e; --card2: #2c2c2e; --line: #2c2c2e; --text: #ffffff; --sub: #98989f; --muted: #7c7c82; --green: #00c805; } }
+/* The app's own colours (Theme.swift). Dark first, like the app. */
+:root { --bg: #000000; --card: #141416; --card2: #232326; --line: #2a2a2d; --grid: #1f1f22; --text: #ffffff; --sub: #98989f; --muted: #6e6e74; --green: #00c805; --gdim: rgba(0,200,5,.14); --hero: linear-gradient(135deg, #0c2a0d, #141416 70%); }
+@media (prefers-color-scheme: light) { :root { --bg: #ffffff; --card: #f2f2f5; --card2: #e4e4e9; --line: #e2e2e7; --grid: #e6e6ea; --text: #000000; --sub: #66666b; --muted: #85858a; --green: #007a03; --gdim: rgba(0,122,3,.12); --hero: linear-gradient(135deg, #dff3df, #f2f2f5 70%); } }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html { background: var(--bg); color: var(--text); }
-body { font: 600 16px/1.45 "Nunito", ui-rounded, system-ui, -apple-system, sans-serif; -webkit-font-smoothing: antialiased; }
-main { max-width: 1120px; margin: 0 auto; padding: 24px 16px 64px; }
-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; }
-.mark { display: inline-flex; align-items: center; gap: 9px; font-weight: 900; font-size: 19px; color: var(--text); text-decoration: none; }
-.mark svg { height: 19px; width: auto; }
-.who { color: var(--sub); font-size: 14px; font-weight: 700; }
-.who button { background: none; border: 0; color: var(--sub); font: inherit; text-decoration: underline; cursor: pointer; margin-left: 10px; }
-h1 { font-size: 40px; font-weight: 900; line-height: 1.05; letter-spacing: -0.02em; }
-h2 { font-size: 20px; font-weight: 800; margin-bottom: 10px; }
+body { font: 600 14px/1.4 "Nunito", ui-rounded, system-ui, -apple-system, sans-serif; -webkit-font-smoothing: antialiased; }
+.num { font-variant-numeric: tabular-nums; }
 .sub { color: var(--sub); }
-.hello { padding: 36px 0 8px; }
-.hello p { margin-top: 8px; font-size: 18px; }
-.week { display: grid; grid-template-columns: repeat(7, 44px); gap: 6px; margin-top: 22px; text-align: center; }
-.week span { font-size: 12px; font-weight: 800; color: var(--muted); }
-.week span.today { color: var(--text); }
-.dot { display: block; margin: 6px auto 0; width: 24px; height: 24px; border-radius: 50%; }
-.dot.l { background: var(--green); }
-.dot.c { border: 3px solid var(--green); }
-.dot.b { background: var(--green); box-shadow: 0 0 0 2px var(--bg), 0 0 0 4.5px var(--green); width: 20px; height: 20px; margin-top: 8px; }
-.dot.n { width: 6px; height: 6px; background: var(--card2); margin-top: 15px; margin-bottom: 9px; }
-.cols { display: grid; grid-template-columns: 1.35fr 1fr; gap: 28px; margin-top: 36px; align-items: start; }
-.card { background: var(--card); border-radius: 22px; padding: 18px 18px 14px; }
-.side { display: grid; gap: 28px; }
-.month { font-size: 15px; font-weight: 800; color: var(--sub); margin: 22px 0 8px; display: flex; justify-content: space-between; }
+.up { color: var(--green); font-weight: 800; }
+[hidden] { display: none !important; }
+
+/* Top bar */
+.top { display: flex; align-items: center; gap: 18px; min-height: 56px; padding: 0 28px; border-bottom: 1px solid var(--line); }
+.mark { display: inline-flex; align-items: center; gap: 8px; font-weight: 900; font-size: 18px; color: var(--text); text-decoration: none; }
+.mark svg { height: 16px; width: auto; }
+.tabs { display: flex; gap: 4px; margin-left: 14px; }
+.tabs button { background: none; border: 0; padding: 6px 12px; border-radius: 9px; color: var(--sub); font: 800 14px "Nunito", ui-rounded, system-ui, sans-serif; cursor: pointer; }
+.tabs button[aria-selected="true"] { background: var(--card2); color: var(--text); }
+.who { margin-left: auto; display: flex; align-items: center; gap: 8px; color: var(--sub); font-weight: 700; font-size: 13px; }
+.who i { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 4px var(--gdim); flex: none; }
+.who button { background: none; border: 0; color: var(--sub); font: inherit; text-decoration: underline; cursor: pointer; margin-left: 6px; }
+
+/* Overview grid */
+.dash { max-width: 1480px; margin: 0 auto; padding: 18px 28px 48px; display: grid; grid-template-columns: repeat(12, 1fr); gap: 14px; }
+.card { background: var(--card); border-radius: 18px; padding: 16px 18px; min-width: 0; }
+.lab { font-size: 12px; font-weight: 800; color: var(--sub); text-transform: uppercase; letter-spacing: .06em; }
+.kpi { grid-column: span 3; min-height: 118px; display: flex; flex-direction: column; justify-content: space-between; gap: 6px; }
+.kpi.hero { background: var(--hero); }
+.big { font-size: 40px; font-weight: 900; letter-spacing: -.02em; line-height: 1.05; }
+.big small { font-size: 15px; color: var(--sub); font-weight: 700; letter-spacing: 0; }
+.chartc { grid-column: span 8; }
+.coming { grid-column: span 4; grid-row: span 2; }
+.muscles { grid-column: span 3; }
+.recent { grid-column: span 5; }
+.head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-weight: 800; font-size: 13px; color: var(--sub); }
+.legend b { color: var(--text); }
+.chips { display: flex; gap: 4px; }
+.chips button { background: none; border: 0; padding: 4px 9px; border-radius: 8px; color: var(--sub); font: 800 13px "Nunito", ui-rounded, system-ui, sans-serif; cursor: pointer; }
+.chips button[aria-pressed="true"] { background: var(--card2); color: var(--text); }
+.chartbox { position: relative; margin-top: 8px; }
+svg.chart { width: 100%; height: auto; display: block; }
+.tip { position: absolute; top: 4px; pointer-events: none; background: var(--card2); border-radius: 10px; padding: 7px 10px; font-size: 12px; white-space: nowrap; transform: translateX(-50%); }
+.tip b { display: block; font-size: 14px; font-weight: 900; }
+.row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 9px 0; border-top: 1px solid var(--line); }
+.row:first-child { border-top: 0; }
+.days { display: flex; gap: 14px; align-items: center; height: 24px; }
+.mk { display: inline-block; flex: none; width: 14px; height: 14px; border-radius: 50%; }
+.mk.l { background: var(--green); }
+.mk.c { border: 2.5px solid var(--green); }
+.mk.b { width: 10px; height: 10px; margin: 2px; background: var(--green); box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--green); }
+.mk.n { width: 5px; height: 5px; margin: 4.5px; background: var(--card2); }
+.mk.t { box-shadow: 0 0 0 2px var(--card), 0 0 0 3.5px var(--muted); }
+.bar { height: 8px; border-radius: 4px; background: var(--card2); flex: 1; position: relative; overflow: hidden; }
+.bar i { position: absolute; inset: 0 auto 0 0; background: var(--green); border-radius: 4px; }
+.mname { width: 84px; text-transform: capitalize; }
+.rec .when { width: 58px; color: var(--sub); }
+.rec b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rec .what { width: 190px; color: var(--sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rec .mins { width: 56px; text-align: right; color: var(--sub); }
+.cday b { display: block; }
+.cday small { color: var(--muted); font-size: 12px; font-weight: 800; }
+.coming select { font: 800 14px "Nunito", ui-rounded, system-ui, sans-serif; color: var(--text); background: var(--card2); border: 0; border-radius: 9px; padding: 7px 10px; max-width: 200px; cursor: pointer; }
+.coming select.own { box-shadow: inset 0 0 0 2px var(--green); }
+.coming .done { color: var(--green); font-weight: 800; }
+.status { font-size: 13px; color: var(--sub); margin-top: 10px; min-height: 18px; }
+.status.ok { color: var(--green); font-weight: 800; }
+
+/* History tab */
+.hist { max-width: 860px; margin: 0 auto; padding: 18px 28px 64px; }
+.month { font-size: 15px; font-weight: 800; color: var(--sub); margin: 22px 0 8px; }
 .month:first-child { margin-top: 0; }
 details { border-top: 1px solid var(--line); }
 details:first-of-type { border-top: 0; }
@@ -46,33 +88,16 @@ summary::-webkit-details-marker { display: none; }
 .day { text-align: center; line-height: 1.1; }
 .day b { display: block; font-size: 20px; font-weight: 900; }
 .day small { font-size: 12px; color: var(--muted); font-weight: 800; }
-.title { font-weight: 800; font-size: 17px; }
+.title { font-weight: 800; font-size: 16px; }
 .line { color: var(--sub); font-size: 14px; }
-.line .up { color: var(--green); font-weight: 800; }
-.mins { color: var(--muted); font-size: 14px; font-weight: 700; white-space: nowrap; }
+.mins2 { color: var(--muted); font-size: 14px; font-weight: 700; white-space: nowrap; }
 .sets { padding: 0 0 14px 66px; display: grid; gap: 10px; }
-.lift b { font-weight: 800; }
 .lift div { color: var(--sub); font-size: 14px; font-variant-numeric: tabular-nums; }
 .lift .best { color: var(--green); font-weight: 800; }
-table { width: 100%; border-collapse: collapse; }
-td { padding: 9px 0; border-top: 1px solid var(--line); font-variant-numeric: tabular-nums; }
-tr:first-child td { border-top: 0; }
-td:last-child { text-align: right; color: var(--sub); font-size: 14px; }
-td .big { font-weight: 800; color: var(--text); font-size: 16px; }
-.bw { display: flex; align-items: baseline; gap: 8px; }
-.bw b { font-size: 34px; font-weight: 900; }
-svg.chart { width: 100%; height: auto; display: block; margin-top: 8px; }
-.plan li { list-style: none; padding: 9px 0; border-top: 1px solid var(--line); display: flex; justify-content: space-between; gap: 10px; }
-.plan li:first-child { border-top: 0; }
-.plan li span { color: var(--sub); font-size: 14px; text-align: right; }
-.coming li { list-style: none; display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
-.coming li:first-child { border-top: 0; }
-.coming small { display: block; color: var(--muted); font-size: 12px; font-weight: 800; }
-.coming select { font: 700 15px "Nunito", ui-rounded, system-ui, sans-serif; color: var(--text); background: var(--card2); border: 0; border-radius: 10px; padding: 7px 10px; max-width: 210px; }
-.coming select.own { box-shadow: inset 0 0 0 2px var(--green); }
-.coming .done { color: var(--green); font-weight: 800; font-size: 15px; }
-.status { font-size: 14px; color: var(--sub); margin-top: 8px; min-height: 20px; }
-.status.ok { color: var(--green); font-weight: 800; }
+
+/* Signed out */
+main.gatewrap { max-width: 1120px; margin: 0 auto; padding: 0 28px 64px; }
+h1 { font-size: 40px; font-weight: 900; line-height: 1.05; letter-spacing: -0.02em; }
 .gate { max-width: 520px; padding: 70px 0 20px; }
 .gate p { font-size: 18px; margin-top: 12px; }
 .gate .fine { font-size: 14px; color: var(--muted); margin-top: 22px; }
@@ -82,18 +107,25 @@ svg.chart { width: 100%; height: auto; display: block; margin-top: 8px; }
 .qrwrap.got { opacity: 0.25; transition: opacity .3s; }
 .linkish { background: none; border: 0; color: var(--sub); font: inherit; font-size: 15px; text-decoration: underline; cursor: pointer; margin-top: 18px; padding: 0; }
 .demo { display: inline-block; margin-top: 14px; color: var(--sub); font-size: 15px; }
-.note { background: var(--card); border-radius: 14px; padding: 10px 14px; color: var(--sub); font-size: 14px; margin-top: 18px; display: inline-block; }
-[hidden] { display: none !important; }
-@media (max-width: 860px) { .cols { grid-template-columns: 1fr; } h1 { font-size: 32px; } .sets { padding-left: 0; } }
+.note { grid-column: 1 / -1; background: var(--card); border-radius: 14px; padding: 10px 14px; color: var(--sub); font-size: 14px; }
+.note a { color: inherit; }
+
+@media (max-width: 1180px) { .kpi { grid-column: span 6; } .chartc, .coming, .muscles, .recent { grid-column: span 12; grid-row: auto; } }
+@media (max-width: 700px) { .top { padding: 0 16px; flex-wrap: wrap; gap: 8px; padding-bottom: 8px; } .tabs { margin-left: 0; } .who { margin-left: 0; width: 100%; }
+  .dash { padding: 14px 16px 40px; gap: 10px; } .kpi { grid-column: span 12; } .hist { padding: 14px 16px 48px; } .sets { padding-left: 0; } .rec .what { display: none; } h1 { font-size: 32px; } }
 </style>
 </head>
 <body>
-<main>
-  <header>
-    <a class="mark" href="/"><svg viewBox="0 0 644 380" aria-hidden="true"><g fill="#007d03"><rect x="0" y="158" width="118" height="64" rx="22"/><rect x="526" y="158" width="118" height="64" rx="22"/><rect x="44" y="30.4" width="58" height="319.2" rx="21"/><rect x="542" y="30.4" width="58" height="319.2" rx="21"/></g><g fill="#00c805"><rect x="158" y="158" width="328" height="64"/><rect x="112" y="0" width="92" height="380" rx="33"/><rect x="440" y="0" width="92" height="380" rx="33"/></g></svg> hebomb</a>
-    <div class="who" id="who" hidden></div>
-  </header>
+<header class="top">
+  <a class="mark" href="/"><svg viewBox="0 0 644 380" aria-hidden="true"><g fill="#007d03"><rect x="0" y="158" width="118" height="64" rx="22"/><rect x="526" y="158" width="118" height="64" rx="22"/><rect x="44" y="30.4" width="58" height="319.2" rx="21"/><rect x="542" y="30.4" width="58" height="319.2" rx="21"/></g><g fill="#00c805"><rect x="158" y="158" width="328" height="64"/><rect x="112" y="0" width="92" height="380" rx="33"/><rect x="440" y="0" width="92" height="380" rx="33"/></g></svg> hebomb</a>
+  <nav class="tabs" id="tabs" role="tablist" hidden>
+    <button role="tab" aria-selected="true" data-tab="overview">Overview</button>
+    <button role="tab" aria-selected="false" data-tab="history">History</button>
+  </nav>
+  <div class="who" id="who" hidden></div>
+</header>
 
+<main class="gatewrap" id="gatewrap">
   <!-- Signed out: a QR the iPhone's camera reads (WebLink.swift in the app) -->
   <section class="gate" id="gate" hidden>
     <h1 id="gateTitle">Your training, on a big screen</h1>
@@ -113,95 +145,299 @@ svg.chart { width: 100%; height: auto; display: block; margin-top: 8px; }
     <a class="demo" href="?demo">See it with Ryan's sample week</a>
   </section>
 
-  <!-- Signed in -->
-  <section id="app" hidden>
-    <div class="hello">
-      <h1 id="hi">Your hebomb</h1>
-      <p class="sub" id="tally"></p>
-      <div class="week" id="week" role="img"></div>
-      <div class="note" id="demoNote" hidden>Sample data: Ryan's twelve weeks. <a href="./" style="color:inherit">Sign in</a> to see your own.</div>
-    </div>
-    <div class="cols">
-      <div>
-        <h2>History</h2>
-        <div class="card" id="history"></div>
-      </div>
-      <div class="side">
-        <div id="comingWrap" hidden><h2>Coming up</h2><div class="card"><ul class="coming" id="coming"></ul><p class="status" id="editStatus"></p></div></div>
-        <div><h2>Bodyweight</h2><div class="card" id="bw"></div></div>
-        <div><h2>Best lifts</h2><div class="card"><table id="bests"></table></div></div>
-        <div><h2>Your plan</h2><div class="card"><ul class="plan" id="plan"></ul></div></div>
-      </div>
-    </div>
-  </section>
 </main>
 
+<!-- Signed in: the overview (Josh's pick, 2026-11-15, mock A) -->
+<section id="app" hidden>
+  <div class="dash" id="overview">
+    <div class="note" id="demoNote" hidden>Sample data: Ryan's twelve weeks. Changes are off here. <a href="./">Open your own</a>.</div>
+    <div class="card kpi"><div class="lab">Strength score</div><div><span class="big num" id="kScore">–</span> <span class="up" id="kScoreUp"></span></div><div class="sub" id="kScoreSub"></div></div>
+    <div class="card kpi"><div class="lab">Last 7 days</div><div class="days" id="kWeek" role="img"></div><div class="sub" id="kWeekSub"></div></div>
+    <div class="card kpi"><div class="lab">Bodyweight</div><div class="big num" id="kBw">–</div><div class="sub" id="kBwSub"></div></div>
+    <div class="card kpi hero"><div class="lab" id="kNextLab">Next up</div><div class="big" id="kNext" style="font-size:30px">–</div><div class="sub" id="kNextSub"></div></div>
+    <div class="card chartc"><div class="head"><div class="lab">Strength score over time</div><div class="legend" id="legend"></div><div class="chips" id="range"><button data-d="90" aria-pressed="true">3M</button><button data-d="182" aria-pressed="false">6M</button><button data-d="365" aria-pressed="false">1Y</button></div></div>
+      <div class="chartbox" id="chartbox"><svg class="chart" id="chart" role="img"></svg><div class="tip" id="tip" hidden></div></div></div>
+    <div class="card coming"><div class="head"><div class="lab">Coming up</div><span class="sub" style="font-size:13px" id="comingNote">Changes go to your iPhone</span></div><div id="coming" style="margin-top:6px"></div><p class="status" id="editStatus"></p></div>
+    <div class="card muscles"><div class="lab">Days rested</div><div id="muscles" style="margin-top:8px"></div></div>
+    <div class="card recent"><div class="lab">Recent</div><div class="rec" id="recent" style="margin-top:4px"></div></div>
+  </div>
+  <div class="hist" id="history" hidden></div>
+</section>
+
 <script>
-// hebomb.com/me: a read-only view of what the phone copies to the person's own private iCloud (CloudMirror.swift in the
-// app). Zone "mirror", record type "Item": kind "session" (one workout) or "profile" (everything else), JSON in `json`.
+// hebomb.com/me: the person's hebomb on a big screen (WebLink.swift in the app sends a sealed copy only this computer opens).
 // Opened with the phone's code it can also change the coming week (build 300). ?demo reads sample.json (Ryan) instead.
-var TOKEN = '80fcb72906279f565c57b61945e9e156465ab2373467b2f09b524a82749e68c2';   // CloudKit Console > API Tokens (public by design; it only lets a signed-in person reach their own data)
+var TOKEN = '80fcb72906279f565c57b61945e9e156465ab2373467b2f09b524a82749e68c2';   // CloudKit Console > API Tokens (public by design)
 
 var $ = function (id) { return document.getElementById(id); };
 function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+var NS = 'http://www.w3.org/2000/svg';
+function sv(tag, attrs) { var e = document.createElementNS(NS, tag); for (var k in attrs) e.setAttribute(k, attrs[k]); return e; }
 var STRENGTH = ['Strength', 'Lifting', 'Strength training', 'Traditional strength training', 'Functional strength training'];
 function isLift(s) { return s.dayId !== 'sport' || STRENGTH.indexOf(s.title) >= 0; }
 function d(s) { return new Date(s + 'T12:00:00'); }
 function ymd(t) { return t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0'); }
 function num(w) { return (Math.round(w * 10) / 10).toString(); }
+function short(s) { return d(s).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); }
 function working(ex) { return (ex.sets || []).filter(function (s) { return s.logged !== false && !s.isWarmup && !s.skipped && (s.reps > 0 || s.weight > 0); }); }
 function topSet(ex) {
   var w = working(ex); if (!w.length) return null;
   return w.reduce(function (a, b) { return b.weight > a.weight || (b.weight === a.weight && b.reps > a.reps) ? b : a; });
 }
-function setText(ex, s, unit) {
+function e1rm(w, r) { return w * (1 + Math.min(r, 12) / 30); }   // Store.e1rm
+function setText(ex, s) {
   if (ex.kind === 'finisher') return Math.round(s.reps) + (ex.name.toLowerCase().indexOf('plank') >= 0 ? 's' : '');
   if (ex.kind === 'bodyweight' || !s.weight) return '× ' + Math.round(s.reps);
   return num(s.weight) + ' × ' + Math.round(s.reps);
 }
 
+var M = null;   // what the copy holds: {profile, sessions, week, stats, edits, auth, demo}
 var weekInfo = null, editLog = [], authToken = null;
-function show(rows) {
-  var profile = {}, sessions = []; weekInfo = null; editLog = [];
-  rows.forEach(function (r) {
-    try { var j = JSON.parse(r.json); if (r.kind === 'profile') profile = j; else if (r.kind === 'session') sessions.push(j);
-      else if (r.kind === 'week') weekInfo = j; else if (r.kind === 'edits') editLog = j; } catch (e) {}
-    if (r.kind === 'auth') authToken = r.json;
-  });
-  sessions.sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : 0; });
-  var unit = profile.unit === 'kg' ? 'kg' : 'lbs';
-  $('gate').hidden = true; $('soon').hidden = true; $('app').hidden = false;
-  if (profile.name) $('hi').textContent = profile.name.split(' ')[0] + "'s hebomb";
-  var lifts = sessions.filter(isLift).length;
-  $('tally').textContent = lifts + ' lift' + (lifts === 1 ? '' : 's') + ', ' + (sessions.length - lifts) + ' activit' + (sessions.length - lifts === 1 ? 'y' : 'ies') +
-    (sessions.length ? ' since ' + d(sessions[sessions.length - 1].date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '');
 
-  // The last 7 days, the way Today marks them.
-  var byDay = {};
-  sessions.forEach(function (s) { var k = byDay[s.date] || { l: false, c: false }; if (isLift(s)) k.l = true; else k.c = true; byDay[s.date] = k; });
-  var week = $('week'), said = [];
+function read(rows) {
+  var m = { profile: {}, sessions: [], week: null, stats: null, edits: [] };
+  rows.forEach(function (r) {
+    if (r.kind === 'auth') { m.auth = r.json; return; }
+    try {
+      var j = JSON.parse(r.json);
+      if (r.kind === 'profile') m.profile = j; else if (r.kind === 'session') m.sessions.push(j);
+      else if (r.kind === 'week') m.week = j; else if (r.kind === 'edits') m.edits = j; else if (r.kind === 'stats') m.stats = j;
+    } catch (e) {}
+  });
+  m.sessions.sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : 0; });
+  m.unit = m.profile.unit === 'kg' ? 'kg' : 'lbs';
+  if (!m.stats) m.stats = guessStats(m);   // an older phone, or the sample
+  return m;
+}
+
+// Without the phone's numbers: the same rules worked out here (best single set per workout, Store.e1rm).
+function guessStats(m) {
+  var byKey = {};
+  m.sessions.slice().reverse().forEach(function (s) {
+    (s.exercises || []).forEach(function (ex) {
+      if (ex.kind !== 'lift') return;
+      var best = 0, bw = 0, br = 0;
+      working(ex).forEach(function (st) { var v = e1rm(st.weight || 0, st.reps || 0); if (v > best) { best = v; bw = st.weight; br = st.reps; } });
+      if (!best) return;
+      var k = ex.name.trim().toLowerCase(), L = byKey[k] || (byKey[k] = { name: ex.name, key: k, pts: [] });
+      var last = L.pts[L.pts.length - 1];
+      if (last && last[0] === s.date) { if (best > last[1]) L.pts[L.pts.length - 1] = [s.date, Math.round(best), bw, br]; }
+      else L.pts.push([s.date, Math.round(best), bw, br]);
+    });
+  });
+  var names = {}; m.sessions.forEach(function (s) { (s.exercises || []).forEach(function (e) { names[e.id] = e.name.trim().toLowerCase(); }); });
+  var keys = (m.profile.keyLifts || []).map(function (id) { return names[id] || String(id).trim().toLowerCase(); }).filter(function (k) { return byKey[k]; });
+  var lifts = Object.keys(byKey).map(function (k) { var L = byKey[k]; L.est = L.pts[L.pts.length - 1][1]; L.score = keys.indexOf(k) >= 0; return L; });
+  var dates = {}; keys.forEach(function (k) { byKey[k].pts.forEach(function (p) { dates[p[0]] = 1; }); });
+  var series = Object.keys(dates).sort().map(function (day) {
+    return [day, keys.reduce(function (sum, k) { var ps = byKey[k].pts.filter(function (p) { return p[0] <= day; }); return sum + (ps.length ? ps[ps.length - 1][1] : byKey[k].pts[0][1]); }, 0)];
+  });
+  var total = series.length ? series[series.length - 1][1] : 0, first = series.length ? series[0] : null;
+  var delta = first ? total - first[1] : 0;
+  var rest = {}, today = d(ymd(new Date()));
+  m.sessions.forEach(function (s) {
+    var g = { upper: ['chest', 'back', 'shoulders', 'arms'], lower: ['legs', 'core'], full: ['chest', 'back', 'legs', 'shoulders'], chestback: ['chest', 'back'], arms: ['arms', 'shoulders'], olympic: ['legs', 'back', 'power'], mine: ['chest', 'shoulders', 'arms'] }[s.dayId] || [];
+    var ago = Math.round((today - d(s.date)) / 864e5);
+    g.forEach(function (x) { if (rest[x] == null || ago < rest[x]) rest[x] = ago; });
+  });
+  return { total: total, amount: delta ? (delta > 0 ? '+' : '−') + Math.abs(Math.round(delta)) : '', percent: first && first[1] ? Math.round(Math.abs(delta) / first[1] * 100) : 0,
+    when: first ? 'since ' + short(first[0]) : '', series: series, lifts: lifts, rest: rest, unit: m.unit };
+}
+
+function show(rows, demo) {
+  M = read(rows); M.demo = !!demo;
+  weekInfo = M.week; editLog = M.edits || []; if (M.auth) authToken = M.auth;
+  if (demo && !weekInfo) weekInfo = sampleWeek(M);
+  $('gatewrap').hidden = true; $('app').hidden = false; $('tabs').hidden = false;
+  $('demoNote').hidden = !demo;
+  overview(); history();
+}
+
+// MARK: Overview
+function overview() {
+  var st = M.stats, unit = st.unit || M.unit, p = M.profile;
+  // Strength score
+  $('kScore').textContent = st.total ? Math.round(st.total) : '–';
+  $('kScoreUp').textContent = st.amount ? st.amount + (st.percent ? ' (' + (st.amount[0] === '+' ? '+' : '−') + st.percent + '%)' : '') : '';
+  $('kScoreUp').className = st.amount && st.amount[0] === '+' ? 'up' : 'sub';
+  var inScore = (st.lifts || []).filter(function (l) { return l.score; }).map(function (l) { return l.name.toLowerCase(); });
+  $('kScoreSub').textContent = [st.when, inScore.join(' + ')].filter(Boolean).join(' · ') || 'Lift to start your score';
+
+  // Last 7 days, the way Today marks them
+  var byDay = {}, mins = 0, nl = 0, nc = 0, wk = $('kWeek'), said = [];
+  wk.innerHTML = '';
+  var start = new Date(); start.setDate(start.getDate() - 6); var from = ymd(start);
+  M.sessions.forEach(function (s) {
+    if (s.date < from) return;
+    var k = byDay[s.date] || (byDay[s.date] = { l: false, c: false });
+    if (isLift(s)) { k.l = true; nl++; } else { k.c = true; nc++; }
+    mins += (s.duration || 0) / 60;
+  });
   for (var i = 6; i >= 0; i--) {
     var t = new Date(); t.setDate(t.getDate() - i); var k = byDay[ymd(t)];
-    var col = el('div'), s = el('span', i === 0 ? 'today' : '', t.toLocaleDateString('en-US', { weekday: 'narrow' }));
     var kind = !k ? 'n' : k.l && k.c ? 'b' : k.l ? 'l' : 'c';
-    col.appendChild(s); col.appendChild(el('i', 'dot ' + kind)); week.appendChild(col);
-    said.push(t.toLocaleDateString('en-US', { weekday: 'long' }) + ': ' + { n: 'rest', l: 'lifted', c: 'activity', b: 'lifted and activity' }[kind]);
+    var dot = el('span', 'mk ' + kind); dot.title = t.toLocaleDateString('en-US', { weekday: 'long' });
+    wk.appendChild(dot);
+    said.push(dot.title + ': ' + { n: 'rest', l: 'lifted', c: 'cardio', b: 'lifted and cardio' }[kind]);
   }
-  week.setAttribute('aria-label', said.join(', '));
+  wk.setAttribute('aria-label', said.join(', '));
+  var h = Math.floor(mins / 60), mm = Math.round(mins % 60);
+  $('kWeekSub').textContent = nl + ' lift' + (nl === 1 ? '' : 's') + ' · ' + nc + ' cardio' + (mins ? ' · ' + (h ? h + ' h ' : '') + mm + ' min' : '');
 
-  // History by month, newest first; a workout opens to its sets. Green = the heaviest it had been until then.
+  // Bodyweight
+  var bw = (p.bodyweight || []).slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+  if (bw.length) {
+    var last = bw[bw.length - 1], ago = new Date(); ago.setDate(ago.getDate() - 30);
+    var then = bw.filter(function (r) { return d(r.date) <= ago; }).pop();
+    $('kBw').innerHTML = ''; $('kBw').appendChild(document.createTextNode(num(last.w) + ' ')); $('kBw').appendChild(el('small', '', unit));
+    var inGoal = p.goalLow && p.goalHigh && last.w >= p.goalLow && last.w <= p.goalHigh;
+    var bits = [];
+    if (p.goalLow && p.goalHigh) bits.push((inGoal ? 'in goal ' : 'goal ') + num(p.goalLow) + ' – ' + num(p.goalHigh));
+    if (then) { var ch = last.w - then.w; bits.push((ch > 0 ? '+' : ch < 0 ? '−' : '±') + num(Math.abs(ch)) + ' in 30 days'); }
+    $('kBwSub').textContent = bits.join(' · ');
+  } else { $('kBw').textContent = '–'; $('kBwSub').textContent = 'No weigh-ins yet'; }
+
+  // Next up: the first lifting day ahead in the plan
+  var next = null;
+  (weekInfo && weekInfo.days || []).some(function (day, i) { if (!day.done && isLiftPlan(day.v)) { next = { day: day, i: i }; return true; } return false; });
+  if (next) {
+    var o = (weekInfo.options || []).filter(function (x) { return x.id === next.day.v; })[0];
+    $('kNextLab').textContent = 'Next up · ' + dayLabel(next.day.d, next.i).toLowerCase();
+    $('kNext').textContent = next.day.t;
+    var rested = o && o.g ? o.g.filter(function (g) { return g !== 'core' && g !== 'power'; }).map(function (g) { return st.rest && st.rest[g] != null ? st.rest[g] + next.i : null; }).filter(function (x) { return x != null; }) : [];
+    $('kNextSub').textContent = [o && o.n ? o.n + ' lifts' : '', o && o.g ? o.g.filter(function (g) { return g !== 'power'; }).join(', ') : ''].filter(Boolean).join(' · ') +
+      (rested.length ? ' · rested ' + Math.min.apply(null, rested) + '+ days' : '');
+  } else { $('kNextLab').textContent = 'Next up'; $('kNext').textContent = 'hebomb picks'; $('kNextSub').textContent = 'Open the app to see today’s pick'; }
+
+  chart(); coming(); muscles(); recent();
+}
+
+function isLiftPlan(v) { return v && v !== 'rest' && v !== 'cardio' && v !== 'mobility' && v.indexOf('sport:') !== 0; }
+
+// Strength score over time, with each score lift's estimate in the legend.
+var rangeDays = 90;
+$('range').addEventListener('click', function (e) {
+  var b = e.target.closest('button'); if (!b) return;
+  rangeDays = +b.dataset.d;
+  [].forEach.call($('range').children, function (x) { x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
+  chart();
+});
+function chart() {
+  var st = M.stats, svg = $('chart'), unit = st.unit || M.unit;
+  svg.innerHTML = '';
+  var lg = $('legend'); lg.innerHTML = '';
+  (st.lifts || []).filter(function (l) { return l.score; }).forEach(function (l) {
+    var s = el('span'); s.appendChild(document.createTextNode(l.name + ' ')); s.appendChild(el('b', 'num', String(Math.round(l.est)))); lg.appendChild(s);
+  });
+  var W = 900, H = 270, L = 8, R = 44, T = 14, B = 26;
+  svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+  var cut = new Date(); cut.setDate(cut.getDate() - rangeDays); cut = ymd(cut);
+  var all = st.series || [], pts = all.filter(function (p) { return p[0] >= cut; });
+  var before = all.filter(function (p) { return p[0] < cut; }).pop();
+  if (before) pts.unshift([cut, before[1]]);
+  if (pts.length < 2) { var t = sv('text', { x: W / 2, y: H / 2, fill: 'var(--muted)', 'font-size': 15, 'font-weight': 800, 'text-anchor': 'middle' }); t.textContent = pts.length ? 'More workouts and this fills in' : 'No strength score yet'; svg.appendChild(t); svg.setAttribute('aria-label', t.textContent); return; }
+  var t0 = d(cut).getTime(), t1 = d(ymd(new Date())).getTime();
+  var lo = Math.min.apply(null, pts.map(function (p) { return p[1]; })), hi = Math.max.apply(null, pts.map(function (p) { return p[1]; }));
+  var pad = Math.max(10, (hi - lo) * 0.15); lo = Math.floor((lo - pad) / 10) * 10; hi = Math.ceil((hi + pad) / 10) * 10;
+  var X = function (s) { return L + (d(s).getTime() - t0) / Math.max(1, t1 - t0) * (W - L - R); };
+  var Y = function (v) { return T + (hi - v) / (hi - lo) * (H - T - B); };
+  for (var i = 0; i <= 4; i++) {
+    var v = lo + (hi - lo) * i / 4, y = Y(v);
+    svg.appendChild(sv('line', { x1: L, x2: W - R, y1: y, y2: y, stroke: 'var(--grid)' }));
+    var tx = sv('text', { x: W - 4, y: y + 4, fill: 'var(--muted)', 'font-size': 11, 'font-weight': 700, 'text-anchor': 'end' }); tx.textContent = Math.round(v); svg.appendChild(tx);
+  }
+  var steps = rangeDays > 200 ? 6 : 5;
+  for (var j = 0; j <= steps; j++) {
+    var td = new Date(t0 + (t1 - t0) * j / steps), lx = sv('text', { x: L + (W - L - R) * j / steps, y: H - 6, fill: 'var(--muted)', 'font-size': 11, 'font-weight': 800, 'text-anchor': j === 0 ? 'start' : j === steps ? 'end' : 'middle' });
+    lx.textContent = td.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); svg.appendChild(lx);
+  }
+  // Steps, not slopes: the score holds until the next workout moves it.
+  var path = [], last = null;
+  pts.forEach(function (p) { var x = X(p[0]).toFixed(1), y = Y(p[1]).toFixed(1); if (last) path.push(x + ',' + last); path.push(x + ',' + y); last = y; });
+  path.push((W - R).toFixed(1) + ',' + last);
+  svg.appendChild(sv('polygon', { points: X(pts[0][0]).toFixed(1) + ',' + (H - B) + ' ' + path.join(' ') + ' ' + (W - R) + ',' + (H - B), fill: 'var(--gdim)' }));
+  svg.appendChild(sv('polyline', { points: path.join(' '), fill: 'none', stroke: 'var(--green)', 'stroke-width': 3, 'stroke-linejoin': 'round' }));
+  var end = pts[pts.length - 1];
+  svg.appendChild(sv('circle', { cx: X(end[0]), cy: Y(end[1]), r: 5, fill: 'var(--green)' }));
+  svg.setAttribute('aria-label', 'Strength score from ' + Math.round(pts[0][1]) + ' to ' + Math.round(end[1]) + ' over ' + (rangeDays > 200 ? 'a year' : Math.round(rangeDays / 30) + ' months'));
+  // Hover: the workout nearest the pointer
+  var guide = sv('line', { y1: T, y2: H - B, stroke: 'var(--sub)', 'stroke-opacity': .4, visibility: 'hidden' }); svg.appendChild(guide);
+  var real = pts.filter(function (p) { return p[0] >= cut && all.some(function (a) { return a[0] === p[0]; }); });
+  svg.onmousemove = function (e) {
+    var r = svg.getBoundingClientRect(), x = (e.clientX - r.left) / r.width * W;
+    var best = real.reduce(function (a, p) { return !a || Math.abs(X(p[0]) - x) < Math.abs(X(a[0]) - x) ? p : a; }, null);
+    if (!best) return;
+    guide.setAttribute('x1', X(best[0])); guide.setAttribute('x2', X(best[0])); guide.setAttribute('visibility', 'visible');
+    var tip = $('tip'); tip.hidden = false; tip.innerHTML = '';
+    tip.appendChild(el('b', 'num', Math.round(best[1]) + ' ' + unit)); tip.appendChild(document.createTextNode(d(best[0]).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })));
+    tip.style.left = Math.min(Math.max(X(best[0]) / W * r.width, 60), r.width - 60) + 'px';
+  };
+  svg.onmouseleave = function () { guide.setAttribute('visibility', 'hidden'); $('tip').hidden = true; };
+}
+
+var MUSCLES = ['chest', 'back', 'shoulders', 'arms', 'legs', 'core'];
+function muscles() {
+  var box = $('muscles'), rest = M.stats.rest || {}; box.innerHTML = '';
+  MUSCLES.forEach(function (g) {
+    var n = rest[g], row = el('div', 'row'), bar = el('div', 'bar'), fill = el('i');
+    fill.style.width = (n == null ? 100 : Math.min(100, n / 4 * 100)) + '%';
+    if (n != null && n < 2) fill.style.opacity = '.45';
+    bar.appendChild(fill);
+    row.appendChild(el('span', 'mname', g)); row.appendChild(bar);
+    row.appendChild(el('span', 'num sub', n == null ? '–' : n === 0 ? 'today' : n + ' d'));
+    row.setAttribute('aria-label', g + ': ' + (n == null ? 'not worked yet' : n === 0 ? 'worked today' : n + ' days rested'));
+    box.appendChild(row);
+  });
+}
+
+function recent() {
+  var box = $('recent'); box.innerHTML = '';
+  var ups = upsBySession();
+  M.sessions.slice(0, 6).forEach(function (s) {
+    var row = el('div', 'row');
+    row.appendChild(el('span', 'when num', d(s.date).toLocaleDateString('en-US', { weekday: 'short' }) + ' ' + d(s.date).getDate()));
+    row.appendChild(el('span', 'mk ' + (isLift(s) ? 'l' : 'c')));
+    row.appendChild(el('b', '', s.title));
+    var u = ups[s.id], exs = (s.exercises || []).filter(function (e) { return working(e).length; });
+    var what = u ? el('span', 'what up', u) : el('span', 'what', !isLift(s) ? 'Cardio' : exs.length + ' lift' + (exs.length === 1 ? '' : 's'));
+    row.appendChild(what);
+    row.appendChild(el('span', 'mins num', s.duration ? Math.round(s.duration / 60) + ' min' : ''));
+    box.appendChild(row);
+  });
+  if (!M.sessions.length) box.appendChild(el('p', 'sub', 'No workouts yet.'));
+}
+// "Bench press +5" on a workout where a lift went heavier than ever before.
+function upsBySession() {
+  var best = {}, out = {};
+  M.sessions.slice().reverse().forEach(function (s) {
+    var said = [];
+    (s.exercises || []).forEach(function (ex) {
+      if (ex.kind !== 'lift') return; var t = topSet(ex); if (!t || !t.weight) return;
+      var k = ex.name.trim().toLowerCase();
+      if (best[k] != null && t.weight > best[k]) said.push(ex.name + ' +' + num(t.weight - best[k]));
+      if (best[k] == null || t.weight > best[k]) best[k] = t.weight;
+    });
+    if (said.length) out[s.id] = said[0] + (said.length > 1 ? ' · ' + (said.length - 1) + ' more' : '');
+  });
+  return out;
+}
+
+// MARK: History tab
+function history() {
+  var hist = $('history'); hist.innerHTML = '';
+  var card = el('div', 'card'); hist.appendChild(card);
   var best = {}, upOn = {};
-  sessions.slice().reverse().forEach(function (s) {
+  M.sessions.slice().reverse().forEach(function (s) {
     (s.exercises || []).forEach(function (ex) {
       if (ex.kind !== 'lift') return; var t = topSet(ex); if (!t || !t.weight) return;
       if (best[ex.id] != null && t.weight > best[ex.id]) upOn[s.id + '|' + ex.id] = t.weight - best[ex.id];
       if (best[ex.id] == null || t.weight > best[ex.id]) best[ex.id] = t.weight;
     });
   });
-  var hist = $('history'), month = '';
-  sessions.slice(0, 200).forEach(function (s) {
+  var month = '';
+  M.sessions.slice(0, 300).forEach(function (s) {
     var m = d(s.date).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-    if (m !== month) { month = m; hist.appendChild(el('div', 'month', m)); }
+    if (m !== month) { month = m; card.appendChild(el('div', 'month', m)); }
     var det = el('details'), sum = el('summary'), day = el('div', 'day');
     day.appendChild(el('small', '', d(s.date).toLocaleDateString('en-US', { weekday: 'short' })));
     day.appendChild(el('b', '', String(d(s.date).getDate())));
@@ -209,113 +445,72 @@ function show(rows) {
     var exs = (s.exercises || []).filter(function (e) { return working(e).length; });
     var ups = exs.filter(function (e) { return upOn[s.id + '|' + e.id]; });
     var line = el('div', 'line');
-    if (ups.length) { var u = el('span', 'up', ups[0].name + ' +' + num(upOn[s.id + '|' + ups[0].id])); line.appendChild(u); line.appendChild(document.createTextNode(ups.length > 1 ? ' · ' + (ups.length - 1) + ' more up' : '')); }
-    else line.textContent = !isLift(s) ? 'Activity' : exs.length ? exs.length + ' lift' + (exs.length === 1 ? '' : 's') : '';
+    if (ups.length) { line.appendChild(el('span', 'up', ups[0].name + ' +' + num(upOn[s.id + '|' + ups[0].id]))); line.appendChild(document.createTextNode(ups.length > 1 ? ' · ' + (ups.length - 1) + ' more up' : '')); }
+    else line.textContent = !isLift(s) ? 'Cardio' : exs.length ? exs.length + ' lift' + (exs.length === 1 ? '' : 's') : '';
     mid.appendChild(line);
-    sum.appendChild(day); sum.appendChild(mid); sum.appendChild(el('div', 'mins', s.duration ? Math.round(s.duration / 60) + ' min' : ''));
+    sum.appendChild(day); sum.appendChild(mid); sum.appendChild(el('div', 'mins2', s.duration ? Math.round(s.duration / 60) + ' min' : ''));
     det.appendChild(sum);
     if (exs.length && isLift(s)) {
       var sets = el('div', 'sets');
       exs.forEach(function (ex) {
         var box = el('div', 'lift'); box.appendChild(el('b', '', ex.name));
         var row = el('div'), t = topSet(ex), up = upOn[s.id + '|' + ex.id];
-        working(ex).forEach(function (st, n) {
-          var span = el('span', up && st === t ? 'best' : '', setText(ex, st, unit));
-          if (n) row.appendChild(document.createTextNode('   '));
-          row.appendChild(span);
-        });
+        working(ex).forEach(function (st, n) { if (n) row.appendChild(document.createTextNode('   ')); row.appendChild(el('span', up && st === t ? 'best' : '', setText(ex, st))); });
         box.appendChild(row); sets.appendChild(box);
       });
       det.appendChild(sets);
     }
-    hist.appendChild(det);
+    card.appendChild(det);
   });
-  if (!sessions.length) hist.appendChild(el('p', 'sub', 'No workouts in your iCloud copy yet.'));
-
-  // Bodyweight: the latest, and the last 90 days against the goal band.
-  var bwRows = (profile.bodyweight || []).slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; });
-  var bw = $('bw');
-  if (bwRows.length) {
-    var last = bwRows[bwRows.length - 1], since = new Date(); since.setDate(since.getDate() - 90);
-    var pts = bwRows.filter(function (r) { return d(r.date) >= since; }); if (pts.length < 2) pts = bwRows.slice(-30);
-    var head = el('div', 'bw'); head.appendChild(el('b', '', num(last.w))); head.appendChild(el('span', 'sub', unit + ' · ' + d(last.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })));
-    bw.appendChild(head);
-    var lo = Math.min.apply(null, pts.map(function (r) { return r.w; }).concat(profile.goalLow || 1e9)) - 2;
-    var hi = Math.max.apply(null, pts.map(function (r) { return r.w; }).concat(profile.goalHigh || -1e9)) + 2;
-    var t0 = d(pts[0].date).getTime(), t1 = d(pts[pts.length - 1].date).getTime() || t0 + 1;
-    var X = function (r) { return 4 + (d(r.date).getTime() - t0) / Math.max(1, t1 - t0) * 352; }, Y = function (w) { return 8 + (hi - w) / (hi - lo) * 124; };
-    var ns = 'http://www.w3.org/2000/svg', svg = document.createElementNS(ns, 'svg');
-    svg.setAttribute('viewBox', '0 0 360 140'); svg.setAttribute('class', 'chart'); svg.setAttribute('role', 'img');
-    svg.setAttribute('aria-label', 'Bodyweight over the last ' + pts.length + ' weigh-ins, latest ' + num(last.w) + ' ' + unit);
-    if (profile.goalLow && profile.goalHigh) {
-      var band = document.createElementNS(ns, 'rect');
-      band.setAttribute('x', 0); band.setAttribute('width', 360); band.setAttribute('y', Y(profile.goalHigh)); band.setAttribute('height', Y(profile.goalLow) - Y(profile.goalHigh));
-      band.setAttribute('fill', 'var(--green)'); band.setAttribute('opacity', '0.12'); svg.appendChild(band);
-    }
-    var path = document.createElementNS(ns, 'polyline');
-    path.setAttribute('points', pts.map(function (r) { return X(r).toFixed(1) + ',' + Y(r.w).toFixed(1); }).join(' '));
-    path.setAttribute('fill', 'none'); path.setAttribute('stroke', 'var(--text)'); path.setAttribute('stroke-width', '2'); path.setAttribute('stroke-linejoin', 'round');
-    svg.appendChild(path); bw.appendChild(svg);
-    if (profile.goalLow && profile.goalHigh) bw.appendChild(el('p', 'line', 'Goal ' + num(profile.goalLow) + ' to ' + num(profile.goalHigh) + ' ' + unit + ' (green band)'));
-  } else bw.appendChild(el('p', 'sub', 'No weigh-ins yet.'));
-
-  // Best lifts: the heaviest working set of each lift, most recent first among the key lifts.
-  var rowsBest = {}, names = {}, idName = {};
-  sessions.forEach(function (s) {
-    (s.exercises || []).forEach(function (ex) {
-      if (ex.kind !== 'lift') return; var t = topSet(ex); if (!t || !t.weight) return;
-      // One row per lift by name: the same lift can carry two ids (an import's and the app's).
-      var k = ex.name.trim().toLowerCase(); names[k] = ex.name; idName[ex.id] = k;
-      if (!rowsBest[k] || t.weight > rowsBest[k].w) rowsBest[k] = { w: t.weight, r: t.reps, date: s.date };
-    });
-  });
-  var keys = (profile.keyLifts || []).map(function (id) { return idName[id]; }).filter(function (k, i, a) { return k && rowsBest[k] && a.indexOf(k) === i; });
-  var rest = Object.keys(rowsBest).filter(function (k) { return keys.indexOf(k) < 0; }).sort(function (a, b) { return rowsBest[b].w - rowsBest[a].w; });
-  keys.concat(rest).slice(0, 10).forEach(function (k) {
-    var tr = el('tr'), a = el('td', '', names[k]), b = el('td');
-    var big = el('span', 'big', num(rowsBest[k].w) + ' ' + unit); b.appendChild(big);
-    b.appendChild(document.createTextNode(' × ' + Math.round(rowsBest[k].r) + ' · ' + d(rowsBest[k].date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })));
-    tr.appendChild(a); tr.appendChild(b); $('bests').appendChild(tr);
-  });
-  if (!keys.concat(rest).length) $('bests').appendChild(el('tr')).appendChild(el('td', 'sub', 'No lifts yet.'));
-
-  showComing();
-
-  // The plan: the workouts hebomb rotates through, with how many lifts each.
-  (profile.workouts || []).forEach(function (w) {
-    var li = el('li'); li.appendChild(el('b', '', w.title || w.name || 'Workout'));
-    var n = (w.lifts || w.exercises || []).length; li.appendChild(el('span', '', n ? n + ' lift' + (n === 1 ? '' : 's') : ''));
-    $('plan').appendChild(li);
-  });
-  if (!(profile.workouts || []).length) $('plan').appendChild(el('li', 'sub', 'hebomb picks as you go.'));
+  if (!M.sessions.length) card.appendChild(el('p', 'sub', 'No workouts yet.'));
 }
 
-// MARK: Changing things from here (WebLink.checkEdits in the app, build 300)
+$('tabs').addEventListener('click', function (e) {
+  var b = e.target.closest('button'); if (!b) return;
+  [].forEach.call($('tabs').children, function (x) { x.setAttribute('aria-selected', x === b ? 'true' : 'false'); });
+  $('overview').hidden = b.dataset.tab !== 'overview'; $('history').hidden = b.dataset.tab !== 'history';
+  try { sessionStorage.setItem('hb.tab', b.dataset.tab); } catch (e2) {}
+});
+try { var _t = sessionStorage.getItem('hb.tab'); if (_t === 'history') { setTimeout(function () { var b = document.querySelector('[data-tab=history]'); if (b) b.click(); }); } } catch (e) {}
+
+// The sample has no plan from a phone: a believable week from its workouts, for looking only.
+function sampleWeek(m) {
+  var ws = (m.profile.workouts || []).filter(function (w) { return !w.off; }).slice(0, 4), days = [], seq = ['lower', 'cardio', 'upper', 'sport:Pickleball', 'full', 'cardio', 'arms', 'lower'];
+  for (var i = 0; i < 8; i++) {
+    var t = new Date(); t.setDate(t.getDate() + i); var v = seq[i];
+    var w = (m.profile.workouts || []).filter(function (x) { return x.id === v; })[0];
+    days.push({ d: ymd(t), v: v, t: w ? w.title : v === 'cardio' ? 'Cardio or rest' : v.replace('sport:', ''), own: false, done: false });
+  }
+  return { days: days, options: (m.profile.workouts || []).map(function (w) { return { id: w.id, t: w.title, n: (w.lifts || []).length, g: { upper: ['chest', 'back', 'shoulders', 'arms'], lower: ['legs', 'core'], full: ['chest', 'back', 'legs'], arms: ['arms', 'shoulders'] }[w.id] || [] }; }), pro: true, sample: true };
+}
+
+// MARK: Changing things from here (WebLink.checkEdits in the app, build 300; verified 2026-11-15)
 // The phone stays the only writer. A change is sealed with this computer's key into public record "E<slot>"; the open app
 // finds it within seconds, checks it, makes it, and sends a fresh copy whose "edits" row lists the change ids made ("id")
 // and refused ("id!"). Writing needs the web pass the phone puts in each copy ("auth"). Phone closed: it waits.
-var pending = [];   // [{id, op, day, value, label}]
+var pending = [];   // [{id, op, day, value}]
 function dayLabel(ds, i) {
   if (i === 0) return 'Today';
   if (i === 1) return 'Tomorrow';
   return d(ds).toLocaleDateString('en-US', { weekday: 'long' });
 }
-function showComing() {
-  var ul = $('coming'); ul.innerHTML = '';
-  if (!weekInfo || !me || !weekInfo.days) { $('comingWrap').hidden = true; return; }
-  $('comingWrap').hidden = false;
+function coming() {
+  var box = $('coming'); box.innerHTML = '';
+  if (!weekInfo || !weekInfo.days) { box.appendChild(el('p', 'sub', 'Update hebomb on your iPhone to see and change your week here.')); $('comingNote').textContent = ''; return; }
   var made = {}; editLog.forEach(function (x) { if (x.slice(-1) === '!') made[x.slice(0, -1)] = 'no'; else made[x] = 'yes'; });
   var waiting = pending.filter(function (p) { return !made[p.id]; });
   var refused = pending.filter(function (p) { return made[p.id] === 'no'; });
   var done = pending.filter(function (p) { return made[p.id] === 'yes'; });
   pending = waiting;
+  var canEdit = !!me && !M.demo;
+  $('comingNote').textContent = canEdit ? 'Changes go to your iPhone' : M.demo ? 'Sample' : '';
   weekInfo.days.forEach(function (day, i) {
-    var li = el('li'), left = el('div');
+    var row = el('div', 'row'), left = el('div', 'cday');
     left.appendChild(el('b', '', dayLabel(day.d, i)));
-    left.appendChild(el('small', '', d(day.d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })));
-    li.appendChild(left);
-    if (day.done) { li.appendChild(el('span', 'done', '✓ ' + day.t)); ul.appendChild(li); return; }
-    var sel = el('select'); sel.setAttribute('aria-label', 'Workout for ' + dayLabel(day.d, i));
+    left.appendChild(el('small', '', d(day.d).toLocaleDateString('en-US', { weekday: i > 1 ? undefined : 'short', month: 'short', day: 'numeric' })));
+    row.appendChild(left);
+    if (day.done) { row.appendChild(el('span', 'done', '✓ ' + day.t)); box.appendChild(row); return; }
+    var sel = el('select'); sel.setAttribute('aria-label', 'Plan for ' + dayLabel(day.d, i));
     var wait = waiting.filter(function (p) { return p.day === day.d; }).pop();
     var cur = wait ? (wait.value == null ? '__pick' : wait.value) : day.v;
     var opts = (weekInfo.options || []).map(function (o) { return [o.id, o.t]; }).concat([['cardio', 'Cardio or rest'], ['rest', 'Rest'], ['mobility', 'Mobility']]);
@@ -323,20 +518,21 @@ function showComing() {
     if (day.own) opts.push(['__pick', "Back to hebomb's pick"]);
     opts.forEach(function (o) { var op = el('option', '', o[1]); op.value = o[0]; if (o[0] === cur) op.selected = true; sel.appendChild(op); });
     if (day.own || wait) sel.className = 'own';
-    sel.onchange = function () { change(day.d, sel.value === '__pick' ? null : sel.value, dayLabel(day.d, i) + ': ' + sel.options[sel.selectedIndex].text); };
-    li.appendChild(sel); ul.appendChild(li);
+    sel.disabled = !canEdit;
+    sel.onchange = function () { change(day.d, sel.value === '__pick' ? null : sel.value); };
+    row.appendChild(sel); box.appendChild(row);
   });
   var st = $('editStatus'); st.className = 'status';
   if (waiting.length) st.textContent = 'Sending to your iPhone… (hebomb needs to be open on it)';
   else if (refused.length) st.textContent = 'Your iPhone didn’t make that change.';
   else if (done.length) { st.textContent = '✓ Changed on your iPhone'; st.className = 'status ok'; }
-  else st.textContent = weekInfo.pro === false ? '' : 'Change a day here and it changes on your iPhone.';
+  else st.textContent = canEdit ? 'Green outline = changed by you.' : '';
 }
-function change(day, value, label) {
+function change(day, value) {
   var id = b32(crypto.getRandomValues(new Uint8Array(10)));
   pending = pending.filter(function (p) { return p.day !== day; });
-  pending.push({ id: id, op: 'plan', day: day, value: value, label: label });
-  showComing();
+  pending.push({ id: id, op: 'plan', day: day, value: value });
+  coming();
   sendPending().then(function () { quickWatch(Date.now()); }).catch(function (e) {
     $('editStatus').textContent = 'Couldn’t send: ' + ((e && (e.reason || e.message)) || e); $('editStatus').className = 'status';
     console.log('hebomb edit failed', e);
@@ -354,7 +550,6 @@ function sendPending() {
     return fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ operations: [{ operationType: 'forceReplace',
       record: { recordName: 'E' + me.slot, recordType: 'Link', fields: { box: { value: btoa(b) } } } }] }) });
   }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); }).then(function (x) {
-    console.log('hebomb edit sent', x.ok, JSON.stringify(x.j).slice(0, 400));
     if (x.j && x.j.ckWebAuthToken) authToken = x.j.ckWebAuthToken;
     var rec = x.j && x.j.records && x.j.records[0];
     if (!x.ok || !rec || rec.serverErrorCode) throw { reason: (rec && (rec.reason || rec.serverErrorCode)) || x.j.reason || x.j.serverErrorCode || 'iCloud said no' };
@@ -364,10 +559,9 @@ function sendPending() {
 function quickWatch(t0) {
   if (!pending.length || Date.now() - t0 > 120000) return;
   setTimeout(function () {
-    fetchCopy().then(function (c) { clearAll(); header(c.when); show(c.rows); quickWatch(t0); }).catch(function () { quickWatch(t0); });
+    fetchCopy().then(function (c) { header(c.when); show(c.rows); quickWatch(t0); }).catch(function () { quickWatch(t0); });
   }, 3000);
 }
-function clearAll() { $('history').innerHTML = ''; $('bests').innerHTML = ''; $('plan').innerHTML = ''; $('bw').innerHTML = ''; $('week').innerHTML = ''; }
 
 // MARK: Opening hebomb here (WebLink.swift in the app)
 // End to end, no sign-in (build 296). The QR hands the phone a one-time key; the phone answers with this computer's own
@@ -462,15 +656,16 @@ var pollTimer = null, renewTimer = null, container = null, refreshTimer = null;
 function header(when) {
   var who = $('who'); who.hidden = false; who.textContent = '';
   var ago = when ? Math.max(0, Math.round((Date.now() - when) / 60000)) : null;
-  who.appendChild(document.createTextNode((me && me.n ? me.n + ' · ' : '') + (me && !me.r ? 'This visit only' : 'Remembered') +
-    (ago != null ? ' · updated ' + (ago < 1 ? 'just now' : ago < 60 ? ago + ' min ago' : Math.round(ago / 60) + ' h ago') : '')));
+  who.appendChild(el('i'));
+  who.appendChild(document.createTextNode((me && me.n ? me.n + '’s iPhone' : 'Your iPhone') + (me && !me.r ? ' · this visit only' : '') +
+    (ago != null ? ' · synced ' + (ago < 1 ? 'just now' : ago < 60 ? ago + ' min ago' : Math.round(ago / 60) + ' h ago') : '')));
   var out = document.createElement('button'); out.textContent = 'Sign out'; out.onclick = signOut; who.appendChild(out);
 }
 
 function openWithPhone() {
   clearTimeout(pollTimer); clearTimeout(renewTimer);
   return fetchCopy().then(function (c) {
-    $('gate').hidden = true; header(c.when); show(c.rows);
+    header(c.when); show(c.rows);
     if (me.r) { me.at = Date.now(); idbDo('readwrite', function (s) { return s.put(me, 'me'); }).catch(function () {}); }
     clearTimeout(refreshTimer); refreshTimer = setTimeout(refresh, 2 * 60 * 1000);
   }).catch(function (e) {
@@ -479,7 +674,7 @@ function openWithPhone() {
   });
 }
 // A fresh copy now and then while the page is open, and on coming back to the tab.
-function refresh() { if (me && !document.hidden) { clearAll(); openWithPhone(); } }
+function refresh() { if (me && !document.hidden) openWithPhone(); }
 document.addEventListener('visibilitychange', function () { if (!document.hidden && me) refresh(); });
 
 function signOut() {
@@ -490,7 +685,7 @@ function signOut() {
 }
 
 function showGate(title, text, keepQR) {
-  $('app').hidden = true; $('gate').hidden = false; $('who').hidden = true;
+  $('app').hidden = true; $('tabs').hidden = true; $('gatewrap').hidden = false; $('gate').hidden = false; $('who').hidden = true;
   if (title) $('gateTitle').textContent = title;
   if (text) $('gateText').textContent = text;
   if (keepQR === true) { $('qrwrap').hidden = true; $('qrNote').hidden = true; return; }
@@ -567,9 +762,21 @@ function useApple() {
   };
   document.head.appendChild(s);
 }
+// Every record in the private zone "mirror" (CloudMirror.swift), page by page.
+function fetchAll(db) {
+  var rows = [];
+  function page(q) {
+    return db.performQuery(q).then(function (res) {
+      if (res.hasErrors) throw res.errors[0];
+      res.records.forEach(function (r) { if (r.fields && r.fields.json) rows.push({ kind: r.fields.kind && r.fields.kind.value, json: r.fields.json.value }); });
+      return res.moreComing ? page(res) : rows;
+    });
+  }
+  return page({ recordType: 'Item', zoneID: { zoneName: 'mirror' } });
+}
 function appleIn() {
   clearTimeout(pollTimer); clearTimeout(renewTimer);
-  fetchAll(container.privateCloudDatabase).then(function (rows) { $('gate').hidden = true; me = null; header(null); show(rows); }).catch(function (e) {
+  fetchAll(container.privateCloudDatabase).then(function (rows) { me = null; header(null); show(rows); }).catch(function (e) {
     var zoneMissing = /ZONE_NOT_FOUND/.test((e && e.ckErrorCode) || '') || /zone/i.test((e && e.reason) || '');
     showGate(zoneMissing ? 'Nothing copied yet' : "Couldn't read your iCloud",
       zoneMissing ? 'Open hebomb on your iPhone and wait a minute: it copies your workouts to your iCloud on its own. Then reload this page.' : String((e && (e.reason || e.message)) || e), true);
@@ -578,7 +785,7 @@ function appleIn() {
 $('useApple').onclick = useApple;
 
 if (new URLSearchParams(location.search).has('demo')) {
-  fetch('sample.json').then(function (r) { return r.json(); }).then(function (rows) { show(rows); $('demoNote').hidden = false; });
+  fetch('sample.json').then(function (r) { return r.json(); }).then(function (rows) { show(rows, true); });
 } else if (!TOKEN) {
   $('soon').hidden = false;
 } else {
