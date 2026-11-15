@@ -4,14 +4,18 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<meta name="color-scheme" content="light dark">
+<meta name="color-scheme" content="dark light">
+<script>try { document.documentElement.dataset.theme = localStorage.getItem('hb.theme') || 'dark'; } catch (e) { document.documentElement.dataset.theme = 'dark'; }</script>
 <title>Your hebomb</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1024 1024'%3E%3Crect width='1024' height='1024' rx='224' fill='%23040A06'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800;900&display=swap">
 <style>
 /* The app's own colours (Theme.swift). Dark first, like the app. */
 :root { --bg: #000000; --card: #141416; --card2: #232326; --line: #2a2a2d; --grid: #1f1f22; --text: #ffffff; --sub: #98989f; --muted: #6e6e74; --green: #00c805; --gdim: rgba(0,200,5,.14); --hero: linear-gradient(135deg, #0c2a0d, #141416 70%); }
-@media (prefers-color-scheme: light) { :root { --bg: #ffffff; --card: #f2f2f5; --card2: #e4e4e9; --line: #e2e2e7; --grid: #e6e6ea; --text: #000000; --sub: #66666b; --muted: #85858a; --green: #007a03; --gdim: rgba(0,122,3,.12); --hero: linear-gradient(135deg, #dff3df, #f2f2f5 70%); } }
+/* Light: chosen, or System on a light computer. Dark is the default (Josh, 2026-11-15), like the app. */
+:root[data-theme="light"] { color-scheme: light; --bg: #ffffff; --card: #f2f2f5; --card2: #e4e4e9; --line: #e2e2e7; --grid: #e6e6ea; --text: #000000; --sub: #66666b; --muted: #85858a; --green: #007a03; --gdim: rgba(0,122,3,.12); --hero: linear-gradient(135deg, #dff3df, #f2f2f5 70%); }
+:root { color-scheme: dark; }
+@media (prefers-color-scheme: light) { :root[data-theme="system"] { color-scheme: light; --bg: #ffffff; --card: #f2f2f5; --card2: #e4e4e9; --line: #e2e2e7; --grid: #e6e6ea; --text: #000000; --sub: #66666b; --muted: #85858a; --green: #007a03; --gdim: rgba(0,122,3,.12); --hero: linear-gradient(135deg, #dff3df, #f2f2f5 70%); } }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html { background: var(--bg); color: var(--text); }
 body { font: 600 14px/1.4 "Nunito", ui-rounded, system-ui, -apple-system, sans-serif; -webkit-font-smoothing: antialiased; }
@@ -25,10 +29,15 @@ body { font: 600 14px/1.4 "Nunito", ui-rounded, system-ui, -apple-system, sans-s
 .mark { display: inline-flex; align-items: center; gap: 8px; font-weight: 900; font-size: 18px; color: var(--text); text-decoration: none; }
 .mark svg { height: 16px; width: auto; }
 .tabs { display: flex; gap: 4px; margin-left: 14px; }
+.top .theme { margin-left: auto; }
+.top .who:not([hidden]) + .theme { margin-left: 12px; }
 .tabs button { background: none; border: 0; padding: 6px 12px; border-radius: 9px; color: var(--sub); font: 800 14px "Nunito", ui-rounded, system-ui, sans-serif; cursor: pointer; }
 .tabs button[aria-selected="true"] { background: var(--card2); color: var(--text); }
 .who { margin-left: auto; display: flex; align-items: center; gap: 8px; color: var(--sub); font-weight: 700; font-size: 13px; }
 .who i { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 4px var(--gdim); flex: none; }
+.theme { display: flex; gap: 2px; background: var(--card); border-radius: 9px; padding: 2px; margin-left: 12px; flex: none; }
+.theme button { background: none; border: 0; color: var(--muted); font: 800 12px "Nunito", ui-rounded, system-ui, sans-serif; padding: 5px 9px; border-radius: 7px; cursor: pointer; }
+.theme button[aria-pressed="true"] { background: var(--card2); color: var(--text); }
 .who button { background: none; border: 0; color: var(--sub); font: inherit; text-decoration: underline; cursor: pointer; margin-left: 6px; }
 
 /* Overview grid */
@@ -236,7 +245,7 @@ h1 { font-size: 40px; font-weight: 900; line-height: 1.05; letter-spacing: -0.02
 .note a { color: inherit; }
 
 @media (max-width: 1180px) { .kpi { grid-column: span 6; } .chartc, .coming, .muscles, .recent { grid-column: span 12; grid-row: auto; } }
-@media (max-width: 700px) { .top { padding: 0 16px; flex-wrap: wrap; gap: 8px; padding-bottom: 8px; } .tabs { margin-left: 0; } .who { margin-left: 0; width: 100%; }
+@media (max-width: 700px) { .top .theme { margin-left: 0; } .top { padding: 0 16px; flex-wrap: wrap; gap: 8px; padding-bottom: 8px; } .tabs { margin-left: 0; } .who { margin-left: 0; width: 100%; }
   .dash { padding: 14px 16px 40px; gap: 10px; } .kpi { grid-column: span 12; } .hist { padding: 14px 16px 48px; } .sets { padding-left: 0; } .rec .what { display: none; } h1 { font-size: 32px; } }
 </style>
 </head>
@@ -251,6 +260,7 @@ h1 { font-size: 40px; font-weight: 900; line-height: 1.05; letter-spacing: -0.02
     <button role="tab" aria-selected="false" data-tab="settings">Settings</button>
   </nav>
   <div class="who" id="who" hidden></div>
+  <div class="theme" id="theme" role="group" aria-label="Appearance"><button data-t="dark">Dark</button><button data-t="light">Light</button><button data-t="system">System</button></div>
 </header>
 
 <main class="gatewrap" id="gatewrap">
@@ -335,6 +345,15 @@ h1 { font-size: 40px; font-weight: 900; line-height: 1.05; letter-spacing: -0.02
 var TOKEN = '80fcb72906279f565c57b61945e9e156465ab2373467b2f09b524a82749e68c2';   // CloudKit Console > API Tokens (public by design)
 
 var $ = function (id) { return document.getElementById(id); };
+// Appearance: Dark (default), Light or System, remembered on this computer.
+function showTheme() { var t = document.documentElement.dataset.theme; [].forEach.call($('theme').children, function (b) { b.setAttribute('aria-pressed', b.dataset.t === t ? 'true' : 'false'); }); }
+$('theme').addEventListener('click', function (e) {
+  var b = e.target.closest('button'); if (!b) return;
+  document.documentElement.dataset.theme = b.dataset.t;
+  try { localStorage.setItem('hb.theme', b.dataset.t); } catch (e2) {}
+  showTheme();
+});
+showTheme();
 function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
 var NS = 'http://www.w3.org/2000/svg';
 function sv(tag, attrs) { var e = document.createElementNS(NS, tag); for (var k in attrs) e.setAttribute(k, attrs[k]); return e; }
