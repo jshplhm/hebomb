@@ -125,7 +125,7 @@ svg.chart { width: 100%; height: auto; display: block; margin-top: 8px; }
 // hebomb.com/me: a read-only view of what the phone copies to the person's own private iCloud (CloudMirror.swift in the
 // app). Zone "mirror", record type "Item": kind "session" (one workout) or "profile" (everything else), JSON in `json`.
 // Never writes. ?demo reads sample.json (Ryan) instead.
-var TOKEN = '';   // CloudKit Console > API Tokens (public by design; it only lets a signed-in person reach their own data)
+var TOKEN = '80fcb72906279f565c57b61945e9e156465ab2373467b2f09b524a82749e68c2';   // CloudKit Console > API Tokens (public by design; it only lets a signed-in person reach their own data)
 
 var $ = function (id) { return document.getElementById(id); };
 function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
