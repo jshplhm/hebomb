@@ -41,6 +41,12 @@ a.get { display: flex; align-items: center; justify-content: center; min-height:
   var url = 'hebomb://link?s=' + s + '&k=' + k + '&d=' + encodeURIComponent(d) + '&m=' + encodeURIComponent(m.slice(0, 40));
   document.getElementById('go').href = url;
   location.href = url;
+  // Still here a moment later: hebomb isn't on this phone, or it's a build before 294 that can't open links yet.
+  setTimeout(function () {
+    if (document.hidden) return;
+    document.getElementById('h').textContent = "hebomb didn't open";
+    document.getElementById('p').textContent = 'Update hebomb in TestFlight (build 295 or later), then scan the code again.';
+  }, 1500);
 })();
 </script>
 </body>
