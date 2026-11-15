@@ -274,6 +274,37 @@ function show(rows) {
   if (!(profile.workouts || []).length) $('plan').appendChild(el('li', 'sub', 'hebomb picks as you go.'));
 }
 
+// CloudKit Web Services, called directly with the pass the phone handed over (CloudKit JS wouldn't take it: build 295's
+// first scan reached Apple's UserRetrieve and stopped). Plain-text bodies, so the browser sends no preflight.
+var API = 'https://api.apple-cloudkit.com/database/1/iCloud.com.hebomb.app/production/';
+function api(db, path, body, signed) {
+  var a = readAuth(), q = '?ckAPIToken=' + TOKEN;
+  if (signed !== false && (db !== 'public' || signed)) {
+    if (!a) return Promise.reject({ ckErrorCode: 'AUTHENTICATION_REQUIRED' });
+    q += '&ckWebAuthToken=' + (/%/.test(a.t) ? a.t : encodeURIComponent(a.t));
+  }
+  var opts = body ? { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(body) } : {};
+  return fetch(API + db + '/' + path + q, opts).then(function (r) {
+    return r.json().catch(function () { return {}; }).then(function (j) {
+      if (j.ckWebAuthToken && a) { a.t = j.ckWebAuthToken; writeAuth(a); }   // a fresh pass, when Apple hands one back
+      if (!r.ok || j.serverErrorCode) throw { ckErrorCode: j.serverErrorCode || ('HTTP_' + r.status), reason: j.reason };
+      return j;
+    });
+  });
+}
+// The same calls CloudKit JS offers, for the code below: private records by REST when the phone let this computer in.
+var restPrivate = {
+  fetchRecordZoneChanges: function (zones) {
+    var z = zones[0], body = { zoneID: z.zoneID }; if (z.syncToken) body.syncToken = z.syncToken;
+    return api('private', 'records/changes', body).then(function (j) { return { zones: [{ records: j.records || [], moreComing: j.moreComing, syncToken: j.syncToken }] }; });
+  },
+  saveRecords: function (recs) {
+    return api('private', 'records/modify', { zoneID: { zoneName: 'mirror' }, operations: recs.map(function (r) { return { operationType: 'update', record: r }; }) });
+  }
+};
+function privateDB() { var a = readAuth(); return a && a.viaPhone ? restPrivate : container.privateCloudDatabase; }
+function lookupPublic(id) { return api('public', 'records/lookup', { records: [{ recordName: id }] }, false); }
+
 // Every record in the "mirror" zone, page by page.
 function fetchAll(db) {
   var out = [];
@@ -338,7 +369,7 @@ function signedIn() {
   var who = $('who'); who.hidden = false; who.textContent = (a && a.n ? a.n + ' · ' : '') + (a && !a.r ? 'This visit only' : 'Signed in');
   var out = document.createElement('button'); out.textContent = 'Sign out'; out.onclick = signOut; who.appendChild(out);
   if (a) { a.at = Date.now(); writeAuth(a); }
-  fetchAll(container.privateCloudDatabase).then(function (rows) {
+  fetchAll(privateDB()).then(function (rows) {
     // Signed out from the iPhone: forget, and show the code again. Only once the phone has had time to write the list.
     var dev = rows.filter(function (r) { return r.kind === 'devices'; })[0];
     if (a && a.viaPhone && Date.now() - (a.linked || 0) > 2 * 60 * 1000) {
@@ -362,7 +393,7 @@ function signOut() {
   if (!a || !a.viaPhone || !devicesRecord) return done();
   var list = []; try { list = JSON.parse(devicesRecord.fields.json.value); } catch (e) {}
   devicesRecord.fields.json.value = JSON.stringify(list.filter(function (x) { return x.id !== a.d; }));
-  container.privateCloudDatabase.saveRecords([{ recordName: 'devices', recordType: 'Item', recordChangeTag: devicesRecord.recordChangeTag,
+  privateDB().saveRecords([{ recordName: 'devices', recordType: 'Item', recordChangeTag: devicesRecord.recordChangeTag,
     zoneID: { zoneName: 'mirror' }, fields: { json: { value: devicesRecord.fields.json.value } } }]).then(done, done);
 }
 
@@ -387,7 +418,7 @@ function newCode() {
   $('qr').innerHTML = drawCode(qr);
   $('qrwrap').classList.remove('got'); $('qrwrap').hidden = false; $('qrNote').hidden = false;
   (function poll() {
-    container.publicCloudDatabase.fetchRecords([id]).then(function (res) {
+    lookupPublic(id).then(function (res) {
       var r = res.records && res.records[0];
       if (r && r.fields && r.fields.box) return open(r.fields.box.value, key);
       pollTimer = setTimeout(poll, 2000);
@@ -419,12 +450,11 @@ function open(boxB64, key) {
     var p = JSON.parse(new TextDecoder().decode(plain));
     if (p.d !== deviceId()) throw new Error('not for this computer');
     // The pass as iOS gave it; tried as is, then decoded, then encoded, as CloudKit JS wants it.
-    var tries = [p.t]; try { var dec = decodeURIComponent(p.t); if (tries.indexOf(dec) < 0) tries.push(dec); } catch (e) {}
-    var enc = encodeURIComponent(p.t); if (tries.indexOf(enc) < 0) tries.push(enc);
+    var lastErr = '', tries = [p.t]; try { var dec = decodeURIComponent(p.t); if (tries.indexOf(dec) < 0) tries.push(dec); } catch (e) {}
     (function attempt(i) {
-      if (i >= tries.length) { forget(); return showGate("That didn't work", 'Scan the new code to try again.'); }
+      if (i >= tries.length) { forget(); return showGate("That didn't work", 'Scan the new code to try again. (' + lastErr + ')'); }
       writeAuth({ t: tries[i], d: p.d, r: !!p.r, n: p.n || '', viaPhone: true, linked: Date.now(), at: Date.now() });
-      container.setUpAuth().then(function (user) { user ? signedIn() : attempt(i + 1); }, function () { attempt(i + 1); });
+      api('public', 'users/current', null, true).then(function () { signedIn(); }, function (e) { lastErr = (e && e.ckErrorCode) || 'error'; attempt(i + 1); });
     })(0);
   }).catch(function () { showGate("That didn't work", 'Scan the new code to try again.'); });
 }
@@ -437,13 +467,17 @@ if (new URLSearchParams(location.search).has('demo')) {
   $('soon').hidden = false;
 } else {
   var a0 = readAuth();
-  if (a0 && a0.r && Date.now() - (a0.at || 0) > 90 * DAY) forget();   // a remembered computer, unused for 90 days
+  if (a0 && a0.r && Date.now() - (a0.at || 0) > 90 * DAY) { forget(); a0 = null; }   // a remembered computer, unused for 90 days
+  var phoneIn = a0 && a0.viaPhone;
+  if (phoneIn) api('public', 'users/current', null, true).then(function () { signedIn(); }, function (e) {
+    forget(); phoneIn = false; if (libs >= 2) showGate('Signed out', "Point your iPhone's camera at the code to open hebomb here again.");
+  });
   var libs = 0, ready = function () {
     if (++libs < 2) return;
     CloudKit.configure({
       containers: [{ containerIdentifier: 'iCloud.com.hebomb.app', apiTokenAuth: { apiToken: TOKEN, persist: true }, environment: 'production' }],
       services: { authTokenStore: {
-        getToken: function () { var a = readAuth(); return a ? a.t : null; },
+        getToken: function () { var a = readAuth(); return a && !a.viaPhone ? a.t : null; },
         putToken: function (cid, token) {   // Apple's own sign-in (the link under the code) lands here too
           if (!token) return forget();
           var a = readAuth() || { d: deviceId(), r: true, viaPhone: false };
@@ -451,10 +485,11 @@ if (new URLSearchParams(location.search).has('demo')) {
         } } }
     });
     container = CloudKit.getDefaultContainer();
+    if (phoneIn) return;   // already signed in through the phone (above)
     container.setUpAuth().then(function (user) {
       if (user) signedIn();
-      else { showGate(); container.whenUserSignsIn().then(function () { signedIn(); }); }
-    }, function () { showGate(); });
+      else { if (!readAuth()) showGate(); container.whenUserSignsIn().then(function () { var a = readAuth(); if (a) { a.viaPhone = false; writeAuth(a); } signedIn(); }); }
+    }, function () { if (!readAuth()) showGate(); });
   };
   [['https://cdn.apple-cloudkit.com/ck/2/cloudkit.js'], ['https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js']].forEach(function (u) {
     var s = document.createElement('script'); s.src = u[0]; s.onload = ready; document.head.appendChild(s);
