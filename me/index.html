@@ -111,6 +111,31 @@ dialog.build::backdrop { background: rgba(0,0,0,.6); }
 .bfoot .sp { flex: 1; }
 @media (max-width: 700px) { .bbody { grid-template-columns: 1fr; height: auto; } .lib { border-right: 0; border-bottom: 1px solid var(--line); max-height: 300px; } }
 
+/* Plan tab */
+.plan { max-width: 1480px; margin: 0 auto; padding: 18px 28px 48px; }
+.plan h1 { font-size: 34px; }
+.board { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 10px; margin-top: 16px; }
+.col { background: var(--card); border-radius: 16px; padding: 12px; min-height: 380px; display: flex; flex-direction: column; gap: 8px; transition: box-shadow .12s, background .12s; }
+.col.today { box-shadow: inset 0 0 0 1.5px var(--gdim); }
+.col.over { box-shadow: inset 0 0 0 2px var(--green); background: var(--gdim); }
+.col .dh b { font-size: 15px; display: block; }
+.col .dh small { color: var(--muted); font-size: 12px; font-weight: 800; }
+.wo { background: var(--card2); border-radius: 12px; padding: 10px; }
+.wo.own { box-shadow: inset 0 0 0 2px var(--green); }
+.wo h4 { font-size: 15px; font-weight: 900; margin-bottom: 6px; }
+.wo p { font-size: 12px; color: var(--sub); padding: 1px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wo.light { background: none; border: 1.5px dashed var(--line); color: var(--sub); }
+.wo.light h4 { color: var(--sub); font-size: 14px; margin: 0; }
+.wo.didit h4 { color: var(--green); }
+.col .mine { font-size: 12px; color: var(--green); font-weight: 800; }
+.col .back { background: none; border: 0; color: var(--sub); font: 800 12px "Nunito", ui-rounded, system-ui, sans-serif; text-decoration: underline; cursor: pointer; padding: 0; text-align: left; }
+.palette { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 18px; align-items: center; }
+.chip { background: var(--card2); border-radius: 10px; padding: 9px 12px; font-weight: 800; cursor: grab; user-select: none; }
+.chip:active { cursor: grabbing; }
+.chip.ghost { background: none; border: 1.5px dashed var(--line); color: var(--sub); }
+@media (max-width: 1180px) { .board { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (max-width: 700px) { .plan { padding: 14px 16px 40px; } .board { grid-template-columns: 1fr 1fr; } .col { min-height: 0; } }
+
 /* Lifts tab */
 .lifts { max-width: 1480px; margin: 0 auto; display: grid; grid-template-columns: 320px 1fr; min-height: calc(100vh - 57px); }
 .llist { border-right: 1px solid var(--line); overflow: auto; max-height: calc(100vh - 57px); position: sticky; top: 0; }
@@ -177,6 +202,7 @@ h1 { font-size: 40px; font-weight: 900; line-height: 1.05; letter-spacing: -0.02
   <a class="mark" href="/"><svg viewBox="0 0 644 380" aria-hidden="true"><g fill="#007d03"><rect x="0" y="158" width="118" height="64" rx="22"/><rect x="526" y="158" width="118" height="64" rx="22"/><rect x="44" y="30.4" width="58" height="319.2" rx="21"/><rect x="542" y="30.4" width="58" height="319.2" rx="21"/></g><g fill="#00c805"><rect x="158" y="158" width="328" height="64"/><rect x="112" y="0" width="92" height="380" rx="33"/><rect x="440" y="0" width="92" height="380" rx="33"/></g></svg> hebomb</a>
   <nav class="tabs" id="tabs" role="tablist" hidden>
     <button role="tab" aria-selected="true" data-tab="overview">Overview</button>
+    <button role="tab" aria-selected="false" data-tab="plan">Plan</button>
     <button role="tab" aria-selected="false" data-tab="lifts">Lifts</button>
     <button role="tab" aria-selected="false" data-tab="history">History</button>
   </nav>
@@ -218,6 +244,12 @@ h1 { font-size: 40px; font-weight: 900; line-height: 1.05; letter-spacing: -0.02
     <div class="card coming"><div class="head"><div class="lab">Coming up</div><span class="sub" style="font-size:13px" id="comingNote">Changes go to your iPhone</span></div><div id="coming" style="margin-top:6px"></div><div class="addrow" id="addrow" hidden><button class="btn go" id="newWorkout">＋ Build a workout</button><select class="btn" id="editWorkout" aria-label="Change one of your workouts"></select></div><p class="status" id="editStatus"></p></div>
     <div class="card muscles"><div class="lab">Days rested</div><div id="muscles" style="margin-top:8px"></div></div>
     <div class="card recent"><div class="lab">Recent</div><div class="rec" id="recent" style="margin-top:4px"></div></div>
+  </div>
+  <div class="plan" id="plan" hidden>
+    <div class="head"><div><div class="lab">Your next 8 days</div><h1>Plan</h1></div><div class="addrow" style="margin:0"><button class="btn go" id="newWorkout2">＋ Build a workout</button></div></div>
+    <div class="board" id="board"></div>
+    <div class="palette" id="palette"></div>
+    <p class="status" id="planStatus"></p>
   </div>
   <div class="lifts" id="lifts" hidden>
     <div class="llist"><div class="lab">Every lift · estimated max</div><div id="lList"></div></div>
@@ -327,7 +359,7 @@ function show(rows, demo) {
   if (demo && !weekInfo) weekInfo = sampleWeek(M);
   $('gatewrap').hidden = true; $('app').hidden = false; $('tabs').hidden = false;
   $('demoNote').hidden = !demo;
-  overview(); liftsTab(); history();
+  overview(); planTab(); liftsTab(); history();
 }
 
 // MARK: Overview
@@ -499,6 +531,55 @@ function upsBySession() {
   return out;
 }
 
+// MARK: Plan tab: the eight days as columns. Drag a workout from the row below onto a day (or use the day's menu).
+function planTab() {
+  var board = $('board'), pal = $('palette'); board.innerHTML = ''; pal.innerHTML = '';
+  var canEdit = !!me && !M.demo;
+  $('newWorkout2').hidden = !canEdit || !M.library;
+  if (!weekInfo || !weekInfo.days) { board.appendChild(el('p', 'sub', 'Update hebomb on your iPhone to see your plan here.')); return; }
+  var byId = {}; (M.profile.workouts || []).forEach(function (w) { byId[w.id] = w; });
+  var made = {}; editLog.forEach(function (x) { made[x.replace(/!$/, '')] = 1; });
+  weekInfo.days.forEach(function (day, i) {
+    var col = el('div', 'col' + (i === 0 ? ' today' : ''));
+    var dh = el('div', 'dh'); dh.appendChild(el('b', '', dayLabel(day.d, i))); dh.appendChild(el('small', '', d(day.d).toLocaleDateString('en-US', { weekday: i > 1 ? undefined : 'short', month: 'short', day: 'numeric' }))); col.appendChild(dh);
+    var wait = pending.filter(function (p) { return p.op === 'plan' && p.day === day.d && !made[p.id]; }).pop();
+    var v = wait ? wait.value : day.v, title = wait ? (v == null ? "hebomb's pick" : planTitle(v)) : day.t;
+    if (day.done) {
+      var done = M.sessions.filter(function (s) { return s.date === day.d; });
+      done.forEach(function (s) { var c = el('div', 'wo didit'); c.appendChild(el('h4', '', '✓ ' + s.title)); c.appendChild(el('p', '', s.duration ? Math.round(s.duration / 60) + ' min' : '')); col.appendChild(c); });
+    } else if (v && isLiftPlan(v) && byId[v]) {
+      var w = byId[v], c = el('div', 'wo' + (day.own || wait ? ' own' : ''));
+      c.appendChild(el('h4', '', w.title));
+      (w.lifts || []).forEach(function (l) { c.appendChild(el('p', '', (l.main ? '★ ' : '') + l.name)); });
+      col.appendChild(c);
+    } else {
+      var c2 = el('div', 'wo light' + (day.own || wait ? ' own' : '')); c2.appendChild(el('h4', '', title)); col.appendChild(c2);
+    }
+    if (wait) col.appendChild(el('span', 'mine', 'Sending…'));
+    else if (day.own && !day.done) {
+      col.appendChild(el('span', 'mine', 'Changed by you'));
+      if (canEdit) { var bk = el('button', 'back', "Back to hebomb's pick"); bk.onclick = function () { change(day.d, null); planTab(); }; col.appendChild(bk); }
+    }
+    if (canEdit && !day.done) {
+      col.addEventListener('dragover', function (e) { e.preventDefault(); col.classList.add('over'); });
+      col.addEventListener('dragleave', function () { col.classList.remove('over'); });
+      col.addEventListener('drop', function (e) { e.preventDefault(); col.classList.remove('over'); var id = e.dataTransfer.getData('text/plain'); if (id && id !== day.v) { change(day.d, id); planTab(); } });
+    }
+    board.appendChild(col);
+  });
+  if (!canEdit) return;
+  pal.appendChild(el('span', 'sub', 'Drag onto a day:'));
+  (weekInfo.options || []).map(function (o) { return [o.id, o.t]; }).concat([['cardio', 'Cardio or rest'], ['rest', 'Rest'], ['mobility', 'Mobility']]).forEach(function (o, i) {
+    var c = el('div', 'chip' + (i >= (weekInfo.options || []).length ? ' ghost' : ''), o[1]); c.draggable = true;
+    c.addEventListener('dragstart', function (e) { e.dataTransfer.setData('text/plain', o[0]); e.dataTransfer.effectAllowed = 'copy'; });
+    pal.appendChild(c);
+  });
+}
+function planTitle(v) {
+  var o = (weekInfo.options || []).filter(function (x) { return x.id === v; })[0];
+  return o ? o.t : v === 'cardio' ? 'Cardio or rest' : v === 'rest' ? 'Rest' : v === 'mobility' ? 'Mobility' : v.replace('sport:', '');
+}
+
 // MARK: Lifts tab: every lift by estimated max (the app's own numbers when the phone sends them), one up close.
 var liftKey = null, liftDays = 182;
 function groupOf(name) {
@@ -640,10 +721,10 @@ function history() {
 $('tabs').addEventListener('click', function (e) {
   var b = e.target.closest('button'); if (!b) return;
   [].forEach.call($('tabs').children, function (x) { x.setAttribute('aria-selected', x === b ? 'true' : 'false'); });
-  ['overview', 'lifts', 'history'].forEach(function (t) { $(t).hidden = b.dataset.tab !== t; });
+  ['overview', 'plan', 'lifts', 'history'].forEach(function (t) { $(t).hidden = b.dataset.tab !== t; });
   try { sessionStorage.setItem('hb.tab', b.dataset.tab); } catch (e2) {}
 });
-try { var _t = sessionStorage.getItem('hb.tab'); if (_t === 'history' || _t === 'lifts') { setTimeout(function () { var b = document.querySelector('[data-tab=' + _t + ']'); if (b) b.click(); }); } } catch (e) {}
+try { var _t = sessionStorage.getItem('hb.tab'); if (_t === 'history' || _t === 'lifts' || _t === 'plan') { setTimeout(function () { var b = document.querySelector('[data-tab=' + _t + ']'); if (b) b.click(); }); } } catch (e) {}
 
 // The sample has no plan from a phone: a believable week from its workouts, for looking only.
 function sampleWeek(m) {
@@ -705,14 +786,15 @@ function coming() {
   else if (refused.length) st.textContent = 'Your iPhone didn’t make that change.';
   else if (done.length) { st.textContent = '✓ Changed on your iPhone'; st.className = 'status ok'; }
   else st.textContent = canEdit ? 'Green outline = changed by you.' : '';
+  if ($('planStatus')) { $('planStatus').textContent = st.textContent; $('planStatus').className = st.className; }
 }
 function change(day, value) {
   var id = b32(crypto.getRandomValues(new Uint8Array(10)));
   pending = pending.filter(function (p) { return p.op !== 'plan' || p.day !== day; });
   pending.push({ id: id, op: 'plan', day: day, value: value });
-  coming();
+  coming(); planTab();
   sendPending().then(function () { quickWatch(Date.now()); }).catch(function (e) {
-    $('editStatus').textContent = 'Couldn’t send: ' + ((e && (e.reason || e.message)) || e); $('editStatus').className = 'status';
+    $('editStatus').textContent = $('planStatus').textContent = 'Couldn’t send: ' + ((e && (e.reason || e.message)) || e); $('editStatus').className = 'status';
     console.log('hebomb edit failed', e);
   });
 }
@@ -792,7 +874,7 @@ function drawPicks() {
 $('bTitle').addEventListener('input', drawPicks);
 $('bSearch').addEventListener('input', drawLib);
 $('bClose').onclick = $('bCancel').onclick = function () { $('build').close(); };
-$('newWorkout').onclick = function () { openBuild(null); };
+$('newWorkout').onclick = $('newWorkout2').onclick = function () { openBuild(null); };
 $('editWorkout').onchange = function () {
   var id = this.value; this.value = '';
   var w = (M.profile.workouts || []).filter(function (x) { return x.id === id; })[0];
