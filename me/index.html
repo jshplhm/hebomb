@@ -658,7 +658,7 @@ function planTitle(v) {
 
 // MARK: Settings tab (op "settings", build 303): the rows of Your program and Settings › Training, changed in place.
 function sendSetting(obj) {
-  pending.push({ id: b32(crypto.getRandomValues(new Uint8Array(10))), op: 'settings', set: obj });
+  pending.push({ id: b32(crypto.getRandomValues(new Uint8Array(10))), op: 'settings', set: obj, at: Date.now() }); keepPending();
   settingsTab(); coming();
   sendPending().then(function () { quickWatch(Date.now()); }).catch(function (e) {
     $('setStatus').textContent = 'Couldn’t send: ' + ((e && (e.reason || e.message)) || e); $('setStatus').className = 'status';
@@ -997,7 +997,10 @@ function sampleWeek(m) {
 // The phone stays the only writer. A change is sealed with this computer's key into public record "E<slot>"; the open app
 // finds it within seconds, checks it, makes it, and sends a fresh copy whose "edits" row lists the change ids made ("id")
 // and refused ("id!"). Writing needs the web pass the phone puts in each copy ("auth"). Phone closed: it waits.
-var pending = [];   // [{id, op, day, value}]
+var pending = [];   // [{id, op, day, value}], kept on this computer until the phone has made them (build 307)
+function keepPending() { try { if (me) localStorage.setItem('hb.pending.' + me.slot, JSON.stringify(pending)); } catch (e) {} }
+function loadPending() { try { if (me) pending = JSON.parse(localStorage.getItem('hb.pending.' + me.slot) || '[]') || []; } catch (e) { pending = []; } }
+var TO_FIELD = true;   // the "to" field lets iCloud nudge the phone; dropped if this iCloud schema doesn't have it yet
 function dayLabel(ds, i) {
   if (i === 0) return 'Today';
   if (i === 1) return 'Tomorrow';
@@ -1010,7 +1013,7 @@ function coming() {
   var waiting = pending.filter(function (p) { return !made[p.id]; });
   var refused = pending.filter(function (p) { return made[p.id] === 'no'; });
   var done = pending.filter(function (p) { return made[p.id] === 'yes'; });
-  pending = waiting;
+  pending = waiting; keepPending();
   var canEdit = !!me && !M.demo;
   $('comingNote').textContent = canEdit ? 'Changes go to your iPhone' : M.demo ? 'Sample' : '';
   weekInfo.days.forEach(function (day, i) {
@@ -1038,7 +1041,9 @@ function coming() {
     (M.profile.workouts || []).forEach(function (w) { var o = el('option', '', w.title || 'Workout'); o.value = w.id; ew.appendChild(o); });
   }
   var st = $('editStatus'); st.className = 'status';
-  if (waiting.length) st.textContent = 'Sending to your iPhone… (hebomb needs to be open on it)';
+  if (waiting.length) st.textContent = Date.now() - (waiting[0].at || Date.now()) > 90000
+    ? 'Saved. Your iPhone makes the change next time hebomb wakes up or opens.'
+    : 'Sending to your iPhone…';
   else if (refused.length) st.textContent = 'Your iPhone didn’t make that change.';
   else if (done.length) { st.textContent = '✓ Changed on your iPhone'; st.className = 'status ok'; }
   else st.textContent = canEdit ? 'Green outline = changed by you.' : '';
@@ -1048,7 +1053,7 @@ function coming() {
 function change(day, value) {
   var id = b32(crypto.getRandomValues(new Uint8Array(10)));
   pending = pending.filter(function (p) { return p.op !== 'plan' || p.day !== day; });
-  pending.push({ id: id, op: 'plan', day: day, value: value });
+  pending.push({ id: id, op: 'plan', day: day, value: value, at: Date.now() }); keepPending();
   coming(); planTab();
   sendPending().then(function () { quickWatch(Date.now()); }).catch(function (e) {
     $('editStatus').textContent = $('planStatus').textContent = 'Couldn’t send: ' + ((e && (e.reason || e.message)) || e); $('editStatus').className = 'status';
@@ -1064,9 +1069,18 @@ function sendPending() {
     var all = new Uint8Array(12 + ct.byteLength); all.set(iv); all.set(new Uint8Array(ct), 12);
     var b = ''; for (var i = 0; i < all.length; i++) b += String.fromCharCode(all[i]);
     var url = API + 'public/records/modify?ckAPIToken=' + TOKEN + '&ckWebAuthToken=' + encodeURIComponent(authToken);
-    return fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ operations: [{ operationType: 'forceReplace',
-      record: { recordName: 'E' + me.slot, recordType: 'Link', fields: { box: { value: btoa(b) } } } }] }) });
-  }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); }).then(function (x) {
+    function send(withTo) {
+      var fields = { box: { value: btoa(b) } }; if (withTo) fields.to = { value: me.slot };
+      return fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ operations: [{ operationType: 'forceReplace',
+        record: { recordName: 'E' + me.slot, recordType: 'Link', fields: fields } }] }) })
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); });
+    }
+    return send(TO_FIELD).then(function (x) {
+      var rec = x.j && x.j.records && x.j.records[0];
+      if (TO_FIELD && (!x.ok || (rec && rec.serverErrorCode))) { TO_FIELD = false; return send(false); }   // no "to" field in iCloud yet
+      return x;
+    });
+  }).then(function (x) {
     if (x.j && x.j.ckWebAuthToken) authToken = x.j.ckWebAuthToken;
     var rec = x.j && x.j.records && x.j.records[0];
     if (!x.ok || !rec || rec.serverErrorCode) throw { reason: (rec && (rec.reason || rec.serverErrorCode)) || x.j.reason || x.j.serverErrorCode || 'iCloud said no' };
@@ -1140,7 +1154,7 @@ $('editWorkout').onchange = function () {
 $('bSave').onclick = function () {
   var title = $('bTitle').value.trim(); if (!title || !B.picks.length) return;
   var day = $('bDay').value || null;
-  pending.push({ id: b32(crypto.getRandomValues(new Uint8Array(10))), op: 'workout', wid: B.wid, title: title, lifts: B.picks, day: day });
+  pending.push({ id: b32(crypto.getRandomValues(new Uint8Array(10))), op: 'workout', wid: B.wid, title: title, lifts: B.picks, day: day, at: Date.now() }); keepPending();
   $('build').close();
   coming();
   sendPending().then(function () { quickWatch(Date.now()); }).catch(function (e) {
@@ -1257,6 +1271,7 @@ function header(when) {
 
 function openWithPhone() {
   clearTimeout(pollTimer); clearTimeout(renewTimer);
+  if (!pending.length) loadPending();
   return fetchCopy().then(function (c) {
     header(c.when); show(c.rows);
     if (me.r) { me.at = Date.now(); idbDo('readwrite', function (s) { return s.put(me, 'me'); }).catch(function () {}); }
