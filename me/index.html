@@ -425,7 +425,7 @@ function newCode() {
   (function poll() {
     lookupPublic(id).then(function (res) {
       var r = res.records && res.records[0];
-      if (r && r.fields && r.fields.box) return open(r.fields.box.value, key);
+      if (r && r.fields && r.fields.box) return openBox(r.fields.box.value, key);
       pollTimer = setTimeout(poll, 2000);
     }, function () { pollTimer = setTimeout(poll, 2500); });
   })();
@@ -445,7 +445,7 @@ function drawCode(qr) {
   return '<svg viewBox="0 0 ' + n + ' ' + n + '" width="220" height="220" fill="#0a0a0a" shape-rendering="geometricPrecision">' + parts.join('') + '</svg>';
 }
 
-function open(boxB64, key) {
+function openBox(boxB64, key) {   // not "open": that name is window.open, which Apple's sign-in uses
   clearTimeout(pollTimer); clearTimeout(renewTimer);
   $('qrwrap').classList.add('got');
   var raw = unb64(boxB64);
