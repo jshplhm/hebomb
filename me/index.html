@@ -276,69 +276,17 @@ function show(rows) {
   if (!(profile.workouts || []).length) $('plan').appendChild(el('li', 'sub', 'hebomb picks as you go.'));
 }
 
-// CloudKit Web Services, called directly with the pass the phone handed over (CloudKit JS wouldn't take it: build 295's
-// first scan reached Apple's UserRetrieve and stopped). Plain-text bodies, so the browser sends no preflight.
-var API = 'https://api.apple-cloudkit.com/database/1/iCloud.com.hebomb.app/production/';
-function api(db, path, body, signed) {
-  var a = readAuth(), q = '?ckAPIToken=' + TOKEN;
-  if (signed !== false && (db !== 'public' || signed)) {
-    if (!a) return Promise.reject({ ckErrorCode: 'AUTHENTICATION_REQUIRED' });
-    q += '&ckWebAuthToken=' + (/%/.test(a.t) ? a.t : encodeURIComponent(a.t));
-  }
-  var opts = body ? { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(body) } : {};
-  return fetch(API + db + '/' + path + q, opts).then(function (r) {
-    return r.json().catch(function () { return {}; }).then(function (j) {
-      if (j.ckWebAuthToken && a) { a.t = j.ckWebAuthToken; writeAuth(a); }   // a fresh pass, when Apple hands one back
-      if (!r.ok || j.serverErrorCode) throw { ckErrorCode: j.serverErrorCode || ('HTTP_' + r.status), reason: j.reason };
-      return j;
-    });
-  });
+// MARK: Opening hebomb here (WebLink.swift in the app)
+// End to end, no sign-in (build 296). The QR hands the phone a one-time key; the phone answers with this computer's own
+// AES-256 key and a random slot, sealed with the one-time key. The phone then keeps a sealed, compressed copy of the data in
+// the slot (public CloudKit records "S<slot>", "S<slot>-0…n"). Only this computer's key opens it: not Apple, not hebomb.
+// Remembered: the key is kept in IndexedDB as a key the page can use but never read out. This visit only: it lives in this
+// tab. Signed out on the phone: the copy is gone, and the page forgets the key.
+var API = 'https://api.apple-cloudkit.com/database/1/iCloud.com.hebomb.app/production/', DAY = 864e5;
+function lookupPublic(ids) {
+  return fetch(API + 'public/records/lookup?ckAPIToken=' + TOKEN, { method: 'POST', headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify({ records: ids.map(function (i) { return { recordName: i }; }) }) }).then(function (r) { return r.json(); });
 }
-// The same calls CloudKit JS offers, for the code below: private records by REST when the phone let this computer in.
-var restPrivate = {
-  fetchRecordZoneChanges: function (zones) {
-    var z = zones[0], body = { zoneID: z.zoneID }; if (z.syncToken) body.syncToken = z.syncToken;
-    return api('private', 'records/changes', body).then(function (j) { return { zones: [{ records: j.records || [], moreComing: j.moreComing, syncToken: j.syncToken }] }; });
-  },
-  saveRecords: function (recs) {
-    return api('private', 'records/modify', { zoneID: { zoneName: 'mirror' }, operations: recs.map(function (r) { return { operationType: 'update', record: r }; }) });
-  }
-};
-function privateDB() { var a = readAuth(); return a && a.viaPhone ? restPrivate : container.privateCloudDatabase; }
-function lookupPublic(id) { return api('public', 'records/lookup', { records: [{ recordName: id }] }, false); }
-
-// Every record in the "mirror" zone, page by page.
-function fetchAll(db) {
-  var out = [];
-  function page(token) {
-    var zone = { zoneID: { zoneName: 'mirror' } }; if (token) zone.syncToken = token;
-    return db.fetchRecordZoneChanges([zone]).then(function (res) {
-      if (res.hasErrors) throw res.errors[0];
-      var z = res.zones[0];
-      (z.records || []).forEach(function (r) {
-        if (r.deleted || !r.fields) return;
-        if (r.recordName === 'devices') devicesRecord = r;
-        out.push({ kind: r.fields.kind && r.fields.kind.value, json: r.fields.json && r.fields.json.value });
-      });
-      return z.moreComing ? page(z.syncToken) : out;
-    });
-  }
-  return page(null);
-}
-
-// MARK: Sign-in without a password (WebLink.swift in the app)
-// The pass lives in localStorage when the phone said "Remember this computer", else only for this tab (sessionStorage).
-// A remembered computer unused for 90 days forgets itself. The phone's list of computers ("devices") is checked on each
-// visit: signed out there, this page forgets the pass.
-var KEY = 'hb.auth', DAY = 864e5;
-function readAuth() {
-  try { var j = localStorage.getItem(KEY) || sessionStorage.getItem(KEY); return j ? JSON.parse(j) : null; } catch (e) { return null; }
-}
-function writeAuth(a) {
-  try { localStorage.removeItem(KEY); sessionStorage.removeItem(KEY); (a.r ? localStorage : sessionStorage).setItem(KEY, JSON.stringify(a)); } catch (e) {}
-}
-function forget() { try { localStorage.removeItem(KEY); sessionStorage.removeItem(KEY); } catch (e) {} }
-// Short, all capitals, so the code is small and calm (QR's compact letter mode): base32.
 function b32(bytes) {
   var A = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567', out = '', bits = 0, v = 0;
   for (var i = 0; i < bytes.length; i++) { v = (v << 8) | bytes[i]; bits += 8; while (bits >= 5) { out += A[(v >>> (bits - 5)) & 31]; bits -= 5; } }
@@ -352,75 +300,117 @@ function deviceId() {
     return d;
   } catch (e) { return b32(crypto.getRandomValues(new Uint8Array(6))); }
 }
-// Two letters the phone turns into "Mac · Chrome" (WebLink.swift).
+// Two letters the phone turns into "Mac · Chrome".
 function deviceCode() {
   var u = navigator.userAgent;
   var os = /iPad/.test(u) ? 'I' : /Mac/.test(u) ? 'M' : /Windows/.test(u) ? 'W' : /CrOS/.test(u) ? 'C' : /Linux/.test(u) ? 'L' : 'X';
   var br = /Edg\//.test(u) ? 'E' : /Firefox\//.test(u) ? 'F' : /Chrome\//.test(u) ? 'C' : /Safari\//.test(u) ? 'S' : 'B';
   return os + br;
 }
-function b64url(bytes) { return btoa(String.fromCharCode.apply(null, bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
 function unb64(s) { var b = atob(s), out = new Uint8Array(b.length); for (var i = 0; i < b.length; i++) out[i] = b.charCodeAt(i); return out; }
 
-var container, devicesRecord = null, pollTimer = null, renewTimer = null;
+// The computer's key and slot. Remembered: IndexedDB (the key as a non-extractable CryptoKey). This visit: sessionStorage.
+function idb() {
+  return new Promise(function (ok, no) {
+    var r = indexedDB.open('hebomb', 1);
+    r.onupgradeneeded = function () { r.result.createObjectStore('kv'); };
+    r.onsuccess = function () { ok(r.result); }; r.onerror = function () { no(r.error); };
+  });
+}
+function idbDo(mode, fn) {
+  return idb().then(function (db) { return new Promise(function (ok, no) {
+    var t = db.transaction('kv', mode), req = fn(t.objectStore('kv'));
+    t.oncomplete = function () { ok(req && req.result); }; t.onerror = function () { no(t.error); };
+  }); });
+}
+var me = null;   // {key: CryptoKey, slot, n, r, at}
+function loadMe() {
+  try {
+    var j = sessionStorage.getItem('hb.visit');
+    if (j) { var v = JSON.parse(j); return crypto.subtle.importKey('raw', unb64(v.k), 'AES-GCM', false, ['decrypt']).then(function (key) { v.key = key; return v; }); }
+  } catch (e) {}
+  return idbDo('readonly', function (s) { return s.get('me'); }).catch(function () { return null; });
+}
+function keepMe(p, key) {
+  me = { key: key, slot: p.s, n: p.n || '', r: !!p.r, at: Date.now() };
+  if (p.r) return idbDo('readwrite', function (s) { return s.put(me, 'me'); });
+  try { sessionStorage.setItem('hb.visit', JSON.stringify({ k: p.k, slot: p.s, n: p.n || '', r: false })); } catch (e) {}
+  return Promise.resolve();
+}
+function forgetMe() {
+  me = null;
+  try { sessionStorage.removeItem('hb.visit'); localStorage.removeItem('hb.auth'); sessionStorage.removeItem('hb.auth'); } catch (e) {}
+  return idbDo('readwrite', function (s) { return s.delete('me'); }).catch(function () {});
+}
 
-function signedIn() {
-  $('gate').hidden = true;
-  clearTimeout(pollTimer); clearTimeout(renewTimer);
-  var a = readAuth();
-  var who = $('who'); who.hidden = false; who.textContent = (a && a.n ? a.n + ' · ' : '') + (a && !a.r ? 'This visit only' : 'Signed in');
-  var out = document.createElement('button'); out.textContent = 'Sign out'; out.onclick = signOut; who.appendChild(out);
-  if (a) { a.at = Date.now(); writeAuth(a); }
-  fetchAll(privateDB()).then(function (rows) {
-    // Signed out from the iPhone: forget, and show the code again. Only once the phone has had time to write the list.
-    var dev = rows.filter(function (r) { return r.kind === 'devices'; })[0];
-    if (a && a.viaPhone && Date.now() - (a.linked || 0) > 2 * 60 * 1000) {
-      var list = []; try { list = dev ? JSON.parse(dev.json) : []; } catch (e) {}
-      if (!list.some(function (x) { return x.id === a.d; })) { forget(); return showGate('Signed out from your iPhone', "Point your iPhone's camera at the code to open hebomb here again."); }
-    }
-    show(rows);
-  }).catch(function (e) {
-    var code = e && (e.ckErrorCode || e.serverErrorCode || '');
-    if (/AUTH|PERMISSION/.test(code)) { forget(); return showGate('Signed out', "Point your iPhone's camera at the code to open hebomb here again."); }
-    // Advanced Data Protection (or the switch turned off): Apple keeps iCloud data off the web until the person allows it.
-    if (/private db access disabled/i.test((e && e.reason) || '') || code === 'ACCESS_DENIED') {
-      // A pass handed over by the phone can't read private data (Apple's rule, seen 2026-11-14): sign in with Apple once here.
-      var a1 = readAuth();
-      if (a1 && a1.viaPhone) {
-        forget();
-        showGate('One more step on this computer', 'Apple asks you to sign in once here. After that this computer remembers you.', true);
-        $('useApple').hidden = true; $('apple-sign-in-button').hidden = false;
-        return;
-      }
-      return showGate('Allow iCloud on the web first',
-        "Your iPhone keeps iCloud data off the web. To see hebomb here: Settings › your name › iCloud › turn on \u201cAccess iCloud Data on the Web\u201d. Then reload this page. You can turn it off again any time.", true);
-    }
-    var zoneMissing = code === 'ZONE_NOT_FOUND' || /zone/i.test((e && e.reason) || '');
-    showGate(zoneMissing ? 'Nothing copied yet' : "Couldn't read your iCloud",
-      zoneMissing ? 'Open hebomb on your iPhone (build 294 or later) and wait a minute: it copies your workouts to your iCloud on its own. Then reload this page.' : String((e && (e.reason || e.message)) || e), true);
+// This computer's copy: header "parts|unix time", then the parts, joined, opened, unpacked.
+function fetchCopy() {
+  var head = 'S' + me.slot;
+  return lookupPublic([head]).then(function (j) {
+    var h = j.records && j.records[0];
+    if (!h || h.serverErrorCode === 'NOT_FOUND') throw { gone: true };
+    if (!h.fields) throw { reason: h.reason || 'Couldn’t reach iCloud' };
+    var bits = h.fields.box.value.split('|'), n = +bits[0], when = +bits[1] * 1000;
+    var ids = []; for (var i = 0; i < n; i++) ids.push(head + '-' + i);
+    return lookupPublic(ids).then(function (pj) {
+      var byName = {}; (pj.records || []).forEach(function (r) { if (r.fields) byName[r.recordName] = r.fields.box.value; });
+      var text = ids.map(function (id) { return byName[id] || ''; }).join('');
+      var raw = unb64(text);
+      return crypto.subtle.decrypt({ name: 'AES-GCM', iv: raw.slice(0, 12) }, me.key, raw.slice(12));
+    }).then(function (packed) {
+      var stream = new Blob([packed]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+      return new Response(stream).text();
+    }).then(function (txt) { return { rows: JSON.parse(txt), when: when }; });
   });
 }
 
-// Sign out here: forget the pass, and take this computer off the phone's list so it shows as gone there too.
+var pollTimer = null, renewTimer = null, container = null, refreshTimer = null;
+
+function header(when) {
+  var who = $('who'); who.hidden = false; who.textContent = '';
+  var ago = when ? Math.max(0, Math.round((Date.now() - when) / 60000)) : null;
+  who.appendChild(document.createTextNode((me && me.n ? me.n + ' · ' : '') + (me && !me.r ? 'This visit only' : 'Remembered') +
+    (ago != null ? ' · updated ' + (ago < 1 ? 'just now' : ago < 60 ? ago + ' min ago' : Math.round(ago / 60) + ' h ago') : '')));
+  var out = document.createElement('button'); out.textContent = 'Sign out'; out.onclick = signOut; who.appendChild(out);
+}
+
+function openWithPhone() {
+  clearTimeout(pollTimer); clearTimeout(renewTimer);
+  return fetchCopy().then(function (c) {
+    $('gate').hidden = true; header(c.when); show(c.rows);
+    if (me.r) { me.at = Date.now(); idbDo('readwrite', function (s) { return s.put(me, 'me'); }).catch(function () {}); }
+    clearTimeout(refreshTimer); refreshTimer = setTimeout(refresh, 2 * 60 * 1000);
+  }).catch(function (e) {
+    if (e && e.gone) { forgetMe(); return showGate('Signed out from your iPhone', "Point your iPhone's camera at the code to open hebomb here again."); }
+    showGate("Couldn't open your copy", String((e && (e.reason || e.message)) || e) + '. Reload to try again.', true);
+  });
+}
+// A fresh copy now and then while the page is open, and on coming back to the tab.
+function refresh() { if (me && !document.hidden) { $('history').innerHTML = ''; $('bests').innerHTML = ''; $('plan').innerHTML = ''; $('bw').innerHTML = ''; $('week').innerHTML = ''; openWithPhone(); } }
+document.addEventListener('visibilitychange', function () { if (!document.hidden && me) refresh(); });
+
 function signOut() {
-  var a = readAuth();
-  var done = function () { forget(); location.reload(); };
-  if (!a || !a.viaPhone || !devicesRecord) return done();
-  var list = []; try { list = JSON.parse(devicesRecord.fields.json.value); } catch (e) {}
-  devicesRecord.fields.json.value = JSON.stringify(list.filter(function (x) { return x.id !== a.d; }));
-  privateDB().saveRecords([{ recordName: 'devices', recordType: 'Item', recordChangeTag: devicesRecord.recordChangeTag,
-    zoneID: { zoneName: 'mirror' }, fields: { json: { value: devicesRecord.fields.json.value } } }]).then(done, done);
+  forgetMe().then(function () {
+    if (container && container.signOut) { try { container.signOut(); } catch (e) {} }
+    location.reload();
+  });
 }
 
 function showGate(title, text, keepQR) {
-  $('app').hidden = true; $('gate').hidden = false;
+  $('app').hidden = true; $('gate').hidden = false; $('who').hidden = true;
   if (title) $('gateTitle').textContent = title;
   if (text) $('gateText').textContent = text;
   if (keepQR === true) { $('qrwrap').hidden = true; $('qrNote').hidden = true; return; }
-  newCode();
+  withQR(newCode);
+}
+// The QR library, pinned to its exact bytes (Subresource Integrity): a changed file on the CDN won't run here.
+function withQR(fn) {
+  if (typeof qrcode !== 'undefined') return fn();
+  var s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js';
+  s.integrity = 'sha384-mZT2gIty7ZDdOGkxfP6joZcYdMW1Jvj9dRlfpTmaJAKKXTqzygtB22k7FLe+KZC1'; s.crossOrigin = 'anonymous'; s.onload = fn; document.head.appendChild(s);
 }
 
-// A fresh code: a one-time id (80 bits) and AES-128 key, polled for in the public database. Renewed every 3 minutes.
+// A fresh code: a one-time id (80 bits) and AES-128 key. Renewed every 3 minutes while nobody scans.
 // Drawn by hand: round dots, soft corner eyes (Josh's pick, 2026-11-14).
 function newCode() {
   clearTimeout(pollTimer); clearTimeout(renewTimer);
@@ -433,7 +423,7 @@ function newCode() {
   $('qr').innerHTML = drawCode(qr);
   $('qrwrap').classList.remove('got'); $('qrwrap').hidden = false; $('qrNote').hidden = false;
   (function poll() {
-    lookupPublic(id).then(function (res) {
+    lookupPublic([id]).then(function (res) {
       var r = res.records && res.records[0];
       if (r && r.fields && r.fields.box) return openBox(r.fields.box.value, key);
       pollTimer = setTimeout(poll, 2000);
@@ -455,59 +445,54 @@ function drawCode(qr) {
   return '<svg viewBox="0 0 ' + n + ' ' + n + '" width="220" height="220" fill="#0a0a0a" shape-rendering="geometricPrecision">' + parts.join('') + '</svg>';
 }
 
-function openBox(boxB64, key) {   // not "open": that name is window.open, which Apple's sign-in uses
+// The phone's answer: this computer's key and slot, sealed with the code's one-time key.
+function openBox(boxB64, oneTime) {   // not "open": that name is window.open, which Apple's sign-in uses
   clearTimeout(pollTimer); clearTimeout(renewTimer);
   $('qrwrap').classList.add('got');
   var raw = unb64(boxB64);
-  crypto.subtle.importKey('raw', key, 'AES-GCM', false, ['decrypt']).then(function (k) {
+  crypto.subtle.importKey('raw', oneTime, 'AES-GCM', false, ['decrypt']).then(function (k) {
     return crypto.subtle.decrypt({ name: 'AES-GCM', iv: raw.slice(0, 12) }, k, raw.slice(12));
   }).then(function (plain) {
     var p = JSON.parse(new TextDecoder().decode(plain));
-    if (p.d !== deviceId()) throw new Error('not for this computer');
-    // The pass as iOS gave it; tried as is, then decoded, then encoded, as CloudKit JS wants it.
-    var lastErr = '', tries = [p.t]; try { var dec = decodeURIComponent(p.t); if (tries.indexOf(dec) < 0) tries.push(dec); } catch (e) {}
-    (function attempt(i) {
-      if (i >= tries.length) { forget(); return showGate("That didn't work", 'Scan the new code to try again. (' + lastErr + ')'); }
-      writeAuth({ t: tries[i], d: p.d, r: !!p.r, n: p.n || '', viaPhone: true, linked: Date.now(), at: Date.now() });
-      api('public', 'users/current', null, true).then(function () { signedIn(); }, function (e) { lastErr = (e && e.ckErrorCode) || 'error'; attempt(i + 1); });
-    })(0);
-  }).catch(function () { showGate("That didn't work", 'Scan the new code to try again.'); });
+    if (p.d !== deviceId() || !p.k || !p.s) throw new Error('not for this computer');
+    return crypto.subtle.importKey('raw', unb64(p.k), 'AES-GCM', false, ['decrypt']).then(function (key) { return keepMe(p, key); });
+  }).then(openWithPhone).catch(function () { showGate("That didn't work", 'Scan the new code to try again.'); });
 }
 
-$('useApple').onclick = function () { $('useApple').hidden = true; $('apple-sign-in-button').hidden = false; };
+// Apple's own sign-in, for when the phone isn't nearby: loaded only when asked for.
+var appleLoaded = false;
+function useApple() {
+  $('useApple').hidden = true; $('apple-sign-in-button').hidden = false;
+  if (appleLoaded) return; appleLoaded = true;
+  var s = document.createElement('script'); s.src = 'https://cdn.apple-cloudkit.com/ck/2/cloudkit.js';
+  s.onload = function () {
+    CloudKit.configure({ containers: [{ containerIdentifier: 'iCloud.com.hebomb.app', apiTokenAuth: { apiToken: TOKEN, persist: true }, environment: 'production' }] });
+    container = CloudKit.getDefaultContainer();
+    container.setUpAuth().then(function (user) {
+      if (user) appleIn(); else container.whenUserSignsIn().then(appleIn);
+    });
+  };
+  document.head.appendChild(s);
+}
+function appleIn() {
+  clearTimeout(pollTimer); clearTimeout(renewTimer);
+  fetchAll(container.privateCloudDatabase).then(function (rows) { $('gate').hidden = true; me = null; header(null); show(rows); }).catch(function (e) {
+    var zoneMissing = /ZONE_NOT_FOUND/.test((e && e.ckErrorCode) || '') || /zone/i.test((e && e.reason) || '');
+    showGate(zoneMissing ? 'Nothing copied yet' : "Couldn't read your iCloud",
+      zoneMissing ? 'Open hebomb on your iPhone and wait a minute: it copies your workouts to your iCloud on its own. Then reload this page.' : String((e && (e.reason || e.message)) || e), true);
+  });
+}
+$('useApple').onclick = useApple;
 
 if (new URLSearchParams(location.search).has('demo')) {
   fetch('sample.json').then(function (r) { return r.json(); }).then(function (rows) { show(rows); $('demoNote').hidden = false; });
 } else if (!TOKEN) {
   $('soon').hidden = false;
 } else {
-  var a0 = readAuth();
-  if (a0 && a0.r && Date.now() - (a0.at || 0) > 90 * DAY) { forget(); a0 = null; }   // a remembered computer, unused for 90 days
-  var phoneIn = a0 && a0.viaPhone;
-  if (phoneIn) api('public', 'users/current', null, true).then(function () { signedIn(); }, function (e) {
-    forget(); phoneIn = false; if (libs >= 2) showGate('Signed out', "Point your iPhone's camera at the code to open hebomb here again.");
-  });
-  var libs = 0, ready = function () {
-    if (++libs < 2) return;
-    CloudKit.configure({
-      containers: [{ containerIdentifier: 'iCloud.com.hebomb.app', apiTokenAuth: { apiToken: TOKEN, persist: true }, environment: 'production' }],
-      services: { authTokenStore: {
-        getToken: function () { var a = readAuth(); return a && !a.viaPhone ? a.t : null; },
-        putToken: function (cid, token) {   // Apple's own sign-in (the link under the code) lands here too
-          if (!token) return forget();
-          var a = readAuth() || { d: deviceId(), r: true, viaPhone: false };
-          a.t = token; a.at = Date.now(); writeAuth(a);
-        } } }
-    });
-    container = CloudKit.getDefaultContainer();
-    if (phoneIn) return;   // already signed in through the phone (above)
-    container.setUpAuth().then(function (user) {
-      if (user) signedIn();
-      else { if (!readAuth()) showGate(); container.whenUserSignsIn().then(function () { var a = readAuth(); if (a) { a.viaPhone = false; writeAuth(a); } signedIn(); }); }
-    }, function () { if (!readAuth()) showGate(); });
-  };
-  [['https://cdn.apple-cloudkit.com/ck/2/cloudkit.js'], ['https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js']].forEach(function (u) {
-    var s = document.createElement('script'); s.src = u[0]; s.onload = ready; document.head.appendChild(s);
+  loadMe().then(function (m) {
+    if (m && m.r && Date.now() - (m.at || 0) > 90 * DAY) { forgetMe(); m = null; }   // remembered, unused for 90 days
+    if (m && m.key && m.slot) { me = m; return openWithPhone(); }
+    showGate();
   });
 }
 </script>
