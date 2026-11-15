@@ -248,14 +248,16 @@ function show(rows) {
   } else bw.appendChild(el('p', 'sub', 'No weigh-ins yet.'));
 
   // Best lifts: the heaviest working set of each lift, most recent first among the key lifts.
-  var rowsBest = {}, names = {};
+  var rowsBest = {}, names = {}, idName = {};
   sessions.forEach(function (s) {
     (s.exercises || []).forEach(function (ex) {
-      if (ex.kind !== 'lift') return; var t = topSet(ex); if (!t || !t.weight) return; names[ex.id] = ex.name;
-      if (!rowsBest[ex.id] || t.weight > rowsBest[ex.id].w) rowsBest[ex.id] = { w: t.weight, r: t.reps, date: s.date };
+      if (ex.kind !== 'lift') return; var t = topSet(ex); if (!t || !t.weight) return;
+      // One row per lift by name: the same lift can carry two ids (an import's and the app's).
+      var k = ex.name.trim().toLowerCase(); names[k] = ex.name; idName[ex.id] = k;
+      if (!rowsBest[k] || t.weight > rowsBest[k].w) rowsBest[k] = { w: t.weight, r: t.reps, date: s.date };
     });
   });
-  var keys = (profile.keyLifts || []).filter(function (k) { return rowsBest[k]; });
+  var keys = (profile.keyLifts || []).map(function (id) { return idName[id]; }).filter(function (k, i, a) { return k && rowsBest[k] && a.indexOf(k) === i; });
   var rest = Object.keys(rowsBest).filter(function (k) { return keys.indexOf(k) < 0; }).sort(function (a, b) { return rowsBest[b].w - rowsBest[a].w; });
   keys.concat(rest).slice(0, 10).forEach(function (k) {
     var tr = el('tr'), a = el('td', '', names[k]), b = el('td');
@@ -382,6 +384,14 @@ function signedIn() {
     if (/AUTH|PERMISSION/.test(code)) { forget(); return showGate('Signed out', "Point your iPhone's camera at the code to open hebomb here again."); }
     // Advanced Data Protection (or the switch turned off): Apple keeps iCloud data off the web until the person allows it.
     if (/private db access disabled/i.test((e && e.reason) || '') || code === 'ACCESS_DENIED') {
+      // A pass handed over by the phone can't read private data (Apple's rule, seen 2026-11-14): sign in with Apple once here.
+      var a1 = readAuth();
+      if (a1 && a1.viaPhone) {
+        forget();
+        showGate('One more step on this computer', 'Apple asks you to sign in once here. After that this computer remembers you.', true);
+        $('useApple').hidden = true; $('apple-sign-in-button').hidden = false;
+        return;
+      }
       return showGate('Allow iCloud on the web first',
         "Your iPhone keeps iCloud data off the web. To see hebomb here: Settings › your name › iCloud › turn on \u201cAccess iCloud Data on the Web\u201d. Then reload this page. You can turn it off again any time.", true);
     }
