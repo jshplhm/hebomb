@@ -133,6 +133,27 @@ dialog.build::backdrop { background: rgba(0,0,0,.6); }
 .chip { background: var(--card2); border-radius: 10px; padding: 9px 12px; font-weight: 800; cursor: grab; user-select: none; }
 .chip:active { cursor: grabbing; }
 .chip.ghost { background: none; border: 1.5px dashed var(--line); color: var(--sub); }
+.block { margin-top: 34px; }
+.block h2 { font-size: 24px; font-weight: 900; margin: 4px 0 2px; }
+.bgrid { display: grid; grid-template-columns: 92px repeat(7, minmax(0, 1fr)); gap: 4px; margin-top: 14px; }
+.bgrid .wh { color: var(--muted); font-size: 12px; font-weight: 800; text-align: center; padding-bottom: 4px; }
+.bgrid .wk { font-size: 12px; font-weight: 800; color: var(--sub); padding: 8px 0; line-height: 1.2; }
+.bgrid .wk small { display: block; color: var(--muted); font-weight: 700; }
+.cell { min-height: 46px; border-radius: 9px; padding: 6px 7px; font-size: 12px; font-weight: 800; line-height: 1.2; position: relative; overflow: hidden; }
+.cell.lift { background: var(--card2); }
+.cell.act { box-shadow: inset 0 0 0 1.5px var(--line); color: var(--sub); }
+.cell.off { color: var(--muted); font-weight: 700; }
+.cell.past { opacity: .35; }
+.cell.done { background: var(--gdim); color: var(--green); }
+.cell.light { background: none; box-shadow: inset 0 0 0 1.5px var(--green); color: var(--green); }
+.cell .sw { position: absolute; top: 5px; right: 6px; width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
+.cell small { display: block; font-weight: 700; color: var(--muted); margin-top: 2px; }
+.rweek { background: var(--gdim); border-radius: 9px; }
+.swaps { margin-top: 14px; columns: 2; column-gap: 28px; font-size: 13px; color: var(--sub); }
+.swaps div { break-inside: avoid; padding: 3px 0; }
+.swaps b { color: var(--text); }
+.idea { display: inline-block; background: var(--card2); color: var(--sub); border-radius: 7px; padding: 2px 7px; font-size: 11px; font-weight: 800; margin-left: 6px; vertical-align: middle; }
+@media (max-width: 700px) { .bgrid { grid-template-columns: 52px repeat(7, minmax(0, 1fr)); } .cell { font-size: 10px; padding: 4px; min-height: 38px; } .cell small { display: none; } .swaps { columns: 1; } }
 @media (max-width: 1180px) { .board { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 @media (max-width: 700px) { .plan { padding: 14px 16px 40px; } .board { grid-template-columns: 1fr 1fr; } .col { min-height: 0; } }
 
@@ -273,6 +294,12 @@ h1 { font-size: 40px; font-weight: 900; line-height: 1.05; letter-spacing: -0.02
     <div class="board" id="board"></div>
     <div class="palette" id="palette"></div>
     <p class="status" id="planStatus"></p>
+    <div class="block" id="block" hidden>
+      <div class="head"><div><div class="lab">The long view</div><h2>Next 12 weeks</h2><p class="sub" id="blockNote"></p></div>
+        <div class="chips" id="blockMode"><button data-m="now" aria-pressed="true">hebomb today</button><button data-m="rec" aria-pressed="false">With recovery weeks <span class="idea">idea</span></button></div></div>
+      <div class="bgrid" id="bgrid"></div>
+      <div class="swaps" id="swaps"></div>
+    </div>
   </div>
   <div class="lifts" id="lifts" hidden>
     <div class="llist"><div class="lab">Every lift · estimated max</div><div id="lList"></div></div>
@@ -339,7 +366,7 @@ function read(rows) {
     try {
       var j = JSON.parse(r.json);
       if (r.kind === 'profile') m.profile = j; else if (r.kind === 'session') m.sessions.push(j);
-      else if (r.kind === 'week') m.week = j; else if (r.kind === 'edits') m.edits = j; else if (r.kind === 'stats') m.stats = j; else if (r.kind === 'library') m.library = j; else if (r.kind === 'settings') m.settings = j;
+      else if (r.kind === 'week') m.week = j; else if (r.kind === 'edits') m.edits = j; else if (r.kind === 'stats') m.stats = j; else if (r.kind === 'library') m.library = j; else if (r.kind === 'settings') m.settings = j; else if (r.kind === 'block') m.block = j;
     } catch (e) {}
   });
   m.sessions.sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : 0; });
@@ -388,7 +415,8 @@ function show(rows, demo) {
   if (demo && !weekInfo) weekInfo = sampleWeek(M);
   $('gatewrap').hidden = true; $('app').hidden = false; $('tabs').hidden = false;
   $('demoNote').hidden = !demo;
-  overview(); planTab(); liftsTab(); history(); settingsTab();
+  if (demo && !M.block) M.block = sampleBlock(M);
+  overview(); planTab(); liftsTab(); history(); settingsTab(); blockView();
 }
 
 // MARK: Overview
@@ -721,6 +749,68 @@ function settingsTab() {
       r.appendChild(t); b.appendChild(r);
     });
   });
+}
+
+// MARK: The next 12 weeks (kind "block", build 304): hebomb's own rule run forward on the phone, swaps included.
+// "With recovery weeks" is a mock of an idea (Josh, 2026-11-15, P90X's three weeks on, one easy): every fourth week keeps
+// two lighter lifting days and turns the rest into mobility. Not built in the app.
+var blockMode = 'now';
+$('blockMode').addEventListener('click', function (e) {
+  var b = e.target.closest('button'); if (!b) return; blockMode = b.dataset.m;
+  [].forEach.call($('blockMode').children, function (x) { x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
+  blockView();
+});
+function shortName(t) { return t.replace(' and ', ' & ').replace('Cardio or rest', 'Rest'); }
+function blockView() {
+  var B = M.block; $('block').hidden = !B || !B.days || !B.days.length; if ($('block').hidden) return;
+  var grid = $('bgrid'), sw = $('swaps'); grid.innerHTML = ''; sw.innerHTML = '';
+  grid.appendChild(el('div'));
+  ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].forEach(function (n) { grid.appendChild(el('div', 'wh', n)); });
+  var byDay = {}; B.days.forEach(function (x) { byDay[x.d] = x; });
+  var start = d(B.days[0].d); start.setDate(start.getDate() - ((start.getDay() + 6) % 7));   // Monday of this week
+  var today = ymd(new Date()), lifts = 0, swapList = [];
+  for (var w = 0; w < 12; w++) {
+    var mon = new Date(start); mon.setDate(mon.getDate() + w * 7);
+    var rec = blockMode === 'rec' && w % 4 === 3;
+    var wk = el('div', 'wk', rec ? 'Recovery' : 'Week ' + (w + 1)); wk.appendChild(el('small', '', mon.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }))); grid.appendChild(wk);
+    var liftN = 0;
+    for (var i = 0; i < 7; i++) {
+      var t = new Date(mon); t.setDate(t.getDate() + i); var ds = ymd(t), x = byDay[ds];
+      var c = el('div', 'cell');
+      if (!x) { c.className = 'cell off past'; c.textContent = ''; grid.appendChild(c); continue; }
+      var isL = isLiftPlan(x.v);
+      if (x.done) { c.className = 'cell done'; c.textContent = '✓ ' + shortName(x.t); }
+      else if (isL && rec) {
+        liftN++;
+        if (liftN <= 2) { c.className = 'cell light'; c.textContent = shortName(x.t); c.appendChild(el('small', '', 'light, 2 sets')); }
+        else { c.className = 'cell act'; c.textContent = 'Mobility'; c.appendChild(el('small', '', '15 min')); }
+      } else if (isL) {
+        lifts++; c.className = 'cell lift'; c.textContent = shortName(x.t);
+        if (x.lifts) c.appendChild(el('small', '', x.lifts.length + ' lifts'));
+        if (x.swaps) { c.appendChild(el('span', 'sw')); x.swaps.forEach(function (p) { swapList.push([w + 1, ds, p[1], p[0], x.t]); }); c.title = x.swaps.map(function (p) { return p[1] + ' in for ' + p[0]; }).join(', '); }
+      } else if (x.v.indexOf('sport:') === 0 || x.v === 'mobility') { c.className = 'cell act'; c.textContent = shortName(x.t); }
+      else { c.className = 'cell off'; c.textContent = x.v === 'rest' ? 'Rest' : ''; }
+      if (ds < today) c.classList.add('past');
+      grid.appendChild(c);
+    }
+  }
+  var recN = blockMode === 'rec' ? 3 : 0;
+  $('blockNote').textContent = blockMode === 'rec'
+    ? 'Weeks 4, 8 and 12 go easy: two lighter lifting days, mobility on the rest. An idea to look at, not in the app.'
+    : 'What hebomb would plan if nothing changes: ' + lifts + ' lifting days' + (B.rotate ? ', ' + swapList.length + ' variety swaps (green dot)' : ', variety off') + '. It still picks each day as it comes.';
+  if (blockMode === 'now' && swapList.length) {
+    swapList.forEach(function (sx) { var r = el('div'); r.appendChild(document.createTextNode('Week ' + sx[0] + ' · ' + short(sx[1]) + ': ')); r.appendChild(el('b', '', sx[2])); r.appendChild(document.createTextNode(' in for ' + sx[3] + ' (' + sx[4] + ')')); sw.appendChild(r); });
+  } else if (blockMode === 'now' && B.rotate) sw.appendChild(el('div', '', 'No swaps due in 12 weeks: each smaller lift needs ' + B.after + ' times running before it hands over.'));
+}
+// For the sample: the sample week repeated, with a swap every so often.
+function sampleBlock(m) {
+  var wk = sampleWeek(m).days, days = [], fam = [['Face pulls', 'Rear delt fly'], ['Leg extension', 'Sissy squat'], ['Lateral raises', 'Cable lateral raise'], ['Barbell curl', 'Hammer curl']], n = 0;
+  for (var i = 0; i < 84; i++) {
+    var t = new Date(); t.setDate(t.getDate() + i); var src = wk[i % 7], x = { d: ymd(t), v: src.v, t: src.t };
+    if (isLiftPlan(src.v)) { x.lifts = new Array(6); if (++n % 6 === 0) x.swaps = [fam[(n / 6) % fam.length]]; }
+    days.push(x);
+  }
+  return { days: days, rotate: true, after: 5 };
 }
 
 // MARK: Lifts tab: every lift by estimated max (the app's own numbers when the phone sends them), one up close.
