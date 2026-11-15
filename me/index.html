@@ -111,6 +111,29 @@ dialog.build::backdrop { background: rgba(0,0,0,.6); }
 .bfoot .sp { flex: 1; }
 @media (max-width: 700px) { .bbody { grid-template-columns: 1fr; height: auto; } .lib { border-right: 0; border-bottom: 1px solid var(--line); max-height: 300px; } }
 
+/* Lifts tab */
+.lifts { max-width: 1480px; margin: 0 auto; display: grid; grid-template-columns: 320px 1fr; min-height: calc(100vh - 57px); }
+.llist { border-right: 1px solid var(--line); overflow: auto; max-height: calc(100vh - 57px); position: sticky; top: 0; }
+.llist .lab { padding: 16px 20px 8px; }
+.li { display: grid; grid-template-columns: 1fr 64px 58px; gap: 8px; align-items: center; width: 100%; padding: 10px 20px; border: 0; border-bottom: 1px solid var(--line); background: none; color: var(--text); text-align: left; cursor: pointer; font: inherit; }
+.li:hover { background: var(--card); }
+.li[aria-current="true"] { background: var(--gdim); box-shadow: inset 3px 0 0 var(--green); }
+.li b { display: block; font-size: 14px; }
+.li small { color: var(--muted); font-size: 11px; font-weight: 800; }
+.li .v { text-align: right; font-weight: 900; font-variant-numeric: tabular-nums; }
+.li .v em { display: block; font-style: normal; font-size: 11px; color: var(--green); }
+.li .v em.flat { color: var(--muted); }
+.lmain { padding: 22px 28px 48px; min-width: 0; }
+.lmain .big { font-size: 56px; }
+.ltable { width: 100%; border-collapse: collapse; margin-top: 6px; }
+.ltable td, .ltable th { padding: 9px 0; border-top: 1px solid var(--line); text-align: left; font-variant-numeric: tabular-nums; vertical-align: top; }
+.ltable th { color: var(--muted); font-size: 12px; font-weight: 800; border: 0; }
+.ltable td:last-child, .ltable th:last-child { text-align: right; }
+.ltable .sets { padding: 0; display: block; color: var(--sub); }
+.ltable .best { color: var(--green); font-weight: 800; }
+.ltable td span { margin-right: 14px; white-space: nowrap; }
+@media (max-width: 860px) { .lifts { grid-template-columns: 1fr; } .llist { position: static; max-height: 320px; border-right: 0; border-bottom: 1px solid var(--line); } .lmain { padding: 16px; } }
+
 /* History tab */
 .hist { max-width: 860px; margin: 0 auto; padding: 18px 28px 64px; }
 .month { font-size: 15px; font-weight: 800; color: var(--sub); margin: 22px 0 8px; }
@@ -154,6 +177,7 @@ h1 { font-size: 40px; font-weight: 900; line-height: 1.05; letter-spacing: -0.02
   <a class="mark" href="/"><svg viewBox="0 0 644 380" aria-hidden="true"><g fill="#007d03"><rect x="0" y="158" width="118" height="64" rx="22"/><rect x="526" y="158" width="118" height="64" rx="22"/><rect x="44" y="30.4" width="58" height="319.2" rx="21"/><rect x="542" y="30.4" width="58" height="319.2" rx="21"/></g><g fill="#00c805"><rect x="158" y="158" width="328" height="64"/><rect x="112" y="0" width="92" height="380" rx="33"/><rect x="440" y="0" width="92" height="380" rx="33"/></g></svg> hebomb</a>
   <nav class="tabs" id="tabs" role="tablist" hidden>
     <button role="tab" aria-selected="true" data-tab="overview">Overview</button>
+    <button role="tab" aria-selected="false" data-tab="lifts">Lifts</button>
     <button role="tab" aria-selected="false" data-tab="history">History</button>
   </nav>
   <div class="who" id="who" hidden></div>
@@ -194,6 +218,15 @@ h1 { font-size: 40px; font-weight: 900; line-height: 1.05; letter-spacing: -0.02
     <div class="card coming"><div class="head"><div class="lab">Coming up</div><span class="sub" style="font-size:13px" id="comingNote">Changes go to your iPhone</span></div><div id="coming" style="margin-top:6px"></div><div class="addrow" id="addrow" hidden><button class="btn go" id="newWorkout">＋ Build a workout</button><select class="btn" id="editWorkout" aria-label="Change one of your workouts"></select></div><p class="status" id="editStatus"></p></div>
     <div class="card muscles"><div class="lab">Days rested</div><div id="muscles" style="margin-top:8px"></div></div>
     <div class="card recent"><div class="lab">Recent</div><div class="rec" id="recent" style="margin-top:4px"></div></div>
+  </div>
+  <div class="lifts" id="lifts" hidden>
+    <div class="llist"><div class="lab">Every lift · estimated max</div><div id="lList"></div></div>
+    <div class="lmain">
+      <div class="head" style="align-items:flex-start"><div><div class="lab" id="lName"></div><div class="big num" id="lEst"></div><div class="up" id="lChange" style="font-size:16px"></div></div>
+        <div class="chips" id="lRange"><button data-d="90" aria-pressed="false">3M</button><button data-d="182" aria-pressed="true">6M</button><button data-d="400" aria-pressed="false">1Y</button></div></div>
+      <div class="chartbox"><svg class="chart" id="lChart" role="img"></svg><div class="tip" id="lTip" hidden></div></div>
+      <div class="card" style="margin-top:14px"><div class="lab" id="lEvery"></div><table class="ltable" id="lTable"></table></div>
+    </div>
   </div>
   <div class="hist" id="history" hidden></div>
 </section>
@@ -294,7 +327,7 @@ function show(rows, demo) {
   if (demo && !weekInfo) weekInfo = sampleWeek(M);
   $('gatewrap').hidden = true; $('app').hidden = false; $('tabs').hidden = false;
   $('demoNote').hidden = !demo;
-  overview(); history();
+  overview(); liftsTab(); history();
 }
 
 // MARK: Overview
@@ -466,6 +499,101 @@ function upsBySession() {
   return out;
 }
 
+// MARK: Lifts tab: every lift by estimated max (the app's own numbers when the phone sends them), one up close.
+var liftKey = null, liftDays = 182;
+function groupOf(name) {
+  var k = name.toLowerCase(), g = (M.library || []).filter(function (x) { return x[1].some(function (n) { return n.toLowerCase() === k; }); })[0];
+  return g ? g[0] : '';
+}
+function since(days) { var t = new Date(); t.setDate(t.getDate() - days); return ymd(t); }
+function liftChange(l, days) {
+  var cut = since(days), before = l.pts.filter(function (p) { return p[0] < cut; }).pop(), inside = l.pts.filter(function (p) { return p[0] >= cut; });
+  var base = before || inside[0];
+  return base && inside.length ? Math.round(l.est - base[1]) : 0;
+}
+function liftsTab() {
+  var all = (M.stats.lifts || []).filter(function (l) { return l.pts && l.pts.length; });
+  // Score lifts first, then the most done
+  all.sort(function (a, b) { return (b.score ? 1 : 0) - (a.score ? 1 : 0) || b.pts.length - a.pts.length; });
+  if (!all.some(function (l) { return l.key === liftKey; })) liftKey = all.length ? all[0].key : null;
+  var box = $('lList'); box.innerHTML = '';
+  all.forEach(function (l) {
+    var b = el('button', 'li'); b.setAttribute('aria-current', l.key === liftKey ? 'true' : 'false');
+    var left = el('div'); left.appendChild(el('b', '', l.name)); left.appendChild(el('small', '', (l.score ? 'In your score · ' : '') + (groupOf(l.name) || l.pts.length + ' workouts')));
+    b.appendChild(left);
+    var sp = sv('svg', { viewBox: '0 0 64 24', width: 64, height: 24 }), ps = l.pts.slice(-12), lo = Math.min.apply(null, ps.map(function (p) { return p[1]; })), hi = Math.max.apply(null, ps.map(function (p) { return p[1]; }));
+    var ch = liftChange(l, liftDays);
+    if (ps.length > 1) sp.appendChild(sv('polyline', { points: ps.map(function (p, i) { return (2 + i * 60 / (ps.length - 1)).toFixed(1) + ',' + (22 - (p[1] - lo) / ((hi - lo) || 1) * 20).toFixed(1); }).join(' '), fill: 'none', stroke: ch > 0 ? 'var(--green)' : 'var(--muted)', 'stroke-width': 1.8, 'stroke-linejoin': 'round' }));
+    b.appendChild(sp);
+    var v = el('div', 'v', String(Math.round(l.est))); v.appendChild(el('em', ch > 0 ? '' : 'flat', ch > 0 ? '+' + ch : ch < 0 ? '−' + Math.abs(ch) : 'held')); b.appendChild(v);
+    b.onclick = function () { liftKey = l.key; liftsTab(); };
+    box.appendChild(b);
+  });
+  if (!all.length) { box.appendChild(el('p', 'sub', 'No lifts yet.')); return; }
+  var L = all.filter(function (l) { return l.key === liftKey; })[0], unit = M.stats.unit || M.unit;
+  $('lName').textContent = L.name + ' · estimated max';
+  $('lEst').innerHTML = ''; $('lEst').appendChild(document.createTextNode(Math.round(L.est) + ' ')); $('lEst').appendChild(el('small', '', unit));
+  var ch = liftChange(L, liftDays), span = liftDays > 300 ? 'a year' : Math.round(liftDays / 30) + ' months';
+  $('lChange').textContent = ch > 0 ? '+' + ch + ' in ' + span : ch < 0 ? '−' + Math.abs(ch) + ' in ' + span : 'Held over ' + span;
+  $('lChange').className = ch > 0 ? 'up' : 'sub';
+  liftChart(L, unit);
+  // Every time it was done: its working sets, the best set green
+  var t = $('lTable'); t.innerHTML = '';
+  var hr = el('tr'); ['Date', 'Sets', 'Est. max'].forEach(function (h) { hr.appendChild(el('th', '', h)); }); t.appendChild(hr);
+  var est = {}; L.pts.forEach(function (p) { est[p[0]] = p[1]; });
+  var n = 0;
+  M.sessions.forEach(function (s) {
+    (s.exercises || []).forEach(function (ex) {
+      if (ex.name.trim().toLowerCase() !== L.name.trim().toLowerCase() || !working(ex).length || n >= 40) return;
+      n++;
+      var tr = el('tr'); tr.appendChild(el('td', '', short(s.date)));
+      var td = el('td'), best = null, bv = 0;
+      working(ex).forEach(function (st) { var v = e1rm(st.weight || 0, st.reps || 0); if (v > bv) { bv = v; best = st; } });
+      working(ex).forEach(function (st, i) { if (i) td.appendChild(document.createTextNode('   ')); td.appendChild(el('span', st === best ? 'best' : '', setText(ex, st))); });
+      tr.appendChild(td); tr.appendChild(el('td', '', est[s.date] != null ? String(Math.round(est[s.date])) : '')); t.appendChild(tr);
+    });
+  });
+  $('lEvery').textContent = 'Every ' + L.name.toLowerCase() + (n >= 40 ? ' (latest 40)' : '');
+}
+$('lRange').addEventListener('click', function (e) {
+  var b = e.target.closest('button'); if (!b) return; liftDays = +b.dataset.d;
+  [].forEach.call($('lRange').children, function (x) { x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
+  liftsTab();
+});
+function liftChart(L, unit) {
+  var svg = $('lChart'); svg.innerHTML = '';
+  var W = 900, H = 300, Lp = 8, R = 44, T = 14, B = 26; svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+  var cut = since(liftDays), pts = L.pts.filter(function (p) { return p[0] >= cut; });
+  if (!pts.length) { var tx0 = sv('text', { x: W / 2, y: H / 2, fill: 'var(--muted)', 'font-size': 15, 'font-weight': 800, 'text-anchor': 'middle' }); tx0.textContent = 'Not done in this time'; svg.appendChild(tx0); return; }
+  var t0 = d(cut).getTime(), t1 = d(ymd(new Date())).getTime();
+  var vals = pts.map(function (p) { return p[1]; }).concat([L.est]);
+  var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals), pad = Math.max(5, (hi - lo) * .15);
+  lo = Math.floor((lo - pad) / 5) * 5; hi = Math.ceil((hi + pad) / 5) * 5;
+  var X = function (s) { return Lp + (d(s).getTime() - t0) / Math.max(1, t1 - t0) * (W - Lp - R); }, Y = function (v) { return T + (hi - v) / (hi - lo) * (H - T - B); };
+  for (var i = 0; i <= 4; i++) { var v = lo + (hi - lo) * i / 4, y = Y(v); svg.appendChild(sv('line', { x1: Lp, x2: W - R, y1: y, y2: y, stroke: 'var(--grid)' })); var tx = sv('text', { x: W - 4, y: y + 4, fill: 'var(--muted)', 'font-size': 11, 'font-weight': 700, 'text-anchor': 'end' }); tx.textContent = Math.round(v); svg.appendChild(tx); }
+  for (var j = 0; j <= 5; j++) { var td = new Date(t0 + (t1 - t0) * j / 5), lx = sv('text', { x: Lp + (W - Lp - R) * j / 5, y: H - 6, fill: 'var(--muted)', 'font-size': 11, 'font-weight': 800, 'text-anchor': j === 0 ? 'start' : j === 5 ? 'end' : 'middle' }); lx.textContent = td.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); svg.appendChild(lx); }
+  // The running estimate as a line, each workout's own score as a dot under it
+  var run = 0, line = pts.map(function (p) { run = Math.max(run, p[1]); return [p[0], run]; });
+  if (line.length) line[line.length - 1][1] = L.est;
+  var path = line.map(function (p) { return X(p[0]).toFixed(1) + ',' + Y(p[1]).toFixed(1); });
+  path.push((W - R) + ',' + Y(L.est).toFixed(1));
+  svg.appendChild(sv('polygon', { points: X(line[0][0]).toFixed(1) + ',' + (H - B) + ' ' + path.join(' ') + ' ' + (W - R) + ',' + (H - B), fill: 'var(--gdim)' }));
+  svg.appendChild(sv('polyline', { points: path.join(' '), fill: 'none', stroke: 'var(--green)', 'stroke-width': 3, 'stroke-linejoin': 'round' }));
+  pts.forEach(function (p) { svg.appendChild(sv('circle', { cx: X(p[0]), cy: Y(p[1]), r: 4, fill: 'var(--text)', opacity: .55 })); });
+  svg.setAttribute('aria-label', L.name + ': estimated max ' + Math.round(L.est) + ' ' + unit + ', ' + pts.length + ' workouts shown');
+  var guide = sv('line', { y1: T, y2: H - B, stroke: 'var(--sub)', 'stroke-opacity': .4, visibility: 'hidden' }); svg.appendChild(guide);
+  svg.onmousemove = function (e) {
+    var r = svg.getBoundingClientRect(), x = (e.clientX - r.left) / r.width * W;
+    var best = pts.reduce(function (a, p) { return !a || Math.abs(X(p[0]) - x) < Math.abs(X(a[0]) - x) ? p : a; }, null);
+    guide.setAttribute('x1', X(best[0])); guide.setAttribute('x2', X(best[0])); guide.setAttribute('visibility', 'visible');
+    var tip = $('lTip'); tip.hidden = false; tip.innerHTML = '';
+    tip.appendChild(el('b', 'num', Math.round(best[1]) + ' est.' + (best[2] ? ' · ' + num(best[2]) + ' × ' + Math.round(best[3]) : '')));
+    tip.appendChild(document.createTextNode(d(best[0]).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })));
+    tip.style.left = Math.min(Math.max(X(best[0]) / W * r.width, 70), r.width - 70) + 'px';
+  };
+  svg.onmouseleave = function () { guide.setAttribute('visibility', 'hidden'); $('lTip').hidden = true; };
+}
+
 // MARK: History tab
 function history() {
   var hist = $('history'); hist.innerHTML = '';
@@ -512,10 +640,10 @@ function history() {
 $('tabs').addEventListener('click', function (e) {
   var b = e.target.closest('button'); if (!b) return;
   [].forEach.call($('tabs').children, function (x) { x.setAttribute('aria-selected', x === b ? 'true' : 'false'); });
-  $('overview').hidden = b.dataset.tab !== 'overview'; $('history').hidden = b.dataset.tab !== 'history';
+  ['overview', 'lifts', 'history'].forEach(function (t) { $(t).hidden = b.dataset.tab !== t; });
   try { sessionStorage.setItem('hb.tab', b.dataset.tab); } catch (e2) {}
 });
-try { var _t = sessionStorage.getItem('hb.tab'); if (_t === 'history') { setTimeout(function () { var b = document.querySelector('[data-tab=history]'); if (b) b.click(); }); } } catch (e) {}
+try { var _t = sessionStorage.getItem('hb.tab'); if (_t === 'history' || _t === 'lifts') { setTimeout(function () { var b = document.querySelector('[data-tab=' + _t + ']'); if (b) b.click(); }); } } catch (e) {}
 
 // The sample has no plan from a phone: a believable week from its workouts, for looking only.
 function sampleWeek(m) {
