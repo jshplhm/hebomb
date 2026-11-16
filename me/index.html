@@ -364,7 +364,7 @@ dialog.build::backdrop { background: rgba(0,0,0,.55); }
     <div class="palette" id="palette"></div>
     <section class="section" id="block" hidden>
       <div class="shead"><div><h2>The next 12 weeks</h2><p id="blockNote"></p></div>
-        <div class="chips" id="blockMode"><button data-m="now" aria-pressed="true">As planned</button><button data-m="rec" aria-pressed="false">With recovery weeks <span class="idea">idea</span></button></div></div>
+        </div>
       <div class="card"><div class="bgrid" id="bgrid"></div><div class="swaps" id="swaps"></div></div>
     </section>
     <button id="newWorkout" hidden></button>
@@ -943,14 +943,8 @@ function settingsTab() {
 }
 
 // MARK: The next 12 weeks (kind "block", build 304): hebomb's own rule run forward on the phone, swaps included.
-// "With recovery weeks" is a mock of an idea (Josh, 2026-11-15, P90X's three weeks on, one easy): every fourth week keeps
-// two lighter lifting days and turns the rest into mobility. Not built in the app.
-var blockMode = 'now';
-$('blockMode').addEventListener('click', function (e) {
-  var b = e.target.closest('button'); if (!b) return; blockMode = b.dataset.m;
-  [].forEach.call($('blockMode').children, function (x) { x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
-  blockView();
-});
+// Lighter weeks are the app's own (build 314, Recovery.swift): after three hard weeks the fourth has fewer sets at 90%, and
+// someone on four or more days lifts one fewer (that day is mobility). Days in one carry "light".
 function shortName(t) { return t.replace(' and ', ' & ').replace('Cardio or rest', 'Rest'); }
 function blockView() {
   var B = M.block; $('block').hidden = !B || !B.days || !B.days.length; if ($('block').hidden) return;
@@ -962,8 +956,10 @@ function blockView() {
   var today = ymd(new Date()), lifts = 0, swapList = [];
   for (var w = 0; w < 12; w++) {
     var mon = new Date(start); mon.setDate(mon.getDate() + w * 7);
-    var rec = blockMode === 'rec' && w % 4 === 3;
-    var wk = el('div', 'wk', rec ? 'Recovery' : 'Week ' + (w + 1)); wk.appendChild(el('small', '', mon.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }))); grid.appendChild(wk);
+    // The phone's weeks may start on Sunday; a row is "Lighter" when most of its days are.
+    var mds = ymd(mon), mde = ymd(new Date(mon.getTime() + 7 * 864e5));
+    var rec = B.days.filter(function (x) { return x.light && x.d >= mds && x.d < mde; }).length >= 4;
+    var wk = el('div', 'wk', rec ? 'Lighter' : 'Week ' + (w + 1)); wk.appendChild(el('small', '', mon.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }))); grid.appendChild(wk);
     var liftN = 0;
     for (var i = 0; i < 7; i++) {
       var t = new Date(mon); t.setDate(t.getDate() + i); var ds = ymd(t), x = byDay[ds];
@@ -971,11 +967,8 @@ function blockView() {
       if (!x) { c.className = 'cell off past'; c.textContent = ''; grid.appendChild(c); continue; }
       var isL = isLiftPlan(x.v);
       if (x.done) { c.className = 'cell done'; c.textContent = '✓ ' + shortName(x.t); }
-      else if (isL && rec) {
-        liftN++;
-        if (liftN <= 2) { c.className = 'cell light'; c.textContent = shortName(x.t); c.appendChild(el('small', '', 'light, 2 sets')); }
-        else { c.className = 'cell act'; c.textContent = 'Mobility'; c.appendChild(el('small', '', '15 min')); }
-      } else if (isL) {
+      else if (isL && x.light) { liftN++; c.className = 'cell light'; c.textContent = shortName(x.t); c.appendChild(el('small', '', 'fewer sets, 90%')); }
+      else if (isL) {
         lifts++; c.className = 'cell lift'; c.textContent = shortName(x.t);
         if (x.lifts) c.appendChild(el('small', '', x.lifts.length + ' lifts'));
         if (x.swaps) { c.appendChild(el('span', 'sw')); x.swaps.forEach(function (p) { swapList.push([w + 1, ds, p[1], p[0], x.t]); }); c.title = x.swaps.map(function (p) { return p[1] + ' in for ' + p[0]; }).join(', '); }
@@ -985,13 +978,11 @@ function blockView() {
       grid.appendChild(c);
     }
   }
-  var recN = blockMode === 'rec' ? 3 : 0;
-  $('blockNote').textContent = blockMode === 'rec'
-    ? 'Weeks 4, 8 and 12 go easy: two lighter lifting days, mobility on the rest. An idea to look at, not in the app.'
-    : 'What hebomb would plan if nothing changes: ' + lifts + ' lifting days' + (B.rotate ? ', ' + swapList.length + ' variety swaps (green dot)' : ', variety off') + '. It still picks each day as it comes.';
-  if (blockMode === 'now' && swapList.length) {
+  $('blockNote').textContent = 'What hebomb would plan if nothing changes: ' + lifts + ' lifting days' + (B.rotate ? ', ' + swapList.length + ' variety swaps (green dot)' : ', variety off')
+    + (B.lighter ? '. After every three hard weeks comes a lighter one: fewer sets at 90%, so you recover and come back stronger' : '') + '. It still picks each day as it comes.';
+  if (swapList.length) {
     swapList.forEach(function (sx) { var r = el('div'); r.appendChild(document.createTextNode('Week ' + sx[0] + ' · ' + short(sx[1]) + ': ')); r.appendChild(el('b', '', sx[2])); r.appendChild(document.createTextNode(' in for ' + sx[3] + ' (' + sx[4] + ')')); sw.appendChild(r); });
-  } else if (blockMode === 'now' && B.rotate) sw.appendChild(el('div', '', 'No swaps due in 12 weeks: each smaller lift needs ' + B.after + ' times running before it hands over.'));
+  } else if (B.rotate) sw.appendChild(el('div', '', 'No swaps due in 12 weeks: each smaller lift needs ' + B.after + ' times running before it hands over.'));
 }
 // For the sample: the next lift day as the phone would send it, weights from the sample's own estimates.
 function sampleNext(m) {
@@ -1221,7 +1212,11 @@ function change(day, value) {
 function sendPending() {
   if (!authToken) return Promise.reject({ reason: 'no pass from your iPhone yet. Open hebomb on it, then reload' });
   if (me.key.usages && me.key.usages.indexOf('encrypt') < 0) return Promise.reject({ reason: 'this computer was opened before changes were possible. Sign out here and scan the code again' });
-  var body = JSON.stringify(pending.map(function (p) { return { id: p.id, op: p.op, day: p.day, value: p.value, wid: p.wid, title: p.title, lifts: p.lifts, set: p.set }; }));
+  // The "here" entry tells the phone this computer is open (build 314): the phone sends fresh copies only to open computers,
+  // and to the rest once as it closes. Older phones refuse it once and never look at it again.
+  var body = JSON.stringify(pending.map(function (p) { return { id: p.id, op: p.op, day: p.day, value: p.value, wid: p.wid, title: p.title, lifts: p.lifts, set: p.set }; })
+    .concat([{ id: 'here', op: 'here', at: Math.floor(Date.now() / 1000) }]));
+  hereAt = Date.now();
   var iv = crypto.getRandomValues(new Uint8Array(12));
   return crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, me.key, new TextEncoder().encode(body)).then(function (ct) {
     var all = new Uint8Array(12 + ct.byteLength); all.set(iv); all.set(new Uint8Array(ct), 12);
@@ -1439,10 +1434,22 @@ function openWithPhone() {
     header(c.when); show(c.rows);
     if (me.r) { me.at = Date.now(); idbDo('readwrite', function (s) { return s.put(me, 'me'); }).catch(function () {}); }
     clearTimeout(refreshTimer); refreshTimer = setTimeout(refresh, 2 * 60 * 1000);
+    sayHere();
   }).catch(function (e) {
     if (e && e.gone) { forgetMe(); return showGate('Signed out from your iPhone', "Point your iPhone's camera at the code to open hebomb here again."); }
     showGate("Couldn't open your copy", String((e && (e.reason || e.message)) || e) + '. Reload to try again.', true);
   });
+}
+// "I'm open" for the phone, at most every 4 minutes while the page is in view (rides the same sealed record as changes).
+var hereAt = 0;
+function sayHere() {
+  if (!me || !M || M.demo || !authToken || document.hidden || Date.now() - hereAt < 4 * 60 * 1000) return;
+  if (me.key.usages && me.key.usages.indexOf('encrypt') < 0) return;
+  hereAt = Date.now();
+  sendPending().then(function () {
+    // A phone that was holding changes back for this computer sends them within seconds while hebomb is open.
+    setTimeout(function () { if (!document.hidden) fetchCopy().then(function (c) { header(c.when); show(c.rows); }).catch(function () {}); }, 12000);
+  }).catch(function (e) { hereAt = 0; console.log('hebomb here failed', e); });
 }
 // A fresh copy now and then while the page is open, and on coming back to the tab.
 function refresh() { if (me && !document.hidden) openWithPhone(); }
