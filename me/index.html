@@ -111,6 +111,13 @@ h2 { font-size: 22px; font-weight: 900; letter-spacing: -.01em; }
 .score .big { font-size: 46px; font-weight: 900; letter-spacing: -.02em; line-height: 1; }
 .score .big small { font-size: 16px; color: var(--sub); font-weight: 700; letter-spacing: 0; }
 .score svg { width: 100%; height: 56px; }
+.notes .nrow { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 4px 16px; padding: 14px 0; border-top: 1px solid var(--line, rgba(127,127,127,.18)); }
+.notes .nrow:first-child { border-top: 0; }
+.notes .when { color: var(--muted); font-size: 13px; font-weight: 700; padding-top: 2px; }
+.notes .who { display: inline-block; font-size: 11px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin-bottom: 3px; }
+.notes .who.hb { color: var(--green); }
+.notes b { display: block; font-size: 15px; font-weight: 800; }
+.notes .why { color: var(--sub); font-size: 14px; margin-top: 2px; }
 .strengths { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
 .strength { display: flex; gap: 14px; align-items: flex-start; background: var(--card); border-radius: 18px; padding: 18px; }
 .strength i { width: 34px; height: 34px; border-radius: 10px; background: var(--gdim); color: var(--green); display: inline-flex; align-items: center; justify-content: center; font-style: normal; font-weight: 900; flex: none; }
@@ -344,9 +351,10 @@ dialog.build::backdrop { background: rgba(0,0,0,.55); }
         </section>
       </div>
     </div>
-    <section class="section" id="strengthsSec" hidden>
-      <div class="shead"><div><h2>Your strengths</h2><p>Read from your own sets. They change as you train.</p></div></div>
-      <div class="strengths" id="strengths"></div>
+    <section class="section" id="notesSec" hidden>
+      <div class="shead"><div><h2>Trainer's notes</h2><p>What hebomb decided and why, and what you changed. Newest first.</p></div></div>
+      <div class="card" style="padding:6px 20px"><div class="notes" id="notesList"></div>
+        <button class="link" id="notesMore" hidden style="margin:6px 0 12px">Show all</button></div>
     </section>
     <section class="section">
       <div class="shead"><h2>Recent</h2><button class="link" data-go="history">All history ›</button></div>
@@ -469,7 +477,7 @@ function read(rows) {
     try {
       var j = JSON.parse(r.json);
       if (r.kind === 'profile') m.profile = j; else if (r.kind === 'session') m.sessions.push(j);
-      else if (r.kind === 'week') m.week = j; else if (r.kind === 'edits') m.edits = j; else if (r.kind === 'stats') m.stats = j; else if (r.kind === 'library') m.library = j; else if (r.kind === 'settings') m.settings = j; else if (r.kind === 'block') m.block = j; else if (r.kind === 'next') m.next = j; else if (r.kind === 'strengths') m.strengths = j;
+      else if (r.kind === 'week') m.week = j; else if (r.kind === 'edits') m.edits = j; else if (r.kind === 'stats') m.stats = j; else if (r.kind === 'library') m.library = j; else if (r.kind === 'settings') m.settings = j; else if (r.kind === 'block') m.block = j; else if (r.kind === 'next') m.next = j; else if (r.kind === 'strengths') m.strengths = j; else if (r.kind === 'notes') m.notes = j;
     } catch (e) {}
   });
   m.sessions.sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : 0; });
@@ -522,6 +530,19 @@ function show(rows, demo) {
   $('demoNote').hidden = !demo;
   if (demo && !M.block) M.block = sampleBlock(M);
   if (demo && !M.next) M.next = sampleNext(M);
+  if (demo && !M.notes) {
+    var t0 = new Date(), dd = function (k) { return ymd(new Date(t0.getTime() - k * 864e5)); };
+    M.notes = [
+      { d: dd(0), who: 'hebomb', text: 'Lighter week starts Sunday.', why: 'After every three hard weeks the fourth is lighter. A week with fewer than two workouts starts the count over.' },
+      { d: dd(0), who: 'hebomb', text: 'Cable row comes in for Seated row on Thursday.', why: 'A smaller lift hands over after 5 times running, so the muscle gets something new. Big lifts never swap.' },
+      { d: dd(1), who: 'hebomb', text: 'Bench press top set: 185 × 9.', why: '2 past the 7 asked, so the estimate went up.' },
+      { d: dd(1), who: 'hebomb', text: 'Lat pulldown goes up next time.', why: 'Every set made its reps: 10, 10, 10 × 140 lbs.' },
+      { d: dd(1), who: 'hebomb', text: 'Leg press holds its weight.', why: 'Set 3 came in at 8 of 10. It steps up once every set makes it.' },
+      { d: dd(2), who: 'computer', text: 'Saturday changed to Lower body.' },
+      { d: dd(3), who: 'hebomb', text: '6 weeks in a row with two or more workouts.', why: 'Noticed after this workout and said on its finish screen.' },
+      { d: dd(4), who: 'phone', text: 'Tomorrow changed to Upper body.' }
+    ];
+  }
   if (demo && !M.strengths) M.strengths = [{ id: 'climb', title: 'Climbing', line: 'Bench press up 14% in eight weeks.' }, { id: 'steady', title: 'Steady', line: '6 weeks in a row with two or more workouts.' }];
   renderToday(); renderProgress(); chart(); planTab(); liftsTab(); history(); blockView(); coming();
   if (!shown) { shown = true; try { var t = sessionStorage.getItem('hb.tab'); if (['plan', 'progress', 'history'].indexOf(t) >= 0) go(t); } catch (e) {} }
@@ -628,7 +649,7 @@ function renderToday() {
   if (n) bits.push('<b>' + esc(n.day.t) + '</b> is next, ' + dayLabel(n.day.d, n.i).toLowerCase() + '.');
   if (st && st.amount && st.amount[0] === '+') bits.push('Your strength score is up ' + st.amount.slice(1) + ' ' + esc(st.when) + '.');
   $('helloSub').innerHTML = bits.join(' ');
-  nextCard(n); week7(); scoreMini(); strengthsList(); recentList();
+  nextCard(n); week7(); scoreMini(); notesList(); recentList();
 }
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
 
@@ -726,7 +747,30 @@ function scoreMini() {
   }
 }
 var STRENGTH_ICON = { stamina: '♥', steady: '▦', burst: '⚡', legs: '▲', press: '▲', climb: '↗' };
+// Trainer's notes (kind "notes", build 315): hebomb's decisions and your changes, newest first. Five, then Show all.
+var notesAll = false;
+function notesList() {
+  var list = M.notes || [];
+  $('notesSec').hidden = !list.length;
+  var box = $('notesList'); box.innerHTML = '';
+  var today = ymd(new Date()), yest = ymd(new Date(Date.now() - 864e5));
+  (notesAll ? list : list.slice(0, 5)).forEach(function (x) {
+    var r = el('div', 'nrow');
+    var w = x.d === today ? 'Today' : x.d === yest ? 'Yesterday' : d(x.d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    if (x.d > today) w = d(x.d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    r.appendChild(el('span', 'when', w));
+    var t = el('div');
+    var who = x.who === 'hebomb' ? 'hebomb' : x.who === 'computer' ? 'You · computer' : x.who === 'watch' ? 'You · watch' : 'You · iPhone';
+    t.appendChild(el('span', 'who' + (x.who === 'hebomb' ? ' hb' : ''), who));
+    t.appendChild(el('b', '', x.text));
+    if (x.why) t.appendChild(el('div', 'why', x.why));
+    r.appendChild(t); box.appendChild(r);
+  });
+  $('notesMore').hidden = notesAll || list.length <= 5;
+}
+$('notesMore').addEventListener('click', function () { notesAll = true; notesList(); });
 function strengthsList() {
+  if (!$('strengthsSec')) return;
   var list = M.strengths || [];
   $('strengthsSec').hidden = !list.length;
   var box = $('strengths'); box.innerHTML = '';
@@ -909,6 +953,10 @@ function settingsTab() {
   row('Supersets', 'Pairs small lifts for opposite muscles to save time', function (b) {
     var t = el('button', 'tog'); t.setAttribute('role', 'switch'); t.setAttribute('aria-checked', S.supersets ? 'true' : 'false'); t.setAttribute('aria-label', 'Supersets'); t.disabled = !canEdit;
     t.onclick = function () { sendSetting({ supersets: !S.supersets }); }; b.appendChild(t);
+  });
+  if (S.lighter != null) row('A lighter week every fourth week', 'After three hard weeks: about half the sets at 90%, and your numbers hold', function (b) {
+    var t = el('button', 'tog'); t.setAttribute('role', 'switch'); t.setAttribute('aria-checked', S.lighter ? 'true' : 'false'); t.setAttribute('aria-label', 'Lighter weeks'); t.disabled = !canEdit;
+    t.onclick = function () { sendSetting({ lighter: !S.lighter }); }; b.appendChild(t);
   });
   if (S.topSets != null) row('Top set first', 'Big lifts start with as many as you can, then lighter sets so the last one still gets all its reps', function (b) {
     var t = el('button', 'tog'); t.setAttribute('role', 'switch'); t.setAttribute('aria-checked', S.topSets ? 'true' : 'false'); t.setAttribute('aria-label', 'Top set first'); t.disabled = !canEdit;
