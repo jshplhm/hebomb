@@ -772,7 +772,6 @@ function notesList() {
   var all = M.notes || [];
   $('notesSec').hidden = !all.length;
   var list = all.filter(function (x) { return notesWho === 'all' || (notesWho === 'hebomb') === (x.who === 'hebomb'); });
-  $('notesSec').hidden = !list.length;
   var box = $('notesList'); box.innerHTML = '';
   var today = ymd(new Date()), yest = ymd(new Date(Date.now() - 864e5));
   (notesAll ? list : list.slice(0, 5)).forEach(function (x) {
